@@ -1,0 +1,46 @@
+    </div>
+  </div>
+</div>
+<script>
+  // Show / hide password
+  document.querySelectorAll('[data-toggle-password]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var input = document.getElementById(btn.getAttribute('data-toggle-password'));
+      var show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+      btn.querySelector('.slash').style.display = show ? 'inline' : 'none';
+    });
+  });
+  // Theme toggle
+  var authThemeBtn = document.getElementById('theme-toggle');
+  if (authThemeBtn) {
+    var updateAuthBtn = function (dark) {
+      authThemeBtn.setAttribute('title', dark ? 'Current: Dark Mode (Click for Light Mode)' : 'Current: Light Mode (Click for Dark Mode)');
+      authThemeBtn.setAttribute('aria-label', dark ? 'Switch to Light Mode' : 'Switch to Dark Mode');
+      authThemeBtn.setAttribute('aria-checked', dark ? 'true' : 'false');
+    };
+    updateAuthBtn(document.documentElement.getAttribute('data-theme') === 'dark');
+    authThemeBtn.addEventListener('click', function (e) {
+      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      var targetBtn = e.target.closest('.auth-theme-btn, .theme-switch-btn');
+      var next;
+      if (targetBtn) {
+        if (targetBtn.classList.contains('auth-theme-sun') || targetBtn.classList.contains('theme-btn-light')) next = 'light';
+        else if (targetBtn.classList.contains('auth-theme-moon') || targetBtn.classList.contains('theme-btn-dark')) next = 'dark';
+      }
+      if (!next) {
+        next = isDark ? 'light' : 'dark';
+      }
+      if (next === 'dark') {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+      updateAuthBtn(next === 'dark');
+      try { localStorage.setItem('educare-theme', next); } catch (err) {}
+    });
+  }
+</script>
+</body>
+</html>

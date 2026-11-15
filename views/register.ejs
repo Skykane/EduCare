@@ -1,0 +1,161 @@
+<%- include('partials/auth-top', { title: 'Register' }) %>
+<h2 class="auth-title">Create an account</h2>
+<p class="auth-sub" id="auth-sub-desc">Select your role to sign up for the EduCare System.</p>
+<% if (errors.length) { %>
+  <div class="auth-alert error"><ul><% errors.forEach(function (e) { %><li><%= e %></li><% }) %></ul></div>
+<% } %>
+<form method="post" action="/register" class="auth-form" id="register-form">
+  <!-- Role Selector -->
+  <div class="role-selector-wrap">
+    <label class="role-selector-title">Select your account role:</label>
+    <div class="role-cards-grid">
+      <label class="role-card <%= (values.role || 'requester') === 'requester' ? 'active' : '' %>" for="role-student">
+        <input type="radio" id="role-student" name="role" value="requester" <%= (values.role || 'requester') === 'requester' ? 'checked' : '' %>>
+        <div class="role-card-content">
+          <span class="role-card-icon"><%- include('partials/auth-icons', { icon: 'user' }) %></span>
+          <div class="role-card-info">
+            <strong>Student</strong>
+            <small>Official Student ID</small>
+          </div>
+        </div>
+      </label>
+
+      <label class="role-card <%= values.role === 'admin' ? 'active' : '' %>" for="role-admin">
+        <input type="radio" id="role-admin" name="role" value="admin" <%= values.role === 'admin' ? 'checked' : '' %>>
+        <div class="role-card-content">
+          <span class="role-card-icon"><%- include('partials/auth-icons', { icon: 'lock' }) %></span>
+          <div class="role-card-info">
+            <strong>Admin</strong>
+            <small>Administrator</small>
+          </div>
+        </div>
+      </label>
+
+      <label class="role-card <%= values.role === 'technician' ? 'active' : '' %>" for="role-technician">
+        <input type="radio" id="role-technician" name="role" value="technician" <%= values.role === 'technician' ? 'checked' : '' %>>
+        <div class="role-card-content">
+          <span class="role-card-icon"><%- include('partials/auth-icons', { icon: 'building' }) %></span>
+          <div class="role-card-info">
+            <strong>Technician</strong>
+            <small>Maintenance Staff</small>
+          </div>
+        </div>
+      </label>
+    </div>
+  </div>
+
+  <!-- Student ID (Shown & required only for Student role) -->
+  <div class="input-icon" id="student-id-wrap" style="<%= (values.role || 'requester') === 'requester' ? '' : 'display:none;' %>">
+    <%- include('partials/auth-icons', { icon: 'id-card' }) %>
+    <label for="studentId" class="visually-hidden">Student ID</label>
+    <input type="text" id="studentId" name="studentId" value="<%= values.studentId || '' %>" placeholder="Official Student ID (e.g. 2024-00101)" <%= (values.role || 'requester') === 'requester' ? 'required' : '' %> maxlength="50" autocomplete="off" autofocus>
+  </div>
+
+  <div class="input-icon">
+    <%- include('partials/auth-icons', { icon: 'user' }) %>
+    <label for="name" class="visually-hidden">Full Name</label>
+    <input type="text" id="name" name="name" value="<%= values.name || '' %>" placeholder="Full Name" required maxlength="120" autocomplete="name">
+  </div>
+
+  <div class="input-icon">
+    <%- include('partials/auth-icons', { icon: 'mail' }) %>
+    <label for="email" class="visually-hidden">Email Address</label>
+    <input type="email" id="email" name="email" value="<%= values.email || '' %>" placeholder="Active Email Address (e.g. name@gmail.com)" required maxlength="200" autocomplete="email">
+  </div>
+
+  <div class="input-icon" id="dept-wrap">
+    <%- include('partials/auth-icons', { icon: 'building' }) %>
+    <label for="department" class="visually-hidden">Department / Grade & Section</label>
+    <input type="text" id="department" name="department" value="<%= values.department || '' %>" placeholder="<%= values.role === 'admin' ? 'Office / Unit (e.g. Administration)' : values.role === 'technician' ? 'Department (e.g. Maintenance)' : 'Grade & Section (e.g. Grade 11 - STEM A)' %>" maxlength="150">
+  </div>
+
+  <div class="input-icon">
+    <%- include('partials/auth-icons', { icon: 'lock' }) %>
+    <label for="password" class="visually-hidden">Password</label>
+    <input type="password" id="password" name="password" placeholder="Password (min 8 chars, uppercase, number & symbol)" required minlength="8" autocomplete="new-password">
+    <button type="button" class="eye" data-toggle-password="password" aria-label="Show password"><%- include('partials/auth-icons', { icon: 'eye' }) %></button>
+  </div>
+
+  <div class="input-icon">
+    <%- include('partials/auth-icons', { icon: 'lock' }) %>
+    <label for="confirm" class="visually-hidden">Confirm Password</label>
+    <input type="password" id="confirm" name="confirm" placeholder="Confirm Password" required minlength="8" autocomplete="new-password">
+  </div>
+
+  <div class="pw-rules" style="margin: 6px 0 12px; font-size: 11.5px; padding: 10px 12px;">
+    <div style="font-weight: 700; color: #475569; margin-bottom: 4px;">Password must contain:</div>
+    <div style="color: #64748b; line-height: 1.5;">
+      • At least 8 characters<br>
+      • Uppercase (A-Z) and lowercase (a-z) letters<br>
+      • At least one number (0-9) and one symbol (!@#$%^&*)
+    </div>
+  </div>
+
+  <!-- Verification & Approval Notice -->
+  <div class="auth-notice-box">
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <span><strong>Verification Required:</strong> Every new registration requires administrator review and approval before login access is granted.</span>
+  </div>
+
+  <button class="auth-btn" type="submit" style="margin-top:10px">Submit Registration for Approval</button>
+</form>
+<p class="auth-foot">Already have an account? &nbsp;<a href="/login">Log in</a></p>
+
+<script>
+  (function () {
+    var radios = document.querySelectorAll('input[name="role"]');
+    var studentIdWrap = document.getElementById('student-id-wrap');
+    var studentIdInput = document.getElementById('studentId');
+    var deptInput = document.getElementById('department');
+    var descEl = document.getElementById('auth-sub-desc');
+
+    function updateRoleUI(role) {
+      document.querySelectorAll('.role-card').forEach(function (c) {
+        c.classList.remove('active');
+      });
+      var activeRadio = document.querySelector('input[name="role"][value="' + role + '"]');
+      if (activeRadio) {
+        activeRadio.checked = true;
+        var parentCard = activeRadio.closest('.role-card');
+        if (parentCard) parentCard.classList.add('active');
+      }
+
+      if (role === 'requester') {
+        if (studentIdWrap) studentIdWrap.style.display = 'block';
+        if (studentIdInput) {
+          studentIdInput.required = true;
+          studentIdInput.placeholder = 'Official Student ID (e.g. 2024-00101)';
+        }
+        if (deptInput) deptInput.placeholder = 'Grade & Section (e.g. Grade 11 - STEM A)';
+        if (descEl) descEl.textContent = 'For officially registered students of St. Anthony Center of Science and Technology.';
+      } else if (role === 'admin') {
+        if (studentIdWrap) studentIdWrap.style.display = 'none';
+        if (studentIdInput) {
+          studentIdInput.required = false;
+          studentIdInput.value = '';
+        }
+        if (deptInput) deptInput.placeholder = 'Office / Unit (e.g. Administration, Principal\'s Office)';
+        if (descEl) descEl.textContent = 'Register for administrator access (requires admin approval).';
+      } else if (role === 'technician') {
+        if (studentIdWrap) studentIdWrap.style.display = 'none';
+        if (studentIdInput) {
+          studentIdInput.required = false;
+          studentIdInput.value = '';
+        }
+        if (deptInput) deptInput.placeholder = 'Department (e.g. Maintenance & Technical Services)';
+        if (descEl) descEl.textContent = 'Register for technician access (requires admin approval).';
+      }
+    }
+
+    radios.forEach(function (r) {
+      r.addEventListener('change', function () {
+        updateRoleUI(this.value);
+      });
+    });
+
+    // Initialize with current value
+    var checkedRadio = document.querySelector('input[name="role"]:checked');
+    if (checkedRadio) updateRoleUI(checkedRadio.value);
+  })();
+</script>
+<%- include('partials/auth-bottom') %>

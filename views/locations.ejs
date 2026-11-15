@@ -1,0 +1,235 @@
+<%- include('partials/header') %>
+<%
+  var locExtraActions = `
+    <a class="btn-banner-sub" href="/equipment/new">${icon('plus')} Add Equipment</a>
+    <a class="btn-banner-sub" href="/categories">${icon('tag')} Categories</a>
+  `;
+%>
+<%- include('partials/header-banner', {
+  breadcrumb: '<a href="/">Home</a> &rsaquo; <a href="/equipment">Equipment Management</a> &rsaquo; Locations',
+  title: 'Campus Locations & Rooms',
+  subtitle: 'Monitor equipment deployment, room distribution, and operational readiness across all campus facilities.',
+  extraActions: locExtraActions
+}) %>
+
+<!-- Summary Statistics Cards -->
+<div class="stats" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); margin-bottom: 20px;">
+  <div class="stat" style="border-left: 4px solid var(--primary);">
+    <div class="label" style="display: flex; align-items: center; gap: 6px;">
+      <%- icon('building') %> Total Locations
+    </div>
+    <div class="value"><%= totalLocationsCount %></div>
+    <span class="sub" style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">Campus rooms & facilities</span>
+  </div>
+
+  <div class="stat green">
+    <div class="label" style="display: flex; align-items: center; gap: 6px;">
+      <%- icon('check-circle') %> Operational Assets
+    </div>
+    <div class="value"><%= totals['Operational'] || 0 %></div>
+    <span class="sub" style="font-size: 11.5px; color: var(--muted); margin-top: 2px;"><%= totalEquipment ? Math.round(((totals['Operational'] || 0) / totalEquipment) * 100) : 0 %>% of total equipment</span>
+  </div>
+
+  <div class="stat <%= totalAttention > 0 ? 'red' : '' %>">
+    <div class="label" style="display: flex; align-items: center; gap: 6px;">
+      <%- icon('alert') %> Needing Attention
+    </div>
+    <div class="value"><%= totalAttention %></div>
+    <span class="sub" style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">Under Repair / Needs PM</span>
+  </div>
+
+  <div class="stat">
+    <div class="label" style="display: flex; align-items: center; gap: 6px;">
+      <%- icon('monitor') %> Total Deployed Assets
+    </div>
+    <div class="value"><%= totalEquipment %></div>
+    <span class="sub" style="font-size: 11.5px; color: var(--muted); margin-top: 2px;">Tracked campus-wide</span>
+  </div>
+</div>
+
+<!-- Search & Location Management Filter Card -->
+<div class="card" style="margin-bottom: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+    <form method="get" action="/locations" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex: 1; min-width: 280px;">
+      <div style="position: relative; flex: 1; min-width: 220px;">
+        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; display: grid; place-items: center;">
+          <%- icon('search') %>
+        </span>
+        <input type="search" name="q" value="<%= q || '' %>" placeholder="Search room, building, or laboratory..." style="width: 100%; height: 38px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 12px 0 38px; font-size: 13px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button type="submit" class="btn btn-sm btn-primary">Search</button>
+        <% if (q) { %>
+          <a href="/locations" class="btn btn-sm btn-light">Clear</a>
+        <% } %>
+      </div>
+    </form>
+
+    <button type="button" class="btn btn-sm btn-light" onclick="openRenameModal('', '')" style="display: inline-flex; align-items: center; gap: 6px;">
+      <%- icon('edit') %> Rename / Reassign Location
+    </button>
+  </div>
+</div>
+
+<!-- Campus Locations Table Card -->
+<div class="card">
+  <div class="card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+    <div>
+      <h2 style="margin: 0; font-size: 17px; font-weight: 700;">Equipment Distribution by Location (<%= locations.length %>)</h2>
+      <p style="margin: 3px 0 0; font-size: 12.5px; color: var(--muted);">Click any location name to view and manage its assigned equipment inventory.</p>
+    </div>
+  </div>
+
+  <% if (!locations.length) { %>
+    <div style="text-align: center; padding: 48px 16px;">
+      <span style="display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: rgba(140, 23, 36, 0.1); color: var(--primary); margin-bottom: 12px;">
+        <%- icon('map-pin') %>
+      </span>
+      <strong style="display: block; font-size: 15px; color: var(--text);">No Campus Locations Found</strong>
+      <p style="color: var(--muted); font-size: 13px; max-width: 420px; margin: 4px auto 16px;">
+        <% if (q) { %>
+          No room or facility matched "<%= q %>". Try clearing your search keyword.
+        <% } else { %>
+          No campus equipment recorded with locations yet. Add equipment items to automatically populate campus locations.
+        <% } %>
+      </p>
+      <% if (q) { %>
+        <a href="/locations" class="btn btn-sm btn-light">Clear Search</a>
+      <% } else { %>
+        <a href="/equipment/new" class="btn btn-sm btn-primary"><%- icon('plus') %> Add Equipment</a>
+      <% } %>
+    </div>
+  <% } else { %>
+    <div class="table-wrap">
+      <table class="stack-table">
+        <thead>
+          <tr>
+            <th style="min-width: 180px;">Campus Location / Room</th>
+            <th style="min-width: 150px;">Health Readiness</th>
+            <% C.EQUIPMENT_STATUSES.forEach(function (s) { %>
+              <th class="text-right" style="font-size: 12px;"><%= s %></th>
+            <% }) %>
+            <th class="text-right" style="min-width: 80px;">Total</th>
+            <th class="text-right" style="min-width: 160px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% locations.forEach(function (loc) { %>
+            <tr>
+              <td data-label="Location">
+                <a href="/equipment?location=<%= encodeURIComponent(loc.name) %>" style="display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px;">
+                  <span style="color: var(--primary);"><%- icon('map-pin') %></span>
+                  <%= loc.name %>
+                </a>
+              </td>
+              <td data-label="Health">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div style="flex: 1; height: 8px; background: var(--border); border-radius: 999px; overflow: hidden; min-width: 60px;">
+                    <div style="width: <%= loc.opPercent %>%; height: 100%; background: <%= loc.opPercent >= 80 ? 'var(--green)' : (loc.opPercent >= 50 ? 'var(--gold)' : 'var(--red)') %>; border-radius: 999px;"></div>
+                  </div>
+                  <span style="font-size: 12px; font-weight: 700; color: <%= loc.opPercent >= 80 ? 'var(--green)' : (loc.opPercent >= 50 ? '#d97706' : 'var(--red)') %>;">
+                    <%= loc.opPercent %>%
+                  </span>
+                </div>
+              </td>
+              <% C.EQUIPMENT_STATUSES.forEach(function (s) { %>
+                <td data-label="<%= s %>" class="text-right" style="font-size: 13px;">
+                  <% if (loc.counts[s]) { %>
+                    <span class="badge <%= statusClass(s) %>" style="font-size: 11px; padding: 2px 7px;">
+                      <%= loc.counts[s] %>
+                    </span>
+                  <% } else { %>
+                    <span style="color: var(--muted); opacity: 0.5;">·</span>
+                  <% } %>
+                </td>
+              <% }) %>
+              <td data-label="Total Assets" class="text-right">
+                <strong style="font-size: 14px;"><%= loc.total %></strong>
+              </td>
+              <td data-label="Actions" class="text-right nowrap">
+                <div style="display: inline-flex; gap: 6px; align-items: center;">
+                  <a href="/equipment?location=<%= encodeURIComponent(loc.name) %>" class="btn btn-sm btn-primary" title="View all equipment in <%= loc.name %>">
+                    View (<%= loc.total %>) &rarr;
+                  </a>
+                  <button type="button" class="btn btn-sm btn-light" onclick="openRenameModal('<%= loc.name.replace(/'/g, "\\'") %>', '<%= loc.name.replace(/'/g, "\\'") %>')" title="Rename location">
+                    <%- icon('edit') %>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<!-- Modal Dialog for Batch Renaming / Reassigning Location -->
+<dialog id="renameLocationModal" style="border: none; border-radius: 22px; padding: 0; box-shadow: 0 25px 65px -12px rgba(15,23,42,0.4), 0 10px 25px -8px rgba(15,23,42,0.25); max-width: 480px; width: 90vw; background: var(--surface); color: var(--text); scrollbar-width: none;">
+  <div style="padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+    <h3 style="margin: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 8px;">
+      <%- icon('map-pin') %> Rename / Reassign Location
+    </h3>
+    <button type="button" onclick="closeRenameModal()" style="background: none; border: none; cursor: pointer; color: var(--muted); font-size: 18px; padding: 4px;">✕</button>
+  </div>
+  <form method="post" action="/locations/rename" style="padding: 22px 24px;">
+    <p style="margin: 0 0 16px; font-size: 13px; color: var(--muted); line-height: 1.45;">
+      Renaming a location will automatically update all equipment records currently assigned to that room.
+    </p>
+
+    <div class="field" style="margin-bottom: 14px;">
+      <label for="modalOldName" style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">Current Location *</label>
+      <select id="modalOldName" name="oldName" required style="width: 100%; height: 40px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 10px; font-size: 13px; background: var(--surface); color: var(--text);">
+        <option value="">-- Select location to rename --</option>
+        <% rawLocationNames.forEach(function (l) { %>
+          <option value="<%= l %>"><%= l %></option>
+        <% }) %>
+      </select>
+    </div>
+
+    <div class="field" style="margin-bottom: 20px;">
+      <label for="modalNewName" style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">New Location Name *</label>
+      <input type="text" id="modalNewName" name="newName" required maxlength="150" placeholder="e.g. Science Laboratory 2, Room 304" style="width: 100%; height: 40px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 12px; font-size: 13px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button type="button" class="btn btn-light" onclick="closeRenameModal()">Cancel</button>
+      <button type="submit" class="btn btn-primary">Save & Rename All</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+  function openRenameModal(oldName, prefillNew) {
+    var modal = document.getElementById('renameLocationModal');
+    if (!modal) return;
+    var sel = document.getElementById('modalOldName');
+    var input = document.getElementById('modalNewName');
+    if (sel && oldName) sel.value = oldName;
+    if (input) input.value = prefillNew || '';
+    if (typeof modal.showModal === 'function') {
+      modal.showModal();
+    } else {
+      modal.setAttribute('open', '');
+    }
+  }
+
+  function closeRenameModal() {
+    var modal = document.getElementById('renameLocationModal');
+    if (!modal) return;
+    if (typeof modal.close === 'function') {
+      modal.close();
+    } else {
+      modal.removeAttribute('open');
+    }
+  }
+
+  var modal = document.getElementById('renameLocationModal');
+  if (modal) {
+    modal.addEventListener('click', function (e) {
+      if (e.target === modal) closeRenameModal();
+    });
+  }
+</script>
+
+<%- include('partials/footer') %>

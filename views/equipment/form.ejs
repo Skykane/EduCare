@@ -1,0 +1,441 @@
+<%- include('../partials/header') %>
+<div class="form-floating-wrap">
+<div class="page-head">
+  <div>
+    <h1><%= equipment.id ? 'Edit Equipment' : 'Add Equipment' %></h1>
+    <p>Equipment details, condition, and routine checkup settings.</p>
+  </div>
+  <a class="btn btn-light" href="<%= equipment.id ? '/equipment/' + equipment.id : '/equipment' %>">Cancel</a>
+</div>
+
+<%- include('../partials/errors', { errors: errors }) %>
+
+<form method="post" action="<%= equipment.id ? '/equipment/' + equipment.id : '/equipment' %>" enctype="multipart/form-data">
+  <div class="card card-floating">
+    <h2>Equipment Profile</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="code">Equipment ID <span class="hint">(leave blank to auto-generate)</span></label>
+        <input type="text" id="code" name="code" value="<%= equipment.code || '' %>" placeholder="e.g. EQ-0011" maxlength="40">
+      </div>
+      <div class="field">
+        <label for="name">Name *</label>
+        <input type="text" id="name" name="name" value="<%= equipment.name || '' %>" required maxlength="150">
+      </div>
+      <div class="field">
+        <label for="model">Model</label>
+        <input type="text" id="model" name="model" value="<%= equipment.model || '' %>" maxlength="150">
+      </div>
+      <div class="field">
+        <label for="serialNumber">Serial Number</label>
+        <input type="text" id="serialNumber" name="serialNumber" value="<%= equipment.serialNumber || '' %>" maxlength="100">
+      </div>
+      <div class="field">
+        <label for="categoryId">Category *</label>
+        <select id="categoryId" name="categoryId" required>
+          <option value="">Choose…</option>
+          <% categories.forEach(function (c) { %><option value="<%= c.id %>" <%= equipment.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
+        </select>
+      </div>
+      <div class="field">
+        <label for="acquisitionDate">Date Purchased</label>
+        <input type="date" id="acquisitionDate" name="acquisitionDate" value="<%= equipment.acquisitionDate || '' %>" max="<%= todayISO() %>">
+      </div>
+      <div class="field">
+        <label for="department">Department *</label>
+        <input type="text" id="department" name="department" value="<%= equipment.department || '' %>" list="departments" required maxlength="150">
+        <datalist id="departments"><% departments.forEach(function (d) { %><option value="<%= d %>"><% }) %></datalist>
+      </div>
+      <div class="field">
+        <label for="location">Location *</label>
+        <input type="text" id="location" name="location" value="<%= equipment.location || '' %>" list="locations" required maxlength="150">
+        <datalist id="locations"><% locations.forEach(function (l) { %><option value="<%= l %>"><% }) %></datalist>
+      </div>
+      <div class="field">
+        <label for="status">Condition</label>
+        <select id="status" name="status">
+          <% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= equipment.status === s ? 'selected' : '' %>><%= s %></option><% }) %>
+        </select>
+      </div>
+      <div class="field">
+        <label for="importance">Importance Level <span class="hint">(priority level)</span></label>
+        <select id="importance" name="importance">
+          <% Object.keys(C.IMPORTANCE).forEach(function (k) { %><option value="<%= k %>" <%= Number(equipment.importance) === Number(k) ? 'selected' : '' %>><%= k %> – <%= C.IMPORTANCE[k] %></option><% }) %>
+        </select>
+      </div>
+      <div class="field full">
+        <label for="notes">Notes</label>
+        <textarea id="notes" name="notes" maxlength="2000"><%= equipment.notes || '' %></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-floating">
+    <div class="card-head" style="margin-bottom: 12px;">
+      <div>
+        <h2 style="margin: 0;">Equipment Photo</h2>
+        <p class="muted" style="margin: 2px 0 0; font-size: 13px;">Upload, preview, edit orientation, or replace equipment photo.</p>
+      </div>
+      <% if (equipment.photo) { %>
+        <span class="badge" style="background: rgba(37, 99, 235, 0.1); color: #2563eb; font-weight: 600;">Has Photo</span>
+      <% } %>
+    </div>
+
+    <div class="field">
+      <div class="photo-upload-container">
+        <!-- Hidden input for photo removal flag -->
+        <input type="hidden" name="removePhoto" id="removePhoto" value="0">
+
+        <!-- Hidden file input -->
+        <input type="file" id="photo" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
+
+        <!-- Dropzone Box (shown when no photo exists or when photo is removed) -->
+        <div id="dropzone-box" style="<%= equipment.photo ? 'display:none;' : '' %>">
+          <label class="dropzone" for="photo" id="dropzone">
+            <span class="dz-ic"><%- icon('camera') %></span>
+            <strong>Upload Equipment Photo</strong>
+            <span>Click to browse or drag & drop an image (JPG, PNG, GIF, WEBP, max 5 MB)</span>
+          </label>
+        </div>
+
+        <!-- Photo Editor & Preview Box -->
+        <div id="photo-editor-box" class="photo-editor-card" style="<%= equipment.photo ? '' : 'display:none;' %>">
+          <!-- Info Badge -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <span class="photo-info-badge" id="photo-badge">
+              <%- icon('check') %> <span id="photo-badge-text"><%= equipment.photo ? 'Current Photo' : 'Selected Photo' %></span>
+            </span>
+            <span class="muted" style="font-size:12px;" id="photo-edit-hint">Click tools below to adjust</span>
+          </div>
+
+          <!-- Preview Stage -->
+          <div class="photo-preview-stage" id="preview-stage">
+            <img src="<%= equipment.photo ? '/uploads/' + equipment.photo : '' %>" alt="Equipment photo preview" id="photo-preview-img" crossorigin="anonymous">
+          </div>
+
+          <!-- Edit & Adjustment Tools -->
+          <div class="photo-tools-bar" id="photo-tools-bar">
+            <button type="button" class="tool-btn" id="btn-rotate-left" title="Rotate 90° counter-clockwise">
+              <%- icon('refresh') %> Rotate Left
+            </button>
+            <button type="button" class="tool-btn" id="btn-rotate-right" title="Rotate 90° clockwise">
+              <%- icon('refresh') %> Rotate Right
+            </button>
+            <button type="button" class="tool-btn" id="btn-flip" title="Flip horizontally">
+              Flip
+            </button>
+            <button type="button" class="tool-btn" id="btn-reset-edits" title="Reset rotation and flip">
+              Reset
+            </button>
+          </div>
+
+          <!-- Main Actions -->
+          <div class="photo-editor-actions">
+            <button type="button" class="btn btn-sm btn-light" id="btn-change-photo">
+              <%- icon('camera') %> Choose Different Photo
+            </button>
+            <button type="button" class="btn btn-sm btn-danger" id="btn-remove-photo">
+              <%- icon('trash') %> Remove Photo
+            </button>
+          </div>
+        </div>
+
+        <!-- Restore Notice (shown when existing photo is removed but user wants to undo) -->
+        <div id="restore-photo-notice" style="display:none;margin-top:10px;padding:10px 14px;background:rgba(239,68,68,0.08);border:1px dashed var(--red);border-radius:8px;">
+          <span style="font-size:13px;color:var(--red);">Current photo will be removed upon saving.</span>
+          <button type="button" class="btn-link" id="btn-undo-remove" style="margin-left:8px;font-weight:600;text-decoration:underline;cursor:pointer;">Undo and keep original photo</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card card-floating">
+    <h2>Routine Maintenance & Checkups</h2>
+    <div class="form-grid">
+      <div class="field">
+        <label for="maintenanceIntervalDays">Checkup interval in days <span class="hint">(0 = no schedule)</span></label>
+        <input type="number" id="maintenanceIntervalDays" name="maintenanceIntervalDays" min="0" max="3650" value="<%= equipment.maintenanceIntervalDays || 0 %>">
+      </div>
+      <div class="field">
+        <label for="lastMaintenanceDate">Last maintenance checkup</label>
+        <input type="date" id="lastMaintenanceDate" name="lastMaintenanceDate" value="<%= equipment.lastMaintenanceDate || '' %>" max="<%= todayISO() %>">
+      </div>
+    </div>
+    <p class="muted" style="margin:0">Next checkup date = last checkup (or purchase date) + interval days. Common intervals: 30 (monthly), 90 (every 3 months), 180 (every 6 months), 365 (yearly).</p>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:20px;">
+    <a class="btn btn-light" href="<%= equipment.id ? '/equipment/' + equipment.id : '/equipment' %>">Cancel</a>
+    <button class="btn btn-primary" type="submit" id="btn-submit-form" style="padding:12px 28px;font-weight:700;"><%- icon('check') %> <%= equipment.id ? 'Save Changes' : 'Add Equipment' %></button>
+  </div>
+</form>
+</div>
+
+<script>
+  (function () {
+    var form = document.querySelector('form');
+    var photoInput = document.getElementById('photo');
+    var dropzoneBox = document.getElementById('dropzone-box');
+    var dropzone = document.getElementById('dropzone');
+    var editorBox = document.getElementById('photo-editor-box');
+    var previewImg = document.getElementById('photo-preview-img');
+    var badgeText = document.getElementById('photo-badge-text');
+    var editHint = document.getElementById('photo-edit-hint');
+    var removeInput = document.getElementById('removePhoto');
+    var btnChangePhoto = document.getElementById('btn-change-photo');
+    var btnRemovePhoto = document.getElementById('btn-remove-photo');
+    var restoreNotice = document.getElementById('restore-photo-notice');
+    var btnUndoRemove = document.getElementById('btn-undo-remove');
+    var btnRotateLeft = document.getElementById('btn-rotate-left');
+    var btnRotateRight = document.getElementById('btn-rotate-right');
+    var btnFlip = document.getElementById('btn-flip');
+    var btnResetEdits = document.getElementById('btn-reset-edits');
+    var btnSubmit = document.getElementById('btn-submit-form');
+
+    var originalPhotoUrl = '<%= equipment.photo ? "/uploads/" + equipment.photo : "" %>';
+    var rotation = 0;
+    var flipped = false;
+    var currentFile = null;
+    var isDirtyEdit = false;
+
+    function applyTransforms() {
+      if (!previewImg) return;
+      var scaleX = flipped ? -1 : 1;
+      previewImg.style.transform = 'rotate(' + rotation + 'deg) scaleX(' + scaleX + ')';
+      if (rotation !== 0 || flipped) {
+        isDirtyEdit = true;
+        editHint.textContent = 'Edits applied (' + rotation + '°' + (flipped ? ', flipped' : '') + ')';
+        editHint.style.color = 'var(--primary, #2563eb)';
+      } else {
+        isDirtyEdit = false;
+        editHint.textContent = 'Click tools to adjust';
+        editHint.style.color = '';
+      }
+    }
+
+    function resetTransforms() {
+      rotation = 0;
+      flipped = false;
+      applyTransforms();
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function handleSelectedFile(file) {
+      if (!file) return;
+      if (!file.type.match(/^image\//i)) {
+        alert('Please choose an image file (JPG, PNG, GIF, WEBP).');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image exceeds 5 MB. Please choose a smaller photo.');
+        return;
+      }
+
+      currentFile = file;
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        previewImg.src = e.target.result;
+        resetTransforms();
+        badgeText.textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+        editorBox.style.display = 'flex';
+        dropzoneBox.style.display = 'none';
+        removeInput.value = '0';
+        if (restoreNotice) restoreNotice.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    // Always reset input value when clicked so selecting the same or any file fires 'change'
+    if (photoInput) {
+      photoInput.addEventListener('click', function () {
+        this.value = '';
+      });
+      photoInput.addEventListener('change', function () {
+        if (this.files && this.files[0]) {
+          handleSelectedFile(this.files[0]);
+        }
+      });
+    }
+
+    if (btnChangePhoto && photoInput) {
+      btnChangePhoto.addEventListener('click', function (e) {
+        e.preventDefault();
+        photoInput.click();
+      });
+    }
+
+    // Drag and drop handlers
+    if (dropzone) {
+      ['dragenter', 'dragover'].forEach(function (evt) {
+        dropzone.addEventListener(evt, function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.add('dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach(function (evt) {
+        dropzone.addEventListener(evt, function (e) {
+          e.preventDefault();
+          e.stopPropagation();
+          dropzone.classList.remove('dragover');
+        });
+      });
+      dropzone.addEventListener('drop', function (e) {
+        var dt = e.dataTransfer;
+        if (dt && dt.files && dt.files[0]) {
+          handleSelectedFile(dt.files[0]);
+          try {
+            var dataTransfer = new DataTransfer();
+            dataTransfer.items.add(dt.files[0]);
+            photoInput.files = dataTransfer.files;
+          } catch (err) {}
+        }
+      });
+    }
+
+    // Also support dropping a replacement image onto the preview box
+    if (editorBox) {
+      editorBox.addEventListener('dragover', function (e) {
+        e.preventDefault();
+      });
+      editorBox.addEventListener('drop', function (e) {
+        e.preventDefault();
+        var dt = e.dataTransfer;
+        if (dt && dt.files && dt.files[0]) {
+          handleSelectedFile(dt.files[0]);
+          try {
+            var dataTransfer = new DataTransfer();
+            dataTransfer.items.add(dt.files[0]);
+            photoInput.files = dataTransfer.files;
+          } catch (err) {}
+        }
+      });
+    }
+
+    // Rotation & flip tool handlers
+    if (btnRotateRight) {
+      btnRotateRight.addEventListener('click', function () {
+        rotation = (rotation + 90) % 360;
+        applyTransforms();
+      });
+    }
+
+    if (btnRotateLeft) {
+      btnRotateLeft.addEventListener('click', function () {
+        rotation = (rotation - 90 + 360) % 360;
+        applyTransforms();
+      });
+    }
+
+    if (btnFlip) {
+      btnFlip.addEventListener('click', function () {
+        flipped = !flipped;
+        applyTransforms();
+      });
+    }
+
+    if (btnResetEdits) {
+      btnResetEdits.addEventListener('click', resetTransforms);
+    }
+
+    // Remove photo handler
+    if (btnRemovePhoto) {
+      btnRemovePhoto.addEventListener('click', function () {
+        removeInput.value = '1';
+        currentFile = null;
+        if (photoInput) photoInput.value = '';
+        editorBox.style.display = 'none';
+        dropzoneBox.style.display = 'block';
+        resetTransforms();
+
+        if (originalPhotoUrl && restoreNotice) {
+          restoreNotice.style.display = 'block';
+        }
+      });
+    }
+
+    // Undo remove handler
+    if (btnUndoRemove) {
+      btnUndoRemove.addEventListener('click', function () {
+        removeInput.value = '0';
+        restoreNotice.style.display = 'none';
+        previewImg.src = originalPhotoUrl;
+        badgeText.textContent = 'Current Photo';
+        editorBox.style.display = 'flex';
+        dropzoneBox.style.display = 'none';
+        resetTransforms();
+      });
+    }
+
+    // Canvas render helper to commit rotation/flip edits into an uploaded File
+    function exportEditedImage(img, rot, flip, callback) {
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+      var rad = (rot * Math.PI) / 180;
+      var is90or270 = (rot % 180 !== 0);
+      var w = is90or270 ? img.naturalHeight : img.naturalWidth;
+      var h = is90or270 ? img.naturalWidth : img.naturalHeight;
+
+      if (!w || !h) {
+        callback(null);
+        return;
+      }
+
+      canvas.width = w;
+      canvas.height = h;
+
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(rad);
+      if (flip) {
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+      canvas.toBlob(function (blob) {
+        callback(blob);
+      }, 'image/jpeg', 0.92);
+    }
+
+    // Form submit interception: if rotation or flip was applied, export and attach to photoInput
+    if (form) {
+      var isSubmitting = false;
+      form.addEventListener('submit', function (e) {
+        if (isSubmitting) return;
+
+        // If edits were made to orientation and photo is not removed
+        if (isDirtyEdit && removeInput.value !== '1' && previewImg && previewImg.src) {
+          e.preventDefault();
+          if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = 'Saving photo...';
+          }
+
+          try {
+            exportEditedImage(previewImg, rotation, flipped, function (blob) {
+              if (blob && window.DataTransfer) {
+                var dt = new DataTransfer();
+                var fname = (currentFile && currentFile.name) ? currentFile.name.replace(/\.[^.]+$/, '') + '-edited.jpg' : 'equipment-edited.jpg';
+                var editedFile = new File([blob], fname, { type: 'image/jpeg' });
+                dt.items.add(editedFile);
+                photoInput.files = dt.files;
+              }
+              isSubmitting = true;
+              form.submit();
+            });
+          } catch (err) {
+            // In case of CORS or canvas security block, fallback to regular form submit
+            isSubmitting = true;
+            form.submit();
+          }
+        }
+      });
+    }
+  })();
+</script>
+<%- include('../partials/footer') %>

@@ -1,0 +1,19 @@
+<div class="card">
+  <div class="card-head">
+    <h2>Equipment Status Summary</h2>
+    <a href="/equipment" class="btn btn-light btn-sm">View all</a>
+  </div>
+  <div class="stack" title="Equipment by condition">
+    <% equipmentByStatus.forEach(function (s) { if (s.count) { %>
+      <span class="<%= statusColor(s.status) %>" style="width:<%= (s.count / Math.max(totalEquipment, 1) * 100).toFixed(1) %>%" title="<%= s.status %>: <%= s.count %>"></span>
+    <% } }) %>
+  </div>
+  <% equipmentByStatus.forEach(function (s) { %>
+    <div class="bar-row">
+      <a href="/equipment?status=<%= encodeURIComponent(s.status) %>"><%= s.status %></a>
+      <div class="bar"><span class="<%= statusColor(s.status) %>" style="width:<%= (s.count / Math.max(totalEquipment, 1) * 100).toFixed(1) %>%"></span></div>
+      <strong class="text-right"><%= s.count %></strong>
+    </div>
+  <% }) %>
+  <p class="muted" style="margin:8px 0 0"><%= totalEquipment %> equipment item(s) in total.</p>
+</div>

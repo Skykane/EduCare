@@ -1,0 +1,16 @@
+{
+  "enabled": true,
+  "provider": "gmail",
+  "host": "smtp.gmail.com",
+  "port": 465,
+  "secure": false,
+  "user": "irishkanejoyce@gmail.com",
+  "pass": "abcdefghijklmnop",
+  "fromName": "Test School CST",
+  "fromEmail": "irishkanejoyce@gmail.com",
+  "adminEmail": "irishkanejoyce@gmail.com",
+  "notifyOnRegistration": true,
+  "notifyOnApproval": true,
+  "notifyOnRequests": true,
+  "notifyOnLogin": true
+}

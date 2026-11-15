@@ -1,0 +1,151 @@
+<%- include('partials/header') %>
+<%- include('partials/header-banner', {
+  breadcrumb: '<a href="/">Home</a> &rsaquo; <a href="/equipment">Equipment Management</a> &rsaquo; Categories',
+  title: 'Equipment Categories',
+  subtitle: 'Group school equipment by category, track maintenance status, and organize items.'
+}) %>
+
+<div class="stats">
+  <% C.EQUIPMENT_STATUSES.forEach(function (s) { %>
+    <a class="stat <%= statusColor(s) %>" href="/equipment?status=<%= encodeURIComponent(s) %>"><div class="label"><%= s %></div><div class="value"><%= totals[s] %></div></a>
+  <% }) %>
+</div>
+
+<!-- Add New Category Card (Placed Above the Table) -->
+<div class="card card-floating" style="margin-bottom: 24px;">
+  <div style="margin-bottom: 16px; padding-bottom: 12px; border-bottom: 1px solid var(--border);">
+    <h2 style="font-size: 16.5px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 8px;">
+      <span style="display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: rgba(140, 23, 36, 0.1); color: var(--primary);">
+        <%- icon('plus') %>
+      </span>
+      Add New Category
+    </h2>
+    <p style="margin: 4px 0 0; font-size: 12.5px; color: var(--muted);">
+      Add a new category for school equipment and devices.
+    </p>
+  </div>
+
+  <form method="post" action="/categories">
+    <div class="form-grid" style="gap: 16px; margin-bottom: 16px;">
+      <div class="field" style="margin-bottom: 0;">
+        <label for="name" style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">Category Name *</label>
+        <input type="text" id="name" name="name" required maxlength="100" placeholder="e.g. Laboratory Equipment, Audio-Visual" style="width: 100%; border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+      </div>
+      <div class="field" style="margin-bottom: 0;">
+        <label for="description" style="display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px;">Description <span class="hint" style="font-weight: 400; color: var(--muted);">(optional)</span></label>
+        <input type="text" id="description" name="description" maxlength="300" placeholder="Short description of items in this category" style="width: 100%; border: 1.5px solid var(--border); border-radius: 8px; padding: 10px 12px; font-size: 13.5px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 10px;">
+      <button class="btn btn-primary" type="submit" style="display: inline-flex; align-items: center; gap: 6px; padding: 10px 22px; font-weight: 700; border-radius: 8px;">
+        <%- icon('plus') %> Add Category
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Expanded Full-Width Equipment Categories Table Card -->
+<div class="card" style="margin-bottom: 20px;">
+  <div class="card-head" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 16px;">
+    <div>
+      <h2 style="font-size: 17px; font-weight: 700; margin: 0;">Equipment Categories (<%= categories.length %>)</h2>
+      <p style="margin: 3px 0 0; font-size: 12.5px; color: var(--muted);">Click any category to filter equipment, or edit category details below.</p>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table class="stack-table">
+      <thead>
+        <tr>
+          <th style="min-width: 200px;">Category & Description</th>
+          <% C.EQUIPMENT_STATUSES.forEach(function (s) { %>
+            <th class="text-right" style="font-size: 12px;"><%= s %></th>
+          <% }) %>
+          <th class="text-right" style="min-width: 80px;">Total</th>
+          <th class="text-right" style="min-width: 140px;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% if (!categories.length) { %>
+          <tr><td colspan="7" class="empty">No categories recorded yet. Use the form above to add one.</td></tr>
+        <% } %>
+        <% categories.forEach(function (c) { %>
+          <% if (editId === c.id) { %>
+            <tr>
+              <td colspan="7" style="background: var(--surface-subtle, rgba(0,0,0,0.02)); padding: 14px;">
+                <form method="post" action="/categories/<%= c.id %>" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                  <div class="field" style="flex: 1; min-width: 180px; margin-bottom: 0;">
+                    <label style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">Name</label>
+                    <input type="text" name="name" value="<%= c.name %>" required maxlength="100" style="width: 100%; height: 36px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 10px; font-size: 13px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+                  </div>
+                  <div class="field" style="flex: 2; min-width: 240px; margin-bottom: 0;">
+                    <label style="font-size: 12px; font-weight: 600; margin-bottom: 4px; display: block;">Description</label>
+                    <input type="text" name="description" value="<%= c.description %>" maxlength="300" style="width: 100%; height: 36px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 10px; font-size: 13px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+                  </div>
+                  <div style="display: flex; gap: 6px; margin-bottom: 0;">
+                    <button class="btn btn-sm btn-primary" type="submit">Save</button>
+                    <a class="btn btn-sm btn-light" href="/categories">Cancel</a>
+                  </div>
+                </form>
+              </td>
+            </tr>
+          <% } else { %>
+            <tr>
+              <td data-label="Category">
+                <a href="/equipment?categoryId=<%= c.id %>" style="font-weight: 700; font-size: 14px;">
+                  <%= c.name %>
+                </a>
+                <% if (c.description) { %>
+                  <span class="sub" style="display: block; font-size: 12px; color: var(--muted); margin-top: 2px;"><%= c.description %></span>
+                <% } %>
+              </td>
+              <% C.EQUIPMENT_STATUSES.forEach(function (s) { %>
+                <td data-label="<%= s %>" class="text-right" style="font-size: 13px;">
+                  <% if (c.counts[s]) { %>
+                    <span class="badge <%= statusClass(s) %>" style="font-size: 11px; padding: 2px 7px;">
+                      <%= c.counts[s] %>
+                    </span>
+                  <% } else { %>
+                    <span style="color: var(--muted); opacity: 0.5;">·</span>
+                  <% } %>
+                </td>
+              <% }) %>
+              <td data-label="Total Assets" class="text-right">
+                <strong style="font-size: 14px;"><%= c.total %></strong>
+              </td>
+              <td data-label="Actions" class="nowrap text-right">
+                <div style="display: inline-flex; gap: 6px; align-items: center;">
+                  <a class="btn btn-light btn-sm" href="/categories?edit=<%= c.id %>">
+                    <%- icon('edit') %> Edit
+                  </a>
+                  <form method="post" action="/categories/<%= c.id %>/delete" class="inline-form" data-confirm="Are you sure you want to delete category <%= c.name %>?">
+                    <button class="btn btn-light btn-sm" type="submit" style="color: var(--red);">
+                      <%- icon('trash') %>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <% } %>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Quick Link to Dedicated Locations Tab Card -->
+<div class="card" style="margin-top: 18px; padding: 18px 22px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+  <div style="display: flex; align-items: center; gap: 14px;">
+    <span style="display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; background: rgba(140, 23, 36, 0.12); color: var(--primary); flex-shrink: 0;">
+      <%- icon('map-pin') %>
+    </span>
+    <div>
+      <h3 style="margin: 0; font-size: 15.5px; font-weight: 700;">Campus Locations & Rooms</h3>
+      <p style="margin: 3px 0 0; font-size: 13px; color: var(--muted);">Looking for equipment distribution by room or laboratory? Locations now has its own dedicated tab.</p>
+    </div>
+  </div>
+  <a href="/locations" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; font-weight: 700;">
+    <%- icon('map-pin') %> Go to Locations Tab &rarr;
+  </a>
+</div>
+
+<%- include('partials/footer') %>

@@ -1,0 +1,24 @@
+<%# Greeting banner at the top of each dashboard. Optional: subtitle, actions (HTML string) %>
+<% var roleChip = { admin: { icon: 'shield', label: 'Administrator' }, technician: { icon: 'wrench', label: 'Technician' }, requester: { icon: 'cap', label: 'Staff / Student' } }[currentUser.role]; %>
+<section class="hero">
+  <div class="hero-top">
+    <span class="hero-brand">
+      <span class="brand-logo"><img src="/img/logo.png" alt=""></span>
+      <span><strong>Edu<span>Care</span></strong><small>St. Anthony Center of Science and Technology</small></span>
+    </span>
+    <span class="hero-tools">
+      <a class="hero-bell" href="/notifications" aria-label="Notifications"><%- icon('bell') %><% if (unreadCount) { %><span class="dot"><%= unreadCount %></span><% } %></a>
+      <form method="post" action="/logout" class="hero-out"><button type="submit" title="Sign out" aria-label="Sign out"><%- icon('logout') %></button></form>
+    </span>
+  </div>
+  <div class="hero-body">
+    <p class="hero-hello"><%= greeting() %>,</p>
+    <h1 class="hero-name"><%= firstName(currentUser.name) %>! <span aria-hidden="true">👋</span></h1>
+    <% if (typeof subtitle !== 'undefined' && subtitle) { %><p class="hero-sub"><%= subtitle %></p><% } %>
+    <div class="hero-chips">
+      <span class="chip-role"><%- icon(roleChip.icon) %><%= roleChip.label %></span>
+      <% if (currentUser.department) { %><span class="chip-role ghost"><%- icon('building') %><%= currentUser.department %></span><% } %>
+    </div>
+    <% if (typeof actions !== 'undefined' && actions) { %><div class="hero-actions"><%- actions %></div><% } %>
+  </div>
+</section>

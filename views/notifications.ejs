@@ -1,0 +1,34 @@
+<%- include('partials/header') %>
+<%
+  var notifExtraActions = `<a class="btn-banner-sub" href="/notifications${show === 'all' ? '?show=unread' : ''}">${show === 'all' ? 'Show unread only' : 'Show all'}</a>`;
+  if (unreadCount) {
+    notifExtraActions += `
+      <form method="post" action="/notifications/read-all" style="margin:0;">
+        <button class="btn-banner-sub" type="submit" style="cursor:pointer;">Mark all as read</button>
+      </form>
+    `;
+  }
+%>
+<%- include('partials/header-banner', {
+  breadcrumb: '<a href="/">Home</a> &rsaquo; Notifications',
+  title: 'Notifications & Alerts',
+  subtitle: unreadCount ? unreadCount + ' unread notification(s) requiring your attention.' : 'You are all caught up! No unread notifications.',
+  extraActions: notifExtraActions
+}) %>
+
+<div class="card">
+  <% if (!list.length) { %><p class="empty">You're all caught up.</p><% } %>
+  <% list.forEach(function (n) { %>
+    <div class="notif type-<%= n.type %> <%= n.read ? '' : 'unread' %>">
+      <span class="dot"></span>
+      <div class="body">
+        <div><%= n.message %></div>
+        <div class="when"><%= fmtDateTime(n.createdAt) %> · <%= timeAgo(n.createdAt) %></div>
+      </div>
+      <% if (n.link) { %>
+        <form method="post" action="/notifications/<%= n.id %>/open"><button class="btn btn-light btn-sm" type="submit">Open</button></form>
+      <% } %>
+    </div>
+  <% }) %>
+</div>
+<%- include('partials/footer') %>

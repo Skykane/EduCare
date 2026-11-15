@@ -1,0 +1,23 @@
+{
+  "name": "educare",
+  "version": "1.0.0",
+  "description": "EDUCARE: School Equipment Maintenance and Repair Management System",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "seed": "node src/seed.js --reset"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "ejs": "^7.0.2",
+    "express": "^5.3.0",
+    "express-session": "^1.19.0",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.4.0"
+  }
+}

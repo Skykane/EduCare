@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %> · EduCare</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('educare-theme');
+        if (!t) {
+          t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/auth.css">
+</head>
+<body>
+<button type="button" class="auth-theme-switch" id="theme-toggle" role="switch" aria-checked="false" aria-label="Toggle light / dark mode" title="Switch light / dark mode">
+  <span class="auth-theme-slider"></span>
+  <span class="auth-theme-btn auth-theme-sun" aria-hidden="true"><%- icon('sun') %></span>
+  <span class="auth-theme-btn auth-theme-moon" aria-hidden="true"><%- icon('moon') %></span>
+</button>
+<div class="auth">
+  <div class="auth-hero" role="img" aria-label="St. Anthony Center of Science and Technology, Inc. campus"></div>
+  <div class="auth-side">
+    <div class="auth-card">
+      <img class="auth-logo" src="/img/logo.png" alt="St. Anthony Center of Science and Technology, Inc. – EduCare logo">
+      <h1 class="auth-brand">Edu<span>Care</span></h1>
+      <p class="auth-tagline">School Equipment Maintenance and<br>Repair Management System</p>
+      <div class="auth-rule"></div>

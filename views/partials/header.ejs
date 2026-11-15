@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#7d0c17">
+  <title><%= typeof title !== 'undefined' ? title + ' · ' : '' %>EduCare</title>
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('educare-theme');
+        if (!t) {
+          t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        if (t === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+
+        var sc = localStorage.getItem('educare-sidebar-collapsed');
+        if (sc === 'true' && window.innerWidth > 860) {
+          document.documentElement.classList.add('sidebar-collapsed');
+        }
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body class="<%= currentUser ? 'role-' + currentUser.role : '' %>">
+<% if (currentUser) { %>
+<%
+  var bottomItems = bottomNavFor(currentUser.role);
+  var bottomActive = activeItem(bottomItems.filter(function (i) { return i.href; }), currentPath);
+%>
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <a class="brand" href="/" title="EduCare - Home">
+        <span class="brand-logo"><img src="/img/logo.png" alt="EduCare logo"></span>
+        <span class="brand-text"><strong>Edu<span>Care</span></strong><small>St. Anthony Center of Science and Technology</small></span>
+      </a>
+    </div>
+    <nav aria-label="Main menu">
+      <% navItems.forEach(function (item) { %>
+        <a href="<%= item.href %>" class="<%= item === navActive ? 'active' : '' %>"<%- item === navActive ? ' aria-current="page"' : '' %> data-tooltip="<%= item.label %>" title="<%= item.label %>">
+          <%- icon(item.icon) %><span class="label"><%= item.label %></span>
+          <% if (item.badge && unreadCount) { %><span class="count"><%= unreadCount %></span><% } %>
+        </a>
+      <% }) %>
+    </nav>
+  </aside>
+  <nav class="bottom-nav" aria-label="Quick menu">
+    <% bottomItems.forEach(function (item) { var on = item === bottomActive; %>
+      <% if (item.menu) { %>
+        <button type="button" class="bn-item menu-btn hamburger-btn" aria-controls="sidebar" aria-expanded="false"><%- icon(item.icon) %><span><%= item.label %></span></button>
+      <% } else if (item.fab) { %>
+        <a href="<%= item.href %>" class="bn-fab<%= on ? ' active' : '' %>" aria-label="<%= item.label %>" title="<%= item.label %>"><%- icon(item.icon) %></a>
+      <% } else { %>
+        <a href="<%= item.href %>" class="bn-item<%= on ? ' active' : '' %>"<%- on ? ' aria-current="page"' : '' %>>
+          <span class="bn-ic"><%- icon(item.icon) %><% if (item.badge && unreadCount) { %><span class="dot"><%= unreadCount %></span><% } %></span>
+          <span><%= item.label %></span>
+        </a>
+      <% } %>
+    <% }) %>
+  </nav>
+  <div class="backdrop" id="backdrop"></div>
+  <div class="main">
+    <header class="topbar">
+      <button type="button" class="topbar-hamburger-btn hamburger-btn" id="topbar-hamburger-btn" aria-controls="sidebar" aria-expanded="false" title="Toggle Sidebar Menu" aria-label="Toggle Sidebar Menu">
+        <%- icon('menu') %>
+      </button>
+      <a href="/" class="brand-mini"><span class="brand-logo"><img src="/img/logo.png" alt=""></span><span>Edu<span>Care</span></span></a>
+      <span class="spacer"></span>
+      <button type="button" class="theme-switch" id="theme-toggle" role="switch" aria-checked="false" aria-label="Toggle light / dark mode" title="Switch light / dark mode">
+        <span class="theme-switch-slider"></span>
+        <span class="theme-switch-btn theme-btn-light" aria-hidden="true"><%- icon('sun') %></span>
+        <span class="theme-switch-btn theme-btn-dark" aria-hidden="true"><%- icon('moon') %></span>
+      </button>
+      <a class="bell" href="/notifications" title="Notifications" aria-label="Notifications<%= unreadCount ? ' (' + unreadCount + ' unread)' : '' %>"><%- icon('bell') %><% if (unreadCount) { %><span class="dot"><%= unreadCount %></span><% } %></a>
+      <div class="topbar-profile" id="topbar-profile">
+        <button type="button" class="topbar-profile-btn" id="topbar-profile-btn" aria-haspopup="true" aria-expanded="false" title="<%= currentUser.name %>">
+          <% if (currentUser.avatar) { %>
+            <span class="avatar topbar-avatar avatar-has-img"><img src="/uploads/<%= currentUser.avatar %>" alt="" class="avatar-img"></span>
+          <% } else { %>
+            <span class="avatar topbar-avatar"><%= initials(currentUser.name) %></span>
+          <% } %>
+          <span class="topbar-profile-meta">
+            <strong><%= currentUser.name %></strong>
+            <small><%= C.ROLES[currentUser.role] %></small>
+          </span>
+          <span class="topbar-profile-caret" aria-hidden="true"><%- icon('chevron-right') %></span>
+        </button>
+        <div class="topbar-profile-menu" id="topbar-profile-menu" hidden>
+          <a href="/profile"><%- icon('user') %> My Profile</a>
+          <a href="/profile"><%- icon('edit') %> Edit Profile</a>
+          <% if (currentUser.role === 'admin') { %>
+            <a href="/settings/email"><%- icon('settings') %> Account Settings</a>
+          <% } %>
+          <div class="topbar-profile-divider"></div>
+          <form method="post" action="/logout" class="topbar-profile-logout-form">
+            <button type="submit" class="topbar-profile-logout"><%- icon('logout') %> Sign Out</button>
+          </form>
+        </div>
+      </div>
+    </header>
+    <main class="content">
+      <% if (flash) { %>
+        <div class="alert alert-<%= flash.type %>"><%= flash.msg %></div>
+      <% } %>
+<% } else { %>
+<div>
+  <div>
+    <main>
+<% } %>

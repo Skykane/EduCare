@@ -1,0 +1,109 @@
+<%- include('../partials/header') %>
+<%
+  var userExtraActions = `
+    <a class="btn-banner-sub" href="/users/new" onclick="if(window.openNewAccountModal){openNewAccountModal();return false;}">${icon('plus')} New Account</a>
+  `;
+%>
+<%- include('../partials/header-banner', {
+  breadcrumb: '<a href="/">Home</a> &rsaquo; User Accounts',
+  title: 'User Accounts',
+  subtitle: 'Manage administrative privileges, technicians, faculty, and student requesters.',
+  extraActions: userExtraActions
+}) %>
+
+<!-- Pending Approvals Alert Banner (Quick Link to Approvals Tab) -->
+<% if (typeof pendingUsers !== 'undefined' && pendingUsers.length) { %>
+  <div style="background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.3); border-left: 4px solid #f59e0b; border-radius: 12px; padding: 12px 18px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <span style="display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: rgba(245, 158, 11, 0.18); color: #d97706; flex-shrink: 0;">
+        <%- icon('shield') %>
+      </span>
+      <div>
+        <strong style="font-size: 14px; color: var(--text);">
+          <%= pendingUsers.length %> Account Registration<%= pendingUsers.length > 1 ? 's' : '' %> Waiting for Approval
+        </strong>
+        <p style="margin: 2px 0 0; font-size: 12.5px; color: var(--muted);">New user accounts need admin approval before they can log in.</p>
+      </div>
+    </div>
+    <a href="/users/approvals" class="btn btn-sm btn-primary" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; font-size: 12.5px; text-decoration: none;">
+      <%- icon('shield') %> Review in Approvals &rarr;
+    </a>
+  </div>
+<% } %>
+
+<form class="card filters" method="get" action="/users">
+  <div class="field wide"><label for="q">Search</label><input type="search" id="q" name="q" value="<%= f.q %>" placeholder="Name, email, department, student ID"></div>
+  <div class="field">
+    <label for="role">Role</label>
+    <select id="role" name="role">
+      <option value="">All Roles</option>
+      <% Object.keys(C.ROLES).forEach(function (k) { %><option value="<%= k %>" <%= f.role === k ? 'selected' : '' %>><%= C.ROLES[k] %></option><% }) %>
+    </select>
+  </div>
+  <div class="field">
+    <label for="status">Status</label>
+    <select id="status" name="status">
+      <option value="" <%= !f.status ? 'selected' : '' %>>All Statuses</option>
+      <option value="pending" <%= f.status === 'pending' ? 'selected' : '' %>>Pending Approval</option>
+      <option value="approved" <%= f.status === 'approved' ? 'selected' : '' %>>Active / Approved</option>
+      <option value="inactive" <%= f.status === 'inactive' ? 'selected' : '' %>>Inactive / Deactivated</option>
+    </select>
+  </div>
+  <div class="actions"><button class="btn" type="submit">Filter</button><a class="btn btn-light" href="/users">Clear</a></div>
+</form>
+
+<div class="card">
+  <div class="table-wrap">
+  <table class="stack-table">
+    <thead><tr><th style="min-width:180px;">Name</th><th>Email</th><th style="width:110px;white-space:nowrap;">Role</th><th>Department</th><th style="width:110px;white-space:nowrap;">Status</th><th style="width:120px;white-space:nowrap;">Last sign-in</th><th style="width:170px;text-align:right;">Actions</th></tr></thead>
+    <tbody>
+      <% if (!users.length) { %><tr><td colspan="7" class="empty">No accounts found.</td></tr><% } %>
+      <% users.forEach(function (u) { %>
+        <tr>
+          <td data-label="Name">
+            <strong><%= u.name %></strong>
+            <% if (u.studentId) { %><span class="sub mono" style="display:block;font-size:11px;">ID: <%= u.studentId %></span><% } %>
+            <% if (u.role === 'technician') { %><span class="sub"><a href="/technicians/<%= u.id %>">Technician profile</a></span><% } %>
+          </td>
+          <td data-label="Email"><%= u.email %></td>
+          <td data-label="Role"><span class="badge <%= u.role === 'admin' ? 'badge-indigo' : u.role === 'technician' ? 'badge-teal' : 'badge-gray' %>"><%= C.ROLES[u.role] %></span></td>
+          <td data-label="Department"><%= u.department || '—' %></td>
+          <td data-label="Status">
+            <% if (u.approvalStatus === 'pending') { %>
+              <span class="badge badge-amber"><%- icon('clock') %> Pending</span>
+            <% } else if (u.approvalStatus === 'rejected') { %>
+              <span class="badge badge-red"><%- icon('x-circle') %> Rejected</span>
+            <% } else if (u.active) { %>
+              <span class="badge badge-green"><%- icon('check-circle') %> Active</span>
+            <% } else { %>
+              <span class="badge badge-gray">Inactive</span>
+            <% } %>
+          </td>
+          <td data-label="Last sign-in" class="nowrap"><%= u.lastLoginAt ? timeAgo(u.lastLoginAt) : 'Never' %></td>
+          <td data-label="" class="text-right">
+            <div class="row-actions">
+              <% if (u.approvalStatus === 'pending') { %>
+                <a class="btn btn-light btn-sm" href="/users/approvals" title="Review in Approvals tab"><%- icon('shield') %> Review</a>
+                <form method="post" action="/users/<%= u.id %>/approve" class="inline-form" data-confirm="Approve <%= u.name %>?">
+                  <button class="btn btn-success btn-sm" type="submit"><%- icon('check') %> Approve</button>
+                </form>
+                <form method="post" action="/users/<%= u.id %>/reject" class="inline-form" data-confirm="Reject <%= u.name %>?">
+                  <button class="btn btn-danger btn-sm" type="submit"><%- icon('x') %> Reject</button>
+                </form>
+              <% } else { %>
+                <a class="btn btn-light btn-sm" href="/users/<%= u.id %>/edit"><%- icon('edit') %> Edit</a>
+                <% if (u.id !== currentUser.id) { %>
+                  <form method="post" action="/users/<%= u.id %>/toggle" class="inline-form" data-confirm="<%= u.active ? 'Deactivate' : 'Activate' %> <%= u.name %>?">
+                    <button class="btn btn-light btn-sm" type="submit"><%- icon(u.active ? 'pause' : 'check-circle') %> <%= u.active ? 'Deactivate' : 'Activate' %></button>
+                  </form>
+                <% } %>
+              <% } %>
+            </div>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+</div>
+<%- include('../partials/footer') %>

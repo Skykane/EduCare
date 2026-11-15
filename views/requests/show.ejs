@@ -1,0 +1,534 @@
+<%- include('../partials/header') %>
+<% var role = currentUser.role; var b = r.rec.breakdown; %>
+<div class="page-head">
+  <div>
+    <h1><span class="mono"><%= r.code %></span> · <%= r.title %></h1>
+    <p>
+      <span class="<%= statusClass(r.status) %>"><%= r.status %></span>
+      <span class="<%= statusClass(r.effectivePriority) %>"><%= r.effectivePriority %> priority</span>
+      <span class="<%= statusClass(r.type) %>"><%= r.type %></span>
+      <% if (r.overdue) { %><span class="badge badge-red">Overdue</span><% } %>
+    </p>
+  </div>
+  <div class="actions">
+    <% if (typeof canEdit !== 'undefined' && canEdit) { %>
+      <a class="btn btn-light" href="/requests/<%= r.id %>/edit"><%- icon('edit') %> Edit Report</a>
+    <% } %>
+    <% if (typeof canCancel !== 'undefined' && canCancel) { %>
+      <button type="button" class="btn btn-danger btn-sm" onclick="openCancelModal()"><%- icon('trash') %> Cancel Report</button>
+    <% } %>
+    <a class="btn btn-light" href="/requests">Back to list</a>
+  </div>
+</div>
+
+<% if (r.status === 'Cancelled') { %>
+  <div class="alert alert-error" style="margin-bottom:18px;display:flex;align-items:center;gap:10px;">
+    <%- icon('alert-circle') %>
+    <div>
+      <strong>This report has been cancelled.</strong>
+      <span class="muted" style="display:block;font-size:12.5px;">Cancelled on <%= fmtDateTime(r.cancelledAt) %></span>
+    </div>
+  </div>
+<% } else if (r.status === 'Rejected') { %>
+  <div class="alert alert-error" style="margin-bottom:18px;display:flex;align-items:center;gap:10px;">
+    <%- icon('x-circle') %>
+    <div>
+      <strong>This report was reviewed and rejected by the Administrator.</strong>
+      <span class="muted" style="display:block;font-size:12.5px;">Reason: <%= r.rejectionReason || 'Declined by administrator' %><% if (r.rejectedAt) { %> · <%= fmtDateTime(r.rejectedAt) %><% } %></span>
+    </div>
+  </div>
+<% } else if (currentUser.id === r.requesterId && r.status === 'Pending') { %>
+  <div class="alert alert-info" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <%- icon('info') %>
+      <span>Your report is pending review. Did you make a mistake? You can still <strong>edit</strong> your report details or <strong>cancel</strong> this ticket before a technician is assigned.</span>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a href="/requests/<%= r.id %>/edit" class="btn btn-sm btn-light"><%- icon('edit') %> Edit Report</a>
+      <button type="button" class="btn btn-sm btn-danger" onclick="openCancelModal()"><%- icon('trash') %> Cancel Report</button>
+    </div>
+  </div>
+<% } %>
+
+<div class="grid grid-main">
+  <div>
+    <div class="card">
+      <h2>Request Details</h2>
+      <dl class="dl">
+        <dt>Approval Status</dt>
+        <dd>
+          <% if (r.status === 'Pending') { %>
+            <span class="badge badge-amber"><%- icon('clock') %> Awaiting Admin Approval</span>
+          <% } else if (r.status === 'Approved') { %>
+            <span class="badge badge-blue"><%- icon('check-circle') %> Approved by Admin</span>
+            <% if (r.approvedAt) { %><span class="sub"><%= fmtDateTime(r.approvedAt) %></span><% } %>
+          <% } else if (r.status === 'Rejected') { %>
+            <span class="badge badge-red"><%- icon('x-circle') %> Rejected by Admin</span>
+            <% if (r.rejectionReason) { %><span class="sub" style="color:var(--red)"><%= r.rejectionReason %></span><% } %>
+          <% } else { %>
+            <span class="badge badge-green"><%- icon('check-circle') %> Approved</span>
+            <% if (r.approvedAt) { %><span class="sub"><%= fmtDateTime(r.approvedAt) %></span><% } %>
+          <% } %>
+        </dd>
+        <dt>Equipment</dt>
+        <dd><% if (r.equipment) { %><a href="/equipment/<%= r.equipment.id %>"><%= r.equipment.code %> – <%= r.equipment.name %></a>
+          <span class="<%= statusClass(r.equipment.status) %>"><%= r.equipment.status %></span><% } else { %>—<% } %></dd>
+        <dt>Category / Location</dt><dd><%= r.category ? r.category.name : '—' %> · <%= r.equipment ? r.equipment.location : '—' %></dd>
+        <dt>Problem</dt><dd style="white-space:pre-line"><%= r.description %></dd>
+        <dt>Severity</dt>
+        <dd>
+          <% if (r.severity && C.SEVERITIES[r.severity]) { %>
+            <span class="chip sev-chip-<%= r.severity %>"><%= C.SEVERITIES[r.severity] %></span>
+          <% } else { %>
+            <span class="badge badge-amber">Pending Admin Assessment</span>
+          <% } %>
+        </dd>
+        <dt>Requested by</dt><dd><%= r.requester ? r.requester.name : '—' %><% if (r.requester && r.requester.department) { %> <span class="muted">(<%= r.requester.department %>)</span><% } %></dd>
+        <dt>Submitted</dt><dd><%= fmtDateTime(r.createdAt) %></dd>
+        <dt>Technician</dt><dd><%= r.technician ? r.technician.name : 'Not assigned yet' %></dd>
+        <dt>Target date</dt><dd><%= r.targetDate ? fmtDate(r.targetDate) : '—' %></dd>
+        <% if (r.startedAt) { %><dt>Work started</dt><dd><%= fmtDateTime(r.startedAt) %></dd><% } %>
+        <% if (r.completedAt) { %><dt>Completed</dt><dd><%= fmtDateTime(r.completedAt) %></dd><% } %>
+        <% if (r.cancelledAt) { %><dt>Cancelled</dt><dd><%= fmtDateTime(r.cancelledAt) %></dd><% } %>
+      </dl>
+    </div>
+
+    <% if (canWork && C.TECH_ACTIVE_STATUSES.includes(r.status)) { %>
+    <div class="card">
+      <h2>Update Progress</h2>
+      <form method="post" action="/requests/<%= r.id %>/status" class="filters">
+        <div class="field wide">
+          <label for="progress-note">Note <span class="hint">(required when putting on hold)</span></label>
+          <input type="text" id="progress-note" name="note" maxlength="1000" placeholder="e.g. Waiting for replacement part">
+        </div>
+        <div class="actions">
+          <% if (r.status === 'Assigned') { %><button class="btn" name="action" value="start" type="submit">▶ Start Work</button><% } %>
+          <% if (r.status === 'In Progress') { %><button class="btn btn-light" name="action" value="hold" type="submit">⏸ Put On Hold</button><% } %>
+          <% if (r.status === 'On Hold') { %><button class="btn" name="action" value="resume" type="submit">▶ Resume Work</button><% } %>
+        </div>
+      </form>
+    </div>
+
+    <div class="card card-floating" id="complete">
+      <h2>Complete Repair</h2>
+      <p class="muted">This saves a record to the equipment's maintenance history.</p>
+      <form method="post" action="/requests/<%= r.id %>/complete" enctype="multipart/form-data">
+        <div class="form-grid">
+          <div class="field full">
+            <label for="problem">Problem identified *</label>
+            <input type="text" id="problem" name="problem" required maxlength="1000" value="<%= r.type === 'Preventive' ? 'Scheduled preventive maintenance' : '' %>">
+          </div>
+          <div class="field full">
+            <label for="actionsTaken">Actions performed *</label>
+            <textarea id="actionsTaken" name="actionsTaken" required maxlength="2000"></textarea>
+          </div>
+          <div class="field">
+            <label for="partsReplaced">Parts replaced</label>
+            <input type="text" id="partsReplaced" name="partsReplaced" maxlength="1000" placeholder="e.g. 1x HDMI port, 2x fuse">
+          </div>
+          <div class="field">
+            <label for="serviceDate">Service date *</label>
+            <input type="date" id="serviceDate" name="serviceDate" value="<%= today %>" max="<%= today %>" required>
+          </div>
+          <div class="field">
+            <label for="resultingStatus">Equipment condition after repair</label>
+            <select id="resultingStatus" name="resultingStatus">
+              <% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= s === 'Operational' ? 'selected' : '' %>><%= s %></option><% }) %>
+            </select>
+          </div>
+          <div class="field">
+            <label for="remarks">Remarks</label>
+            <input type="text" id="remarks" name="remarks" maxlength="1000">
+          </div>
+          <div class="field">
+            <label for="after-photos">After-repair photos <span class="hint">(optional)</span></label>
+            <input type="file" id="after-photos" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" multiple>
+          </div>
+          <div class="field">
+            <label for="photoNote">Photo note</label>
+            <input type="text" id="photoNote" name="photoNote" maxlength="1000">
+          </div>
+        </div>
+        <button class="btn btn-success" type="submit">✔ Mark as Completed</button>
+      </form>
+    </div>
+    <% } %>
+
+    <% if (record) { var rt = getUser(record.technicianId); %>
+    <div class="card">
+      <h2>Maintenance Record</h2>
+      <dl class="dl">
+        <dt>Service date</dt><dd><%= fmtDate(record.serviceDate) %></dd>
+        <dt>Technician</dt><dd><%= rt ? rt.name : '—' %></dd>
+        <dt>Problem identified</dt><dd><%= record.problem %></dd>
+        <dt>Actions performed</dt><dd style="white-space:pre-line"><%= record.actionsTaken %></dd>
+        <dt>Parts replaced</dt><dd><%= record.partsReplaced || '—' %></dd>
+        <dt>Condition after</dt><dd><span class="<%= statusClass(record.resultingStatus) %>"><%= record.resultingStatus %></span></dd>
+        <% if (record.remarks) { %><dt>Remarks</dt><dd><%= record.remarks %></dd><% } %>
+      </dl>
+    </div>
+    <% } %>
+
+    <div class="card" id="docs">
+      <h2>Repair Documentation</h2>
+      <% [['Before repair', before], ['After repair', after]].forEach(function (group) { %>
+        <h3 class="mt"><%= group[0] %> <span class="muted">(<%= group[1].length %>)</span></h3>
+        <% if (!group[1].length) { %><p class="muted">No photos.</p><% } else { %>
+          <div class="photos">
+            <% group[1].forEach(function (a) { var au = getUser(a.userId); %>
+              <figure>
+                <a href="/uploads/<%= a.filename %>" target="_blank" rel="noopener"><img src="/uploads/<%= a.filename %>" alt="<%= a.originalName %>" loading="lazy"></a>
+                <figcaption><%= a.note || a.originalName %><br><%= au ? au.name : '' %> · <%= fmtDate(a.createdAt) %></figcaption>
+              </figure>
+            <% }) %>
+          </div>
+        <% } %>
+      <% }) %>
+      <% if (r.status !== 'Cancelled') { %>
+      <form method="post" action="/requests/<%= r.id %>/attachments" enctype="multipart/form-data" class="filters mt" style="border-top:1px solid var(--border);padding-top:14px">
+        <div class="field">
+          <label for="stage">Stage</label>
+          <select id="stage" name="stage">
+            <option value="before">Before repair</option>
+            <% if (canWork) { %><option value="after" <%= r.status === 'Completed' ? 'selected' : '' %>>After repair</option><% } %>
+          </select>
+        </div>
+        <div class="field wide">
+          <label for="doc-photos">Photos</label>
+          <input type="file" id="doc-photos" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" multiple required>
+        </div>
+        <div class="field wide">
+          <label for="doc-note">Note</label>
+          <input type="text" id="doc-note" name="note" maxlength="1000">
+        </div>
+        <button class="btn btn-light" type="submit">Upload</button>
+      </form>
+      <% } %>
+    </div>
+
+    <div class="card" id="timeline">
+      <h2>Activity History</h2>
+      <ul class="timeline">
+        <% activities.forEach(function (a) { var u = getUser(a.userId); %>
+          <li>
+            <div class="what"><%= a.action %><% if (a.fromStatus && a.toStatus) { %> <span class="muted">(<%= a.fromStatus %> → <%= a.toStatus %>)</span><% } %></div>
+            <% if (a.details) { %><div class="details"><%= a.details %></div><% } %>
+            <div class="when"><%= u ? u.name : 'System' %><% if (u) { %> (<%= C.ROLES[u.role] %>)<% } %> · <%= fmtDateTime(a.createdAt) %></div>
+          </li>
+        <% }) %>
+      </ul>
+      <form method="post" action="/requests/<%= r.id %>/notes" class="filters mt">
+        <div class="field wide"><label for="note">Add a note</label><input type="text" id="note" name="note" maxlength="2000" required></div>
+        <button class="btn btn-light" type="submit">Add Note</button>
+      </form>
+    </div>
+  </div>
+
+  <div>
+    <% if (role === 'admin' && r.status === 'Pending') { %>
+    <!-- Administrator Approval & Triage Panel -->
+    <div class="card" style="border: 2px solid var(--accent); position: relative; overflow: hidden; background: linear-gradient(to bottom, var(--surface), var(--bg));">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <h2 style="margin:0;display:flex;align-items:center;gap:8px;font-size:16px;">
+          <%- icon('check-circle') %> Administrator Approval
+        </h2>
+        <span class="badge badge-amber">Action Required</span>
+      </div>
+      <p class="muted" style="font-size:13px;line-height:1.4;margin:0 0 14px;">
+        Review and triage this report filed by <strong><%= r.requester ? r.requester.name : 'Requester' %></strong>. You can approve it for dispatch or reject if invalid.
+      </p>
+
+      <form method="post" action="/requests/<%= r.id %>/approve">
+        <div style="background:var(--surface);padding:12px;border-radius:var(--radius);margin-bottom:12px;border:1px solid var(--border);">
+          <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;color:var(--muted);">1. Triage & Priority</div>
+          <div class="field" style="margin-bottom:8px;">
+            <label for="appr-sev">Severity Assessment *</label>
+            <select id="appr-sev" name="severity" required>
+              <% Object.keys(C.SEVERITIES).forEach(function (k) { %>
+                <option value="<%= k %>" <%= Number(r.severity || 2) === Number(k) ? 'selected' : '' %>><%= C.SEVERITIES[k] %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label for="appr-prio">Priority</label>
+            <select id="appr-prio" name="priority">
+              <option value="auto" <%= !r.priority ? 'selected' : '' %>>Automatic calculation (<%= r.rec.level %>)</option>
+              <% C.PRIORITIES.forEach(function (p) { %><option <%= r.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
+            </select>
+          </div>
+        </div>
+
+        <div style="background:var(--surface);padding:12px;border-radius:var(--radius);margin-bottom:14px;border:1px solid var(--border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);">2. Dispatch Technician <span class="hint" style="font-size:11px;text-transform:none;">(optional)</span></div>
+            <% if (recommendations[0] && recommendations[0].best) { %>
+              <span class="badge badge-green" style="font-size:10.5px;">Best: <%= recommendations[0].technician.name %></span>
+            <% } %>
+          </div>
+          <div class="field" style="margin-bottom:8px;">
+            <label for="appr-tech">Assign Technician</label>
+            <select id="appr-tech" name="technicianId">
+              <option value="">Leave unassigned for now (Approve only)</option>
+              <% var defaultTech = recommendations[0] && recommendations[0].best ? recommendations[0].technician.id : ''; %>
+              <% technicians.forEach(function (t) { %>
+                <option value="<%= t.id %>" <%= defaultTech === t.id ? 'selected' : '' %>><%= t.name %> (<%= t.availability %>)<% if (t.specialization) { %> · <%= t.specialization %><% } %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="field" style="margin-bottom:8px;">
+            <label for="appr-target">Target Completion Date</label>
+            <input type="date" id="appr-target" name="targetDate" min="<%= today %>" value="<%= r.targetDate && r.targetDate >= today ? r.targetDate : addDays(today, r.effectivePriority === 'High' ? 1 : r.effectivePriority === 'Medium' ? 3 : 7) %>">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label for="appr-note">Instructions / Note <span class="hint">(optional)</span></label>
+            <input type="text" id="appr-note" name="note" maxlength="500" placeholder="Instructions for technician...">
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="btn btn-primary" type="submit" style="flex:1;justify-content:center;">
+            <%- icon('check') %> Approve Request
+          </button>
+          <button class="btn btn-danger btn-sm" type="button" onclick="openRejectModal()" style="white-space:nowrap;">
+            <%- icon('x') %> Reject
+          </button>
+        </div>
+      </form>
+    </div>
+    <% } %>
+
+    <div class="card">
+      <h2>Priority</h2>
+      <div class="score">
+        <div class="num"><%= r.rec.score %><small>/100</small></div>
+        <div>
+          <div>Recommended: <span class="<%= statusClass(r.rec.level) %>"><%= r.rec.level %></span></div>
+          <div>Current: <span class="<%= statusClass(r.effectivePriority) %>"><%= r.effectivePriority %></span> <span class="muted">(<%= r.priority ? 'set manually' : 'automatic' %>)</span></div>
+        </div>
+      </div>
+      <div class="breakdown">
+        <% [['Importance', b.importance, 'indigo'], ['Severity', b.severity, 'amber'], ['Waiting time', b.waiting, 'blue']].forEach(function (x) { %>
+          <div class="bar-row">
+            <span><%= x[0] %><span class="sub muted" style="display:block;font-size:11px"><%= x[1].label %></span></span>
+            <div class="bar"><span class="<%= x[2] %>" style="width:<%= (x[1].points / x[1].max * 100).toFixed(0) %>%"></span></div>
+            <span class="text-right"><%= x[1].points %>/<%= x[1].max %></span>
+          </div>
+        <% }) %>
+      </div>
+      <p class="muted" style="font-size:12px;margin:6px 0 0">70+ = High, 40–69 = Medium, below 40 = Low. Waiting time adds up to 20 points over 14 days.</p>
+      <% if (role === 'admin' && r.isOpen && r.status !== 'Pending') { %>
+        <form method="post" action="/requests/<%= r.id %>/priority" class="filters mt">
+          <div class="field">
+            <label for="severity">Set Severity</label>
+            <select id="severity" name="severity">
+              <option value="" <%= !r.severity ? 'selected' : '' %>>-- Select Severity --</option>
+              <% Object.keys(C.SEVERITIES).forEach(function (k) { %>
+                <option value="<%= k %>" <%= Number(r.severity) === Number(k) ? 'selected' : '' %>><%= C.SEVERITIES[k] %></option>
+              <% }) %>
+            </select>
+          </div>
+          <div class="field">
+            <label for="priority">Set Priority</label>
+            <select id="priority" name="priority">
+              <option value="auto" <%= !r.priority ? 'selected' : '' %>>Automatic (<%= r.rec.level %>)</option>
+              <% C.PRIORITIES.forEach(function (p) { %><option <%= r.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
+            </select>
+          </div>
+          <button class="btn btn-light" type="submit">Update</button>
+        </form>
+      <% } %>
+    </div>
+
+    <% if (role === 'admin' && r.isOpen && r.status !== 'Pending') { %>
+    <div class="card" id="assign">
+      <h2><%= r.technician ? 'Reassign Technician' : 'Assign Technician' %></h2>
+      <h3 class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.4px">Recommended technicians</h3>
+      <% if (!recommendations.length) { %><p class="muted">No technician accounts yet. <a href="/users/new?role=technician">Add one</a>.</p><% } %>
+      <ul class="rec-list">
+        <% recommendations.forEach(function (x) { %>
+          <li class="<%= x.best ? 'best' : '' %> <%= x.eligible ? '' : 'ineligible' %>">
+            <div>
+              <strong><%= x.technician.name %></strong> <% if (x.best) { %><span class="badge badge-green">Best match</span><% } %>
+              <div class="reasons"><%= x.reasons.join(' · ') %></div>
+            </div>
+            <div class="text-right">
+              <div class="pts"><%= x.score %></div>
+              <% if (x.eligible) { %><button type="button" class="btn-link" data-pick-tech="<%= x.technician.id %>">Use</button><% } %>
+            </div>
+          </li>
+        <% }) %>
+      </ul>
+      <p class="muted" style="font-size:12px">Score: specialization match 50 + availability (Available 30, Busy 10) + workload (20 minus 5 per active task).</p>
+      <form method="post" action="/requests/<%= r.id %>/assign">
+        <div class="field">
+          <label for="technicianId">Technician *</label>
+          <select id="technicianId" name="technicianId" required>
+            <option value="">Choose…</option>
+            <% var pick = r.technicianId || (recommendations[0] && recommendations[0].best ? recommendations[0].technician.id : null); %>
+            <% technicians.forEach(function (t) { %><option value="<%= t.id %>" <%= pick === t.id ? 'selected' : '' %>><%= t.name %> (<%= t.availability %>)</option><% }) %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="targetDate">Target completion date *</label>
+          <input type="date" id="targetDate" name="targetDate" min="<%= today %>" value="<%= r.targetDate && r.targetDate >= today ? r.targetDate : addDays(today, r.effectivePriority === 'High' ? 1 : r.effectivePriority === 'Medium' ? 3 : 7) %>" required>
+        </div>
+        <div class="field">
+          <label for="assign-note">Instructions <span class="hint">(optional)</span></label>
+          <input type="text" id="assign-note" name="note" maxlength="500">
+        </div>
+        <button class="btn" type="submit"><%= r.technician ? 'Update Assignment' : 'Assign' %></button>
+      </form>
+    </div>
+    <% } %>
+
+    <% if (role === 'admin' && ['Approved', 'Assigned'].includes(r.status)) { %>
+    <div class="card">
+      <h2>Reject Request</h2>
+      <p class="muted" style="margin:-4px 0 10px;font-size:12.5px;">Need to revoke or decline this request after review? You can reject it here.</p>
+      <button class="btn btn-danger btn-sm" type="button" onclick="openRejectModal()"><%- icon('x') %> Reject Request</button>
+    </div>
+    <% } %>
+
+    <% if (r.isOpen && (role === 'admin' || (r.requesterId === currentUser.id && r.status === 'Pending'))) { %>
+    <div class="card">
+      <h2>Cancel Report</h2>
+      <p class="muted" style="margin:-4px 0 10px;font-size:12.5px;">Did you report by mistake or is the issue resolved? You can cancel this report.</p>
+      <button class="btn btn-danger btn-sm" type="button" onclick="openCancelModal()"><%- icon('trash') %> Cancel Report</button>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+<% if (r.isOpen && (role === 'admin' || (r.requesterId === currentUser.id && r.status === 'Pending'))) { %>
+<!-- Cancel Modal Dialog -->
+<div id="cancel-modal" class="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;align-items:center;justify-content:center;padding:16px;">
+  <div class="modal-card card" style="max-width:480px;width:100%;margin:0;box-shadow:0 12px 36px rgba(0,0,0,0.3);">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h2 style="margin:0;color:var(--red);display:flex;align-items:center;gap:8px;">
+        <%- icon('alert') %> Cancel Report
+      </h2>
+      <button type="button" class="btn-link" onclick="closeCancelModal()" style="font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <p style="font-size:13.5px;line-height:1.4;margin:0 0 14px;">
+      Are you sure you want to cancel request <strong><%= r.code %></strong>? Once cancelled, technicians will not be dispatched for this issue.
+    </p>
+    <form method="post" action="/requests/<%= r.id %>/cancel">
+      <div class="field">
+        <label>Reason for cancellation:</label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;font-size:13px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason" value="Reported by mistake (wrong equipment or details)" checked>
+            <span>Reported by mistake (wrong equipment or details)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason" value="Problem is already resolved / working now">
+            <span>Problem is already resolved / working now</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason" value="Duplicate report">
+            <span>Duplicate report</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason" value="" id="reason-other-radio">
+            <span>Other reason (specify below)</span>
+          </label>
+        </div>
+      </div>
+      <div class="field" id="other-reason-field" style="margin-top:8px;">
+        <input type="text" id="custom-reason" name="custom_reason" maxlength="500" placeholder="Type specific reason (optional)..." oninput="document.getElementById('reason-other-radio').value = this.value">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="btn btn-light" onclick="closeCancelModal()">Keep Report</button>
+        <button type="submit" class="btn btn-danger">Yes, Cancel Report</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openCancelModal() {
+    var modal = document.getElementById('cancel-modal');
+    if (modal) modal.style.display = 'flex';
+  }
+  function closeCancelModal() {
+    var modal = document.getElementById('cancel-modal');
+    if (modal) modal.style.display = 'none';
+  }
+</script>
+<% } %>
+
+<% if (role === 'admin' && ['Pending', 'Approved', 'Assigned'].includes(r.status)) { %>
+<!-- Admin Reject Modal Dialog -->
+<div id="reject-modal" class="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;align-items:center;justify-content:center;padding:16px;">
+  <div class="modal-card card" style="max-width:500px;width:100%;margin:0;box-shadow:0 12px 36px rgba(0,0,0,0.3);">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h2 style="margin:0;color:var(--red);display:flex;align-items:center;gap:8px;font-size:16px;">
+        <%- icon('alert') %> Reject Repair Request
+      </h2>
+      <button type="button" class="btn-link" onclick="closeRejectModal()" style="font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <p style="font-size:13.5px;line-height:1.4;margin:0 0 14px;">
+      Decline repair request <strong><%= r.code %></strong>. The requester will be notified with your reason, and the equipment status will revert to Operational.
+    </p>
+    <form method="post" action="/requests/<%= r.id %>/reject">
+      <div class="field">
+        <label>Reason for rejection *</label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;font-size:13px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason_preset" value="Not school equipment / personal device not covered by maintenance" checked onchange="handleRejectPreset(this)">
+            <span>Not school equipment (personal device)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason_preset" value="Issue resolved / false alarm / user error" onchange="handleRejectPreset(this)">
+            <span>Issue resolved / false alarm / user error</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason_preset" value="Duplicate report (already filed in another ticket)" onchange="handleRejectPreset(this)">
+            <span>Duplicate report (already filed in another ticket)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason_preset" value="Out of maintenance scope / requires replacement purchase" onchange="handleRejectPreset(this)">
+            <span>Out of maintenance scope / requires replacement purchase</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason_preset" value="other" onchange="handleRejectPreset(this)">
+            <span>Other (type custom explanation below)</span>
+          </label>
+        </div>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label for="reject-reason-text">Detailed explanation (sent to requester):</label>
+        <textarea id="reject-reason-text" name="reason" rows="2" maxlength="500" required style="width:100%;font-size:13px;">Not school equipment / personal device not covered by maintenance</textarea>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="btn btn-light" onclick="closeRejectModal()">Keep Request</button>
+        <button type="submit" class="btn btn-danger">Confirm Rejection</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openRejectModal() {
+    var modal = document.getElementById('reject-modal');
+    if (modal) modal.style.display = 'flex';
+  }
+  function closeRejectModal() {
+    var modal = document.getElementById('reject-modal');
+    if (modal) modal.style.display = 'none';
+  }
+  function handleRejectPreset(radio) {
+    var txt = document.getElementById('reject-reason-text');
+    if (!txt) return;
+    if (radio.value === 'other') {
+      txt.value = '';
+      txt.placeholder = 'Type custom reason here...';
+      txt.focus();
+    } else {
+      txt.value = radio.value;
+    }
+  }
+</script>
+<% } %>
+
+<%- include('../partials/footer') %>

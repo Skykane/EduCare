@@ -1,0 +1,140 @@
+<%- include('../partials/header') %>
+
+<%
+  var appExtraActions = `
+    <a class="btn-banner-sub" href="/users/new" onclick="if(window.openNewAccountModal){openNewAccountModal();return false;}">${icon('plus')} New Account</a>
+  `;
+%>
+<%- include('../partials/header-banner', {
+  breadcrumb: '<a href="/">Home</a> &rsaquo; <a href="/users">User Accounts</a> &rsaquo; Approvals',
+  title: 'Pending Account Approvals',
+  subtitle: 'Review, verify student IDs, and approve or reject incoming user registrations.',
+  extraActions: appExtraActions
+}) %>
+
+<!-- Pending Approvals Section -->
+<div class="card account-approval-card">
+  <div class="account-approval-head">
+    <div class="account-approval-title">
+      <span class="account-approval-icon">
+        <%- icon('shield') %>
+      </span>
+      <div class="account-approval-copy">
+        <h2>Waiting for Admin Approval (<%= pendingUsers.length %>)</h2>
+        <p>New user registrations that need admin review before they can log in.</p>
+      </div>
+    </div>
+    <% if (pendingUsers.length) { %>
+      <span class="badge account-approval-status"><%- icon('clock') %> Needs Approval</span>
+    <% } %>
+  </div>
+
+  <% if (!pendingUsers.length) { %>
+    <div class="empty-state account-approval-empty">
+      <span class="empty-ic"><%- icon('check-circle') %></span>
+      <strong>All Registrations Reviewed!</strong>
+      <p>There are no pending registrations waiting for administrator approval at this time.</p>
+      <a href="/users" class="btn btn-sm btn-light"><%- icon('users') %> View User Accounts</a>
+    </div>
+  <% } else { %>
+    <div class="table-wrap account-approval-table-wrap">
+      <table class="stack-table account-approval-table">
+        <thead>
+          <tr>
+            <th><span><%- icon('user') %> Name / Student ID</span></th>
+            <th><span><%- icon('mail') %> Email</span></th>
+            <th><span><%- icon('layers') %> Requested Role</span></th>
+            <th><span><%- icon('cap') %> Department / Grade</span></th>
+            <th><span><%- icon('calendar') %> Registered</span></th>
+            <th class="text-right"><span><%- icon('check-circle') %> Decision</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <% pendingUsers.forEach(function (pu) { %>
+            <tr>
+              <td data-label="Name / ID">
+                <strong><%= pu.name %></strong>
+                <% if (pu.studentId) { %>
+                  <span class="sub mono account-approval-student-id">
+                    <%- icon('id-card') %> ID: <%= pu.studentId %>
+                  </span>
+                <% } %>
+              </td>
+              <td data-label="Email"><%= pu.email %></td>
+              <td data-label="Requested Role">
+                <span class="badge account-approval-role">
+                  <%= C.ROLES[pu.role] %>
+                </span>
+              </td>
+              <td data-label="Department / Grade"><%= pu.department || '—' %></td>
+              <td data-label="Registered" class="nowrap"><%= pu.createdAt ? timeAgo(pu.createdAt) : 'Recently' %></td>
+              <td data-label="" class="nowrap text-right">
+                <div class="account-approval-actions">
+                  <form method="post" action="/users/<%= pu.id %>/approve" class="inline-form" data-confirm="Approve and activate account for <%= pu.name %> (<%= C.ROLES[pu.role] %>)?">
+                    <button class="btn btn-sm btn-success" type="submit">
+                      <%- icon('check') %> Approve
+                    </button>
+                  </form>
+                  <form method="post" action="/users/<%= pu.id %>/reject" class="inline-form" data-confirm="Reject registration for <%= pu.name %>?">
+                    <button class="btn btn-sm btn-danger" type="submit">
+                      <%- icon('x') %> Reject
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  <% } %>
+</div>
+
+<!-- Recently Processed Registrations (Audit Trail) -->
+<% if (typeof recentDecisions !== 'undefined' && recentDecisions.length) { %>
+  <div class="card">
+    <div class="card-head">
+      <h2>Recent Registration Decisions</h2>
+      <span class="sub muted">Recent History (<%= recentDecisions.length %>)</span>
+    </div>
+    <div class="table-wrap">
+      <table class="stack-table">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Decision Status</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% recentDecisions.forEach(function (u) { %>
+            <tr>
+              <td data-label="User">
+                <strong><%= u.name %></strong>
+                <% if (u.studentId) { %>
+                  <span class="sub mono" style="font-size: 11px; display: block; color: var(--muted);"><%= u.studentId %></span>
+                <% } %>
+              </td>
+              <td data-label="Email"><%= u.email %></td>
+              <td data-label="Role"><span class="badge"><%= C.ROLES[u.role] %></span></td>
+              <td data-label="Status">
+                <% if (u.approvalStatus === 'approved') { %>
+                  <span class="badge badge-green" style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('check') %> Approved</span>
+                <% } else if (u.approvalStatus === 'rejected') { %>
+                  <span class="badge badge-red" style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('x') %> Rejected</span>
+                <% } else { %>
+                  <span class="badge"><%= u.approvalStatus %></span>
+                <% } %>
+              </td>
+              <td data-label="Date" class="nowrap"><%= u.updatedAt ? fmtDateTime(u.updatedAt) : '—' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<%- include('../partials/footer') %>

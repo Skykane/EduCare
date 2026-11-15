@@ -1,0 +1,18 @@
+<%- include('partials/auth-top', { title: 'Forgot Password' }) %>
+<h2 class="auth-title">Forgot your password?</h2>
+<% if (sent) { %>
+  <div class="auth-alert success">If <strong><%= email %></strong> is registered, the administrator has been notified and will reset your password. Please contact the Facilities Office for your new password.</div>
+<% } else { %>
+  <p class="auth-sub">Enter your email and we will ask the administrator to reset your password.</p>
+  <% if (error) { %><div class="auth-alert error"><%= error %></div><% } %>
+  <form method="post" action="/forgot-password" class="auth-form">
+    <div class="input-icon">
+      <%- include('partials/auth-icons', { icon: 'mail' }) %>
+      <label for="email" class="visually-hidden">Email Address</label>
+      <input type="email" id="email" name="email" value="<%= email %>" placeholder="Email Address" required autofocus>
+    </div>
+    <button class="auth-btn" type="submit">Request Password Reset</button>
+  </form>
+<% } %>
+<p class="auth-foot"><a href="/login">← Back to Log In</a></p>
+<%- include('partials/auth-bottom') %>

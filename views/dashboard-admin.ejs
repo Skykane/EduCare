@@ -1,0 +1,192 @@
+<%- include('partials/header') %>
+<div class="dash">
+  <!-- Reference Style Header Page Banner -->
+  <%
+    var adminExtraActions = `
+      <a href="/requests/new" class="btn-banner-sub">${icon('plus')} Submit Request</a>
+    `;
+  %>
+  <%- include('partials/header-banner', {
+    breadcrumb: 'Home',
+    title: 'Dashboard',
+    subtitle: 'Where equipment is located, what was serviced, and what needs immediate attention.',
+    extraActions: adminExtraActions
+  }) %>
+
+  <!-- Key Performance Metrics Grid -->
+  <div class="dash-kpi-section">
+    <div class="dash-kpi-group-label">
+      <%- icon('clipboard') %> Request Operations & Response Time
+    </div>
+    <div class="istats istats-4">
+      <a class="istat amber" href="/requests?status=Pending">
+        <span class="istat-ic"><%- icon('clock') %></span>
+        <div class="istat-inline-content">
+          <div class="istat-top-line">
+            <span class="istat-num"><%= stats.pending %></span>
+            <span class="istat-label">Pending Approval</span>
+          </div>
+          <span class="istat-sub">Requires admin review</span>
+        </div>
+      </a>
+      <a class="istat blue" href="/requests?status=active">
+        <span class="istat-ic"><%- icon('wrench') %></span>
+        <div class="istat-inline-content">
+          <div class="istat-top-line">
+            <span class="istat-num"><%= stats.inProgress %></span>
+            <span class="istat-label">Active / In Progress</span>
+          </div>
+          <span class="istat-sub">Assigned to technicians</span>
+        </div>
+      </a>
+      <a class="istat <%= stats.overdue ? 'red pulse' : 'gray' %>" href="/requests?overdue=1">
+        <span class="istat-ic"><%- icon('alert') %></span>
+        <div class="istat-inline-content">
+          <div class="istat-top-line">
+            <span class="istat-num"><%= stats.overdue %></span>
+            <span class="istat-label">Overdue Tasks</span>
+          </div>
+          <span class="istat-sub"><%= stats.overdue ? 'Past target SLA date' : 'All tasks on schedule' %></span>
+        </div>
+      </a>
+      <a class="istat green" href="/requests?status=Completed&sort=newest">
+        <span class="istat-ic"><%- icon('check-circle') %></span>
+        <div class="istat-inline-content">
+          <div class="istat-top-line">
+            <span class="istat-num"><%= stats.completedMonth %></span>
+            <span class="istat-label">Completed (This Month)</span>
+          </div>
+          <span class="istat-sub">Resolved repairs</span>
+        </div>
+      </a>
+    </div>
+
+    <div class="dash-kpi-group-label" style="margin-top:10px;">
+      <%- icon('monitor') %> Campus Assets & Preventive Inspections
+    </div>
+    <div class="istats istats-2">
+      <a class="istat indigo" href="/equipment">
+        <span class="istat-ic"><%- icon('monitor') %></span>
+        <div class="istat-inline-content">
+          <div class="istat-top-line">
+            <span class="istat-num"><%= stats.equipment %></span>
+            <span class="istat-label">Total Equipment Items</span>
+          </div>
+          <span class="istat-sub">Tracked across campus classrooms, labs & offices</span>
+        </div>
+      </a>
+      <a class="istat teal" href="/schedule">
+        <span class="istat-ic"><%- icon('calendar') %></span>
+        <div class="istat-inline-content">
+          <div class="istat-top-line">
+            <span class="istat-num"><%= stats.pmDue %></span>
+            <span class="istat-label">PM Due / Overdue</span>
+          </div>
+          <span class="istat-sub"><%= stats.pmDue ? 'Equipment needing scheduled inspection' : 'All maintenance cycles up to date' %></span>
+        </div>
+      </a>
+    </div>
+  </div>
+
+  <!-- Section 1: Dispatch Queue & Team Workload -->
+  <div class="grid grid-main" style="margin-top:14px;">
+    <div>
+      <!-- Priority Queue Card -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>Priority Dispatch Queue</h2>
+            <p class="muted" style="margin:2px 0 0;font-size:12.5px;">Auto-calculated priority based on equipment importance, severity, and waiting time.</p>
+          </div>
+          <a href="/requests?status=Pending" class="btn btn-light btn-sm">All Pending (<%= stats.pending %>)</a>
+        </div>
+        <%- include('partials/request-table', { rows: queue, showTech: false, showRequester: true }) %>
+      </div>
+
+      <!-- Overdue Tasks (Shown prominently when present) -->
+      <% if (overdueTasks.length) { %>
+      <div class="card card-warning-border">
+        <div class="card-head">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:var(--red)"><%- icon('alert') %></span>
+            <h2 style="color:var(--red);margin:0;">Attention Required — Overdue Tasks (<%= overdueTasks.length %>)</h2>
+          </div>
+          <a href="/requests?overdue=1" class="btn btn-danger btn-sm">Manage Overdue</a>
+        </div>
+        <p class="muted" style="margin-top:-6px;font-size:12.5px;">These repair tasks have exceeded their estimated resolution time and need immediate follow-up.</p>
+        <%- include('partials/request-table', { rows: overdueTasks, showTech: true, showRequester: false }) %>
+      </div>
+      <% } %>
+
+      <!-- Preventive Maintenance Alerts -->
+      <%- include('partials/pm-alerts') %>
+    </div>
+
+    <div>
+      <!-- Technician Workload Card -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Technician Availability & Workload</h2>
+          <a href="/technicians" class="btn btn-light btn-sm">Team Directory</a>
+        </div>
+        <p class="muted" style="margin:-4px 0 12px;font-size:12.5px;">Active assignments per technician for balanced dispatch.</p>
+        <% if (!workload.length) { %>
+          <p class="muted">No active technicians found.</p>
+        <% } %>
+        <% workload.forEach(function (w) { %>
+          <div class="bar-row tech-workload-row">
+            <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+              <% if (w.tech.avatar) { %>
+                <span class="avatar avatar-has-img" style="width:26px;height:26px;"><img src="/uploads/<%= w.tech.avatar %>" alt="" class="avatar-img"></span>
+              <% } else { %>
+                <span class="avatar" style="width:26px;height:26px;font-size:10px;"><%= initials(w.tech.name) %></span>
+              <% } %>
+              <a href="/technicians/<%= w.tech.id %>" class="truncate" style="font-weight:600;"><%= w.tech.name %></a>
+            </div>
+            <span class="<%= statusClass(w.tech.availability) %>"><%= w.tech.availability %></span>
+            <strong class="text-right" title="Active tasks"><%= w.active %> <span class="muted" style="font-size:11px;font-weight:400;">task(s)</span></strong>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- Open Requests by Priority -->
+      <div class="card">
+        <div class="card-head">
+          <h2>Open Requests by Priority</h2>
+          <span class="sub muted">Active Ticket Breakdown</span>
+        </div>
+        <% var maxP = Math.max(1, ...openByPriority.map(function (p) { return p.count; })); %>
+        <% openByPriority.slice().reverse().forEach(function (p) { %>
+          <div class="bar-row">
+            <a href="/requests?status=open&priority=<%= p.priority %>" style="font-weight:600;"><%= p.priority %></a>
+            <div class="bar"><span class="<%= statusColor(p.priority) %>" style="width:<%= (p.count / maxP * 100).toFixed(1) %>%"></span></div>
+            <strong class="text-right"><%= p.count %></strong>
+          </div>
+        <% }) %>
+      </div>
+
+      <!-- Equipment Status Summary -->
+      <%- include('partials/equipment-status') %>
+
+      <!-- Live System Activity Log -->
+      <% if (activity && activity.length) { %>
+      <div class="card">
+        <div class="card-head">
+          <h2>Recent System Activity</h2>
+          <span class="sub muted">Real-time audit</span>
+        </div>
+        <ul class="timeline" style="margin-top:8px;">
+          <% activity.forEach(function (a) { var u = getUser(a.userId); %>
+            <li>
+              <div class="what" style="font-size:13px;font-weight:600;"><%= a.action %><% if (a.fromStatus && a.toStatus) { %> <span class="muted">(<%= a.fromStatus %> → <%= a.toStatus %>)</span><% } %></div>
+              <% if (a.details) { %><div class="details" style="font-size:12px;"><%= a.details %></div><% } %>
+              <div class="when" style="font-size:11px;"><%= u ? u.name : 'System' %> · <%= fmtDateTime(a.createdAt) %></div>
+            </li>
+          <% }) %>
+        </ul>
+      </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>

@@ -1,0 +1,523 @@
+<%- include('../partials/header') %>
+<% var role = currentUser.role; %>
+<div class="page-head">
+  <div>
+    <h1><%= e.name %> <span class="<%= statusClass(e.status) %>" style="vertical-align:middle"><%= e.status %></span></h1>
+    <p class="mono"><%= e.code %></p>
+  </div>
+  <div class="actions">
+    <% if (role !== 'technician') { %><a class="btn" href="/requests/new?equipmentId=<%= e.id %>" onclick="if(window.openSubmitRequestModal){openSubmitRequestModal(<%= e.id %>);return false;}">✚ Submit Request</a><% } %>
+    <% if (role === 'admin') { %>
+      <a class="btn btn-light" href="/equipment/<%= e.id %>/edit">Edit</a>
+      <form method="post" action="/equipment/<%= e.id %>/delete" class="inline-form" data-confirm="Delete this equipment? This cannot be undone.">
+        <button class="btn btn-light" type="submit">Delete</button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="grid grid-main">
+  <div>
+    <div class="card">
+      <h2>Equipment Profile</h2>
+      <dl class="dl">
+        <dt>Equipment ID</dt><dd class="mono"><%= e.code %></dd>
+        <dt>Name</dt><dd><%= e.name %></dd>
+        <dt>Model</dt><dd><%= e.model || '—' %></dd>
+        <dt>Serial number</dt><dd class="mono"><%= e.serialNumber || '—' %></dd>
+        <dt>Category</dt><dd><%= category ? category.name : '—' %></dd>
+        <dt>Department</dt><dd><%= e.department %></dd>
+        <dt>Location</dt><dd><%= e.location %></dd>
+        <dt>Date Purchased</dt><dd><%= fmtDate(e.acquisitionDate) %></dd>
+        <dt>Condition</dt><dd><span class="<%= statusClass(e.status) %>"><%= e.status %></span></dd>
+        <dt>Priority Level</dt><dd><%= e.importance %> – <%= C.IMPORTANCE[e.importance] %></dd>
+        <% if (e.notes) { %><dt>Notes</dt><dd style="white-space:pre-line"><%= e.notes %></dd><% } %>
+      </dl>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><h2>Repair Requests</h2></div>
+      <%- include('../partials/request-table', { rows: requests, showTech: true, showRequester: role !== 'requester' }) %>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <h2>Maintenance History</h2>
+        <% if (role !== 'requester') { %><a class="btn btn-light btn-sm" href="/history?equipmentId=<%= e.id %>">Open in history</a><% } %>
+      </div>
+      <div class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Problem identified</th><th>Actions performed</th><th>Parts replaced</th><th>Technician</th></tr></thead>
+        <tbody>
+          <% if (!records.length) { %><tr><td colspan="6" class="empty">No maintenance records yet.</td></tr><% } %>
+          <% records.forEach(function (m) { var t = getUser(m.technicianId); %>
+            <tr>
+              <td class="nowrap"><%= fmtDate(m.serviceDate) %><% if (m.requestId) { %><span class="sub"><a href="/requests/<%= m.requestId %>">view request</a></span><% } %></td>
+              <td><span class="<%= statusClass(m.type) %>"><%= m.type %></span></td>
+              <td><%= m.problem || '—' %></td>
+              <td><%= m.actionsTaken %><% if (m.remarks) { %><span class="sub"><%= m.remarks %></span><% } %></td>
+              <td><%= m.partsReplaced || '—' %></td>
+              <td><%= t ? t.name : '—' %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      </div>
+    </div>
+
+    <% if (role !== 'requester') { %>
+    <div class="card card-floating" id="log">
+      <h2>Log Maintenance Work</h2>
+      <p class="muted">Use this for inspections or servicing done without a repair request. Preventive entries reset the next due date.</p>
+      <form method="post" action="/equipment/<%= e.id %>/maintenance">
+        <div class="form-grid">
+          <div class="field">
+            <label for="type">Type</label>
+            <select id="type" name="type"><% C.REQUEST_TYPES.forEach(function (t) { %><option <%= t === 'Preventive' ? 'selected' : '' %>><%= t %></option><% }) %></select>
+          </div>
+          <div class="field">
+            <label for="serviceDate">Service date *</label>
+            <input type="date" id="serviceDate" name="serviceDate" value="<%= todayISO() %>" max="<%= todayISO() %>" required>
+          </div>
+          <div class="field full">
+            <label for="problem">Problem identified / reason</label>
+            <input type="text" id="problem" name="problem" maxlength="1000" placeholder="e.g. Routine quarterly inspection">
+          </div>
+          <div class="field full">
+            <label for="actionsTaken">Actions performed *</label>
+            <textarea id="actionsTaken" name="actionsTaken" required maxlength="2000"></textarea>
+          </div>
+          <div class="field">
+            <label for="partsReplaced">Parts replaced</label>
+            <input type="text" id="partsReplaced" name="partsReplaced" maxlength="1000">
+          </div>
+          <div class="field">
+            <label for="resultingStatus">Condition after service</label>
+            <select id="resultingStatus" name="resultingStatus"><% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= s === 'Operational' ? 'selected' : '' %>><%= s %></option><% }) %></select>
+          </div>
+          <% if (role === 'admin') { %>
+          <div class="field">
+            <label for="technicianId">Performed by</label>
+            <select id="technicianId" name="technicianId">
+              <option value="">—</option>
+              <% technicians.forEach(function (t) { %><option value="<%= t.id %>"><%= t.name %></option><% }) %>
+            </select>
+          </div>
+          <% } %>
+          <div class="field full">
+            <label for="remarks">Remarks</label>
+            <input type="text" id="remarks" name="remarks" maxlength="1000">
+          </div>
+        </div>
+        <button class="btn" type="submit">Save Record</button>
+      </form>
+    </div>
+    <% } %>
+  </div>
+
+  <div>
+    <div class="card equipment-photo-card">
+      <div class="card-head">
+        <h2>Equipment Photo</h2>
+        <% if (role === 'admin') { %>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <button type="button" class="btn btn-sm btn-light" onclick="openPhotoModal()">
+              <%- icon('camera') %> <%= e.photo ? 'Edit Photo' : 'Upload Photo' %>
+            </button>
+            <% if (e.photo) { %>
+              <button type="button" class="btn btn-sm btn-danger" onclick="confirmRemoveEquipmentPhoto()" title="Remove Photo">
+                <%- icon('trash') %>
+              </button>
+            <% } %>
+          </div>
+        <% } %>
+      </div>
+      <% if (e.photo) { %>
+        <div class="equipment-show-photo">
+          <a href="/uploads/<%= e.photo %>" target="_blank" rel="noopener" title="Click to view full photo">
+            <img src="/uploads/<%= e.photo %>" alt="<%= e.name %>">
+          </a>
+        </div>
+        <% if (role === 'admin') { %>
+          <div class="equipment-show-photo-actions">
+            <button type="button" class="btn btn-sm btn-light" onclick="openPhotoModal()">
+              <%- icon('camera') %> Change / Edit Photo
+            </button>
+            <button type="button" class="btn btn-sm btn-danger" onclick="confirmRemoveEquipmentPhoto()">
+              <%- icon('trash') %> Remove Photo
+            </button>
+          </div>
+        <% } %>
+      <% } else { %>
+        <div class="equipment-no-photo">
+          <span class="no-photo-ic"><%- icon(categoryIcon(category ? category.name : '')) %></span>
+          <p class="muted" style="margin: 4px 0 0; font-size: 13px;">No photo uploaded yet.</p>
+          <% if (role === 'admin') { %>
+            <button type="button" class="btn btn-sm btn-primary" onclick="openPhotoModal()" style="margin-top: 10px;">
+              <%- icon('camera') %> Upload Photo
+            </button>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
+
+    <div class="card">
+      <h2>Routine Checkups</h2>
+      <% if (schedule) { %>
+        <dl class="dl" style="grid-template-columns:120px 1fr">
+          <dt>Interval</dt><dd>Every <%= schedule.interval %> day(s)<% if (schedule.intervalLabel) { %> (<%= schedule.intervalLabel %>)<% } %></dd>
+          <dt><%= schedule.basedOn %></dt><dd><%= fmtDate(schedule.base) %></dd>
+          <dt>Next due</dt><dd><%= fmtDate(schedule.nextDue) %></dd>
+          <dt>Status</dt><dd><span class="<%= statusClass(schedule.status) %>"><%= schedule.status %></span>
+            <% if (schedule.daysLeft < 0) { %>
+              <span class="sub" style="color:var(--red);font-weight:600;"><%= Math.abs(schedule.daysLeft) %> day(s) late</span>
+            <% } else if (schedule.daysLeft === 0) { %>
+              <span class="sub" style="color:var(--amber);font-weight:600;">due today</span>
+            <% } else { %>
+              <span class="sub muted">in <%= schedule.daysLeft %> day(s)</span>
+            <% } %></dd>
+          <% if (schedule.openTask) { %><dt>Open task</dt><dd><a href="/requests/<%= schedule.openTask.id %>"><%= schedule.openTask.code %></a></dd><% } %>
+        </dl>
+        <% if (role === 'admin' && !schedule.openTask) { %>
+          <form method="post" action="/schedule/<%= e.id %>/task" class="mt">
+            <button class="btn btn-light btn-sm" type="submit">Create checkup task</button>
+          </form>
+        <% } %>
+      <% } else { %>
+        <p class="muted">No routine checkup schedule is set.<% if (role === 'admin') { %> <a href="/equipment/<%= e.id %>/edit">Set one</a>.<% } %></p>
+      <% } %>
+    </div>
+
+    <% if (role !== 'requester') { %>
+    <div class="card">
+      <h2>Update Condition</h2>
+      <form method="post" action="/equipment/<%= e.id %>/status">
+        <div class="field">
+          <select name="status" aria-label="Condition">
+            <% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= e.status === s ? 'selected' : '' %>><%= s %></option><% }) %>
+          </select>
+        </div>
+        <div class="field"><input type="text" name="note" placeholder="Note (optional)" maxlength="500"></div>
+        <button class="btn btn-light btn-sm" type="submit">Update</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Activity Log</h2>
+      <% if (!activities.length) { %><p class="muted">No activity yet.</p><% } %>
+      <ul class="timeline">
+        <% activities.forEach(function (a) { var u = getUser(a.userId); %>
+          <li>
+            <div class="what"><%= a.action %><% if (a.fromStatus && a.toStatus) { %> <span class="muted">(<%= a.fromStatus %> → <%= a.toStatus %>)</span><% } %></div>
+            <% if (a.details) { %><div class="details"><%= a.details %></div><% } %>
+            <div class="when"><%= u ? u.name : 'System' %> · <%= fmtDateTime(a.createdAt) %><% if (a.requestId) { %> · <a href="/requests/<%= a.requestId %>">request</a><% } %></div>
+          </li>
+        <% }) %>
+      </ul>
+    </div>
+    <% } %>
+  </div>
+</div>
+
+<% if (role === 'admin') { %>
+<!-- Hidden form for removing photo -->
+<form id="remove-equipment-photo-form" method="post" action="/equipment/<%= e.id %>/photo" style="display:none;">
+  <input type="hidden" name="removePhoto" value="1">
+</form>
+
+<!-- Equipment Photo Edit & Upload Modal -->
+<div id="equipment-photo-modal" class="modal-backdrop" style="display:none;z-index:1000;" onclick="closePhotoModal(event)">
+  <div class="modal-card" style="max-width:520px;width:100%;margin:0;" onclick="event.stopPropagation()">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h3 style="margin:0;font-size:17px;font-weight:700;"><%= e.photo ? 'Edit Equipment Photo' : 'Upload Equipment Photo' %></h3>
+      <button type="button" class="btn-link" onclick="closePhotoModal()" style="font-size:24px;line-height:1;color:var(--muted);padding:4px 8px;cursor:pointer;">&times;</button>
+    </div>
+
+    <form id="modal-photo-form" method="post" action="/equipment/<%= e.id %>/photo" enctype="multipart/form-data">
+      <input type="file" id="modal-photo-input" name="photo" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none;">
+
+      <!-- Dropzone (shown initially when no photo exists or can be used to drag/drop) -->
+      <div id="modal-dropzone-box" style="<%= e.photo ? 'display:none;' : '' %>">
+        <label class="dropzone" for="modal-photo-input" id="modal-dropzone" style="cursor:pointer;padding:28px 16px;">
+          <span class="dz-ic"><%- icon('camera') %></span>
+          <strong>Click to select photo or drag & drop</strong>
+          <span>JPG, PNG, GIF, WEBP up to 5 MB</span>
+        </label>
+      </div>
+
+      <!-- Preview Stage & Edit Tools -->
+      <div id="modal-preview-box" class="photo-editor-card" style="<%= e.photo ? '' : 'display:none;' %>max-width:100%;margin-bottom:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
+          <span class="photo-info-badge" id="modal-badge">
+            <%- icon('check') %> <span id="modal-badge-text"><%= e.photo ? 'Current Photo' : 'Selected Photo' %></span>
+          </span>
+          <span class="muted" style="font-size:12px;" id="modal-edit-hint">Click tools below to rotate/flip</span>
+        </div>
+
+        <div class="photo-preview-stage" id="modal-stage" style="min-height:220px;max-height:300px;">
+          <img src="<%= e.photo ? '/uploads/' + e.photo : '' %>" alt="<%= e.name %>" id="modal-preview-img" crossorigin="anonymous">
+        </div>
+
+        <!-- Tool buttons -->
+        <div class="photo-tools-bar">
+          <button type="button" class="tool-btn" id="modal-btn-rot-left" title="Rotate 90° counter-clockwise">
+            <%- icon('refresh') %> Rotate Left
+          </button>
+          <button type="button" class="tool-btn" id="modal-btn-rot-right" title="Rotate 90° clockwise">
+            <%- icon('refresh') %> Rotate Right
+          </button>
+          <button type="button" class="tool-btn" id="modal-btn-flip" title="Flip horizontally">
+            Flip
+          </button>
+          <button type="button" class="tool-btn" id="modal-btn-reset" title="Reset edits">
+            Reset
+          </button>
+        </div>
+
+        <div style="margin-top:4px;">
+          <button type="button" class="btn btn-sm btn-light" id="modal-btn-change-file">
+            <%- icon('camera') %> Choose Different File
+          </button>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="btn btn-light" onclick="closePhotoModal()">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="modal-btn-submit">Save Photo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var modal = document.getElementById('equipment-photo-modal');
+    var fileInput = document.getElementById('modal-photo-input');
+    var dropzoneBox = document.getElementById('modal-dropzone-box');
+    var dropzone = document.getElementById('modal-dropzone');
+    var previewBox = document.getElementById('modal-preview-box');
+    var previewImg = document.getElementById('modal-preview-img');
+    var badgeText = document.getElementById('modal-badge-text');
+    var editHint = document.getElementById('modal-edit-hint');
+    var btnChangeFile = document.getElementById('modal-btn-change-file');
+    var btnRotLeft = document.getElementById('modal-btn-rot-left');
+    var btnRotRight = document.getElementById('modal-btn-rot-right');
+    var btnFlip = document.getElementById('modal-btn-flip');
+    var btnReset = document.getElementById('modal-btn-reset');
+    var form = document.getElementById('modal-photo-form');
+    var btnSubmit = document.getElementById('modal-btn-submit');
+
+    var initialPhotoUrl = '<%= e.photo ? "/uploads/" + e.photo : "" %>';
+    var rotation = 0;
+    var flipped = false;
+    var currentFile = null;
+    var isDirty = false;
+
+    window.openPhotoModal = function () {
+      if (modal) modal.style.display = 'flex';
+    };
+
+    window.closePhotoModal = function (e) {
+      if (!e || e.target === modal || e.currentTarget === modal || e.type === 'click') {
+        if (modal) modal.style.display = 'none';
+      }
+    };
+
+    window.confirmRemoveEquipmentPhoto = function () {
+      if (confirm('Are you sure you want to remove the photo for <%= e.name %>?')) {
+        var removeForm = document.getElementById('remove-equipment-photo-form');
+        if (removeForm) removeForm.submit();
+      }
+    };
+
+    function applyTransforms() {
+      if (!previewImg) return;
+      var scaleX = flipped ? -1 : 1;
+      previewImg.style.transform = 'rotate(' + rotation + 'deg) scaleX(' + scaleX + ')';
+      if (rotation !== 0 || flipped) {
+        isDirty = true;
+        editHint.textContent = 'Edits applied (' + rotation + '°' + (flipped ? ', flipped' : '') + ')';
+        editHint.style.color = 'var(--primary, #2563eb)';
+      } else {
+        isDirty = false;
+        editHint.textContent = 'Click tools to rotate/flip';
+        editHint.style.color = '';
+      }
+    }
+
+    function resetTransforms() {
+      rotation = 0;
+      flipped = false;
+      applyTransforms();
+    }
+
+    function formatFileSize(bytes) {
+      if (!bytes) return '';
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function handleFile(file) {
+      if (!file) return;
+      if (!file.type.match(/^image\//i)) {
+        alert('Please choose an image file (JPG, PNG, GIF, WEBP).');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image exceeds 5 MB. Please choose a smaller photo.');
+        return;
+      }
+
+      currentFile = file;
+      var reader = new FileReader();
+      reader.onload = function (e) {
+        previewImg.src = e.target.result;
+        resetTransforms();
+        badgeText.textContent = file.name + ' (' + formatFileSize(file.size) + ')';
+        previewBox.style.display = 'flex';
+        dropzoneBox.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener('click', function () {
+        this.value = '';
+      });
+      fileInput.addEventListener('change', function () {
+        if (this.files && this.files[0]) {
+          handleFile(this.files[0]);
+        }
+      });
+    }
+
+    if (btnChangeFile && fileInput) {
+      btnChangeFile.addEventListener('click', function (e) {
+        e.preventDefault();
+        fileInput.click();
+      });
+    }
+
+    // Drag & Drop
+    if (dropzone) {
+      ['dragenter', 'dragover'].forEach(function (evt) {
+        dropzone.addEventListener(evt, function (e) {
+          e.preventDefault();
+          dropzone.classList.add('dragover');
+        });
+      });
+      ['dragleave', 'drop'].forEach(function (evt) {
+        dropzone.addEventListener(evt, function (e) {
+          e.preventDefault();
+          dropzone.classList.remove('dragover');
+        });
+      });
+      dropzone.addEventListener('drop', function (e) {
+        var dt = e.dataTransfer;
+        if (dt && dt.files && dt.files[0]) {
+          handleFile(dt.files[0]);
+          try {
+            var dataTransfer = new DataTransfer();
+            dataTransfer.items.add(dt.files[0]);
+            fileInput.files = dataTransfer.files;
+          } catch (err) {}
+        }
+      });
+    }
+
+    // Rotation & flip tool handlers
+    if (btnRotRight) {
+      btnRotRight.addEventListener('click', function () {
+        rotation = (rotation + 90) % 360;
+        applyTransforms();
+      });
+    }
+    if (btnRotLeft) {
+      btnRotLeft.addEventListener('click', function () {
+        rotation = (rotation - 90 + 360) % 360;
+        applyTransforms();
+      });
+    }
+    if (btnFlip) {
+      btnFlip.addEventListener('click', function () {
+        flipped = !flipped;
+        applyTransforms();
+      });
+    }
+    if (btnReset) {
+      btnReset.addEventListener('click', resetTransforms);
+    }
+
+    function exportEditedImage(img, rot, flip, callback) {
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+      var rad = (rot * Math.PI) / 180;
+      var is90or270 = (rot % 180 !== 0);
+      var w = is90or270 ? img.naturalHeight : img.naturalWidth;
+      var h = is90or270 ? img.naturalWidth : img.naturalHeight;
+
+      if (!w || !h) {
+        callback(null);
+        return;
+      }
+
+      canvas.width = w;
+      canvas.height = h;
+
+      ctx.translate(w / 2, h / 2);
+      ctx.rotate(rad);
+      if (flip) {
+        ctx.scale(-1, 1);
+      }
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+      canvas.toBlob(function (blob) {
+        callback(blob);
+      }, 'image/jpeg', 0.92);
+    }
+
+    // Form submission
+    if (form) {
+      var isSubmitting = false;
+      form.addEventListener('submit', function (e) {
+        if (isSubmitting) return;
+
+        // If user hasn't selected a new file and hasn't edited anything, warn
+        if ((!fileInput.files || !fileInput.files.length) && !isDirty) {
+          e.preventDefault();
+          alert('Please select a new photo or adjust orientation before saving.');
+          return;
+        }
+
+        if (isDirty && previewImg && previewImg.src) {
+          e.preventDefault();
+          if (btnSubmit) {
+            btnSubmit.disabled = true;
+            btnSubmit.textContent = 'Saving photo...';
+          }
+
+          try {
+            exportEditedImage(previewImg, rotation, flipped, function (blob) {
+              if (blob && window.DataTransfer) {
+                var dt = new DataTransfer();
+                var fname = (currentFile && currentFile.name) ? currentFile.name.replace(/\.[^.]+$/, '') + '-edited.jpg' : 'equipment-edited.jpg';
+                var editedFile = new File([blob], fname, { type: 'image/jpeg' });
+                dt.items.add(editedFile);
+                fileInput.files = dt.files;
+              }
+              isSubmitting = true;
+              form.submit();
+            });
+          } catch (err) {
+            isSubmitting = true;
+            form.submit();
+          }
+        }
+      });
+    }
+  })();
+</script>
+<% } %>
+
+<%- include('../partials/footer') %>

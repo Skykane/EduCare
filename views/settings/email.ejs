@@ -1,0 +1,772 @@
+<%- include('../partials/header') %>
+
+<style>
+  /* Responsive Email Settings & Logs Styles */
+  .email-status-card {
+    margin-bottom: 24px;
+    border-left: 4px solid <%= settings.user && settings.pass ? 'var(--green)' : '#f59e0b' %>;
+  }
+  .email-status-wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .email-status-left {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    flex: 1 1 280px;
+    min-width: 0;
+  }
+  .email-status-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: <%= settings.user && settings.pass ? 'var(--green-soft)' : '#fef3c7' %>;
+    color: <%= settings.user && settings.pass ? 'var(--green)' : '#d97706' %>;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .email-test-form {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    flex: 1 1 300px;
+    justify-content: flex-end;
+  }
+  .email-test-input {
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 12px;
+    font-size: 13px;
+    flex: 1 1 200px;
+    min-width: 0;
+    max-width: 100%;
+    background: var(--surface);
+    color: var(--text);
+    box-sizing: border-box;
+  }
+  .email-test-btn {
+    height: 38px;
+    padding: 0 14px;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .email-settings-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    align-items: start;
+    margin-bottom: 28px;
+  }
+  .email-form-row-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+  .email-form-row-3 {
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr;
+    gap: 12px;
+  }
+
+  /* Modern Settings Form Elements */
+  .setting-field-group {
+    margin-bottom: 16px;
+  }
+  .setting-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--text);
+    margin-bottom: 7px;
+  }
+  .setting-label .hint {
+    font-weight: 500;
+    color: var(--muted);
+    font-size: 11.5px;
+  }
+  .setting-input-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+  }
+  .setting-input-wrap .input-ic-left {
+    position: absolute;
+    left: 13px;
+    color: var(--muted);
+    pointer-events: none;
+    display: grid;
+    place-items: center;
+    z-index: 2;
+  }
+  .setting-input-wrap .input-ic-left .ic {
+    width: 17px;
+    height: 17px;
+  }
+  .setting-input-wrap input,
+  .setting-input-wrap select {
+    width: 100%;
+    height: 44px;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
+    padding: 0 14px 0 42px;
+    font-size: 13.5px;
+    font-family: inherit;
+    background: var(--surface);
+    color: var(--text);
+    box-sizing: border-box;
+    transition: all 0.2s ease;
+  }
+  .setting-input-wrap input:focus,
+  .setting-input-wrap select:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(140, 23, 36, 0.12);
+    background: var(--surface);
+  }
+  .setting-input-wrap .btn-eye-toggle {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    color: var(--muted);
+    padding: 6px 8px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    transition: color 0.15s ease, background 0.15s ease;
+    z-index: 2;
+  }
+  .setting-input-wrap .btn-eye-toggle:hover {
+    color: var(--primary);
+    background: rgba(140, 23, 36, 0.08);
+  }
+  .setting-input-wrap .btn-eye-toggle .ic {
+    width: 18px;
+    height: 18px;
+  }
+  .setting-field-helper {
+    font-size: 11.5px;
+    color: var(--muted);
+    margin-top: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .setting-field-helper a {
+    color: var(--primary);
+    font-weight: 600;
+    text-decoration: underline;
+  }
+
+  /* Toggle Switch */
+  .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 52px;
+    height: 30px;
+    flex-shrink: 0;
+    cursor: pointer;
+  }
+  .toggle-switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+  .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background-color: #cbd5e1;
+    transition: all .25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 999px;
+  }
+  .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 22px;
+    width: 22px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: all .25s cubic-bezier(0.4, 0, 0.2, 1);
+    border-radius: 50%;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.22);
+  }
+  .toggle-switch input:checked + .toggle-slider {
+    background-color: #10b981;
+  }
+  .toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(22px);
+  }
+  [data-theme="dark"] .toggle-slider {
+    background-color: #334155;
+  }
+  [data-theme="dark"] .toggle-switch input:checked + .toggle-slider {
+    background-color: #059669;
+  }
+
+  /* Triggers Cards */
+  .triggers-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 8px;
+  }
+  .trigger-card {
+    display: flex;
+    flex-direction: column;
+    padding: 13px 15px;
+    background: var(--bg);
+    border: 1.5px solid var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    position: relative;
+  }
+  .trigger-card:hover {
+    border-color: var(--primary);
+    background: var(--surface);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05);
+  }
+  .trigger-card:has(input:checked),
+  .trigger-card.is-on {
+    border-color: rgba(140, 23, 36, 0.45);
+    background: rgba(140, 23, 36, 0.035);
+  }
+  [data-theme="dark"] .trigger-card:has(input:checked),
+  [data-theme="dark"] .trigger-card.is-on {
+    background: rgba(201, 59, 74, 0.08);
+    border-color: rgba(201, 59, 74, 0.45);
+  }
+  .trigger-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .trigger-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+  .trigger-icon .ic {
+    width: 16px;
+    height: 16px;
+  }
+  .trigger-badge {
+    font-size: 10.5px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 99px;
+    letter-spacing: 0.5px;
+    transition: all 0.2s ease;
+  }
+  .toggle-switch-sm {
+    width: 44px;
+    height: 24px;
+  }
+  .toggle-switch-sm .toggle-slider:before {
+    height: 18px;
+    width: 18px;
+    left: 3px;
+    bottom: 3px;
+  }
+  .toggle-switch-sm input:checked + .toggle-slider:before {
+    transform: translateX(20px);
+  }
+  .trigger-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    display: block;
+    margin-bottom: 3px;
+  }
+  .trigger-desc {
+    font-size: 11.5px;
+    color: var(--muted);
+    line-height: 1.4;
+    margin: 0;
+  }
+
+  .btn-save-settings {
+    height: 46px;
+    font-size: 14.5px;
+    font-weight: 700;
+    border-radius: 10px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    box-shadow: 0 4px 12px rgba(140, 23, 36, 0.2);
+  }
+
+  @media (max-width: 960px) {
+    .email-settings-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 20px;
+    }
+  }
+
+  @media (max-width: 768px) {
+    .email-status-wrap {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 16px;
+    }
+    .email-test-form {
+      justify-content: stretch;
+      width: 100%;
+    }
+    .email-test-input {
+      width: 100%;
+      flex: 1 1 100%;
+    }
+    .email-test-btn {
+      width: 100%;
+      justify-content: center;
+    }
+  }
+
+  @media (max-width: 600px) {
+    .email-form-row-2,
+    .email-form-row-3 {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .triggers-grid {
+      grid-template-columns: 1fr;
+    }
+    .email-status-left {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .email-status-icon {
+      width: 38px;
+      height: 38px;
+    }
+  }
+
+  /* Responsive Modal Preview */
+  .email-modal-card {
+    max-width: 640px;
+    width: 94vw;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    margin: 16px;
+    box-sizing: border-box;
+  }
+  .email-modal-frame {
+    width: 100%;
+    height: 52vh;
+    min-height: 260px;
+    max-height: 500px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    box-sizing: border-box;
+  }
+</style>
+
+<%- include('../partials/header-banner', {
+  breadcrumb: '<a href="/">Home</a> &rsaquo; <a href="/users">User Accounts</a> &rsaquo; Email Settings',
+  title: 'Email Notifications & SMTP',
+  subtitle: 'Configure real Gmail/SMTP delivery for user registrations, administrator approvals, and security alerts.',
+  extraActions: `
+    <a class="btn-banner-sub" href="/users/new" onclick="if(window.openNewAccountModal){openNewAccountModal();return false;}">${icon('plus')} New Account</a>
+  `
+}) %>
+
+<!-- Connection Status Card -->
+<div class="card card-floating email-status-card">
+  <div class="email-status-wrap">
+    <div class="email-status-left">
+      <div class="email-status-icon">
+        <%- icon('mail') %>
+      </div>
+      <div>
+        <h3 style="margin: 0; font-size: 16.5px; font-weight: 700;">
+          <%= settings.user && settings.pass ? 'Real Email Delivery is Active' : 'SMTP Credentials Not Yet Configured' %>
+        </h3>
+        <p style="margin: 4px 0 0; color: var(--muted); font-size: 13.5px; line-height: 1.45;">
+          <% if (settings.user && settings.pass) { %>
+            Connected via <strong><%= settings.provider.toUpperCase() %></strong> (<%= settings.user %>). Real emails are transmitted to users' inboxes.
+          <% } else { %>
+            Emails are currently generated and logged in the <strong>Email History</strong> module. Add your Gmail or SMTP credentials below to send real live emails to actual inboxes.
+          <% } %>
+        </p>
+      </div>
+    </div>
+
+    <!-- Quick Test Email Form -->
+    <form method="post" action="/settings/email/test" class="email-test-form">
+      <input type="email" name="targetEmail" class="email-test-input" placeholder="Enter recipient email..." value="<%= currentUser.email %>" required>
+      <button type="submit" class="btn btn-sm <%= settings.user && settings.pass ? 'btn-success' : 'btn-light' %> email-test-btn">
+        <%- icon('send') %> Send Test Email
+      </button>
+    </form>
+  </div>
+</div>
+
+<div class="email-settings-grid">
+  <!-- Settings Form Card -->
+  <div class="card card-floating">
+    <div class="card-head-modern" style="display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <span style="display: grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: rgba(140, 23, 36, 0.1); color: var(--primary); flex-shrink: 0;">
+          <%- icon('settings') %>
+        </span>
+        <div>
+          <h2 style="margin: 0; font-size: 17px; font-weight: 700;">SMTP & Mailer Settings</h2>
+          <p style="margin: 2px 0 0; font-size: 12.5px; color: var(--muted);">Configure outgoing Gmail / SMTP server to transmit real-time system notifications.</p>
+        </div>
+      </div>
+      <span class="badge <%= settings.user && settings.pass ? 'badge-green' : 'badge-amber' %>" style="font-size: 12px; padding: 5px 12px;">
+        <%- settings.user && settings.pass ? icon('check-circle') + ' Active' : icon('clock') + ' Pending Setup' %>
+      </span>
+    </div>
+
+    <form method="post" action="/settings/email">
+      <!-- Enable Switch Box -->
+      <div id="enable-banner-box" style="margin-bottom: 22px; padding: 14px 18px; background: <%= settings.enabled ? 'rgba(16, 185, 129, 0.08)' : 'var(--bg)' %>; border: 1.5px solid <%= settings.enabled ? 'rgba(16, 185, 129, 0.28)' : 'var(--border)' %>; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span style="display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: <%= settings.enabled ? 'rgba(16, 185, 129, 0.18)' : 'rgba(100, 116, 139, 0.15)' %>; color: <%= settings.enabled ? '#10b981' : 'var(--muted)' %>; flex-shrink: 0;">
+            <%- icon('mail') %>
+          </span>
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <strong style="font-size: 14.5px;">Enable Email System</strong>
+              <span id="enable-status-badge" class="badge <%= settings.enabled ? 'badge-green' : 'badge-gray' %>" style="font-size: 11px;">
+                <%= settings.enabled ? 'ACTIVE' : 'DISABLED' %>
+              </span>
+            </div>
+            <small style="color: var(--muted); font-size: 12.5px; display: block; margin-top: 3px;">
+              When enabled, EduCare automatically sends notification emails for system events.
+            </small>
+          </div>
+        </div>
+        <label class="toggle-switch" title="Toggle automatic email dispatch">
+          <input type="checkbox" name="enabled" value="1" id="email-enabled-toggle" <%= settings.enabled ? 'checked' : '' %> onchange="onEmailToggleChange(this)">
+          <span class="toggle-slider"></span>
+        </label>
+      </div>
+
+      <!-- Email Service Provider -->
+      <div class="setting-field-group">
+        <label for="provider" class="setting-label">
+          <span>Email Service Provider</span>
+          <span class="hint">Select SMTP transport</span>
+        </label>
+        <div class="setting-input-wrap">
+          <span class="input-ic-left"><%- icon('globe') %></span>
+          <select id="provider" name="provider">
+            <option value="gmail" <%= settings.provider === 'gmail' ? 'selected' : '' %>>Gmail / Google Workspace (Recommended)</option>
+            <option value="outlook" <%= settings.provider === 'outlook' ? 'selected' : '' %>>Microsoft Outlook / Office 365</option>
+            <option value="custom" <%= settings.provider === 'custom' ? 'selected' : '' %>>Custom SMTP Server</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Sender Email & App Password -->
+      <div class="email-form-row-2">
+        <div class="setting-field-group">
+          <label for="user" class="setting-label">
+            <span>Sender Email Address</span>
+          </label>
+          <div class="setting-input-wrap">
+            <span class="input-ic-left"><%- icon('mail') %></span>
+            <input type="email" id="user" name="user" value="<%= settings.user || '' %>" placeholder="e.g. school.educare@gmail.com" required>
+          </div>
+          <div class="setting-field-helper">
+            <span>Your Gmail address that sends out messages</span>
+          </div>
+        </div>
+
+        <div class="setting-field-group">
+          <label for="pass" class="setting-label">
+            <span>App Password / Password</span>
+            <span class="hint">(16-char for Gmail)</span>
+          </label>
+          <div class="setting-input-wrap">
+            <span class="input-ic-left"><%- icon('lock') %></span>
+            <input type="password" id="pass" name="pass" value="<%= settings.pass || '' %>" placeholder="••••••••••••••••" autocomplete="new-password">
+            <button type="button" class="btn-eye-toggle" onclick="togglePassVisibility('pass', this)" title="Show / hide password" aria-label="Toggle password visibility">
+              <%- icon('eye') %>
+            </button>
+          </div>
+          <div class="setting-field-helper">
+            <span>Google App Password without spaces</span>
+            <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">Get App Password &rarr;</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custom SMTP Settings (Shown when provider is custom) -->
+      <div id="custom-smtp-fields" style="<%= settings.provider === 'custom' ? '' : 'display: none;' %> margin-bottom: 18px; padding: 16px; border: 1.5px dashed var(--border); border-radius: 12px; background: var(--bg);">
+        <strong style="display: block; font-size: 13px; margin-bottom: 12px; color: var(--primary);">Custom SMTP Server Configuration:</strong>
+        <div class="email-form-row-3">
+          <div>
+            <label for="host" style="font-weight: 600; font-size: 12px; display: block; margin-bottom: 4px;">SMTP Host</label>
+            <input type="text" id="host" name="host" value="<%= settings.host || 'smtp.gmail.com' %>" placeholder="smtp.example.com" style="width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-size: 13px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+          </div>
+          <div>
+            <label for="port" style="font-weight: 600; font-size: 12px; display: block; margin-bottom: 4px;">Port</label>
+            <input type="number" id="port" name="port" value="<%= settings.port || 465 %>" placeholder="465 / 587" style="width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-size: 13px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+          </div>
+          <div style="display: flex; flex-direction: column; justify-content: center;">
+            <label style="font-weight: 600; font-size: 12px; display: block; margin-bottom: 6px;">SSL / TLS</label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; cursor: pointer;">
+              <input type="checkbox" name="secure" value="1" <%= settings.secure ? 'checked' : '' %> class="custom-chk"> Secure (SSL)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Display Name & Admin Alert Recipient Email -->
+      <div class="email-form-row-2">
+        <div class="setting-field-group">
+          <label for="fromName" class="setting-label">
+            <span>Sender Display Name</span>
+          </label>
+          <div class="setting-input-wrap">
+            <span class="input-ic-left"><%- icon('user') %></span>
+            <input type="text" id="fromName" name="fromName" value="<%= settings.fromName || 'EduCare - St. Anthony CST' %>" placeholder="e.g. EduCare - St. Anthony CST">
+          </div>
+          <div class="setting-field-helper">
+            <span>Shown in recipient's inbox as sender name</span>
+          </div>
+        </div>
+
+        <div class="setting-field-group">
+          <label for="adminEmail" class="setting-label">
+            <span>Admin Alert Recipient Email</span>
+          </label>
+          <div class="setting-input-wrap">
+            <span class="input-ic-left"><%- icon('shield') %></span>
+            <input type="email" id="adminEmail" name="adminEmail" value="<%= settings.adminEmail || 'admin@educare.local' %>" placeholder="e.g. admin@school.edu">
+          </div>
+          <div class="setting-field-helper">
+            <span>Receives notifications when new users register</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Automatic Email Triggers -->
+      <div style="margin-top: 14px; margin-bottom: 24px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="color: var(--primary); display: grid; place-items: center;"><%- icon('bell') %></span>
+              <strong style="font-size: 14px; color: var(--text);">Automatic Email Triggers</strong>
+            </div>
+            <span style="font-size: 12px; color: var(--muted); margin-top: 2px; display: block;">Turn individual event notification labels on or off.</span>
+          </div>
+        </div>
+        
+        <div class="triggers-grid">
+          <!-- Trigger 1: New Registration -->
+          <div class="trigger-card <%= settings.notifyOnRegistration ? 'is-on' : '' %>" id="card-trigger-reg" onclick="toggleTriggerCard('chk-reg', event)">
+            <div class="trigger-card-top">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="trigger-icon" style="background: rgba(99, 102, 241, 0.12); color: #6366f1;">
+                  <%- icon('user') %>
+                </div>
+                <span class="trigger-badge badge <%= settings.notifyOnRegistration ? 'badge-green' : 'badge-gray' %>" id="badge-trigger-reg">
+                  <%= settings.notifyOnRegistration ? 'ON' : 'OFF' %>
+                </span>
+              </div>
+              <label class="toggle-switch toggle-switch-sm" title="Turn New Registrations email ON or OFF" onclick="event.stopPropagation()">
+                <input type="checkbox" name="notifyOnRegistration" id="chk-reg" value="1" <%= settings.notifyOnRegistration ? 'checked' : '' %> class="trigger-chk" onchange="updateTriggerCardState('card-trigger-reg', 'badge-trigger-reg', this)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <strong class="trigger-title">New Registrations</strong>
+            <p class="trigger-desc">Sends immediate verification email to newly registered students upon sign-up.</p>
+          </div>
+
+          <!-- Trigger 2: Account Approval / Rejection -->
+          <div class="trigger-card <%= settings.notifyOnApproval ? 'is-on' : '' %>" id="card-trigger-app" onclick="toggleTriggerCard('chk-app', event)">
+            <div class="trigger-card-top">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="trigger-icon" style="background: rgba(16, 185, 129, 0.12); color: #10b981;">
+                  <%- icon('check-circle') %>
+                </div>
+                <span class="trigger-badge badge <%= settings.notifyOnApproval ? 'badge-green' : 'badge-gray' %>" id="badge-trigger-app">
+                  <%= settings.notifyOnApproval ? 'ON' : 'OFF' %>
+                </span>
+              </div>
+              <label class="toggle-switch toggle-switch-sm" title="Turn Account Approvals email ON or OFF" onclick="event.stopPropagation()">
+                <input type="checkbox" name="notifyOnApproval" id="chk-app" value="1" <%= settings.notifyOnApproval ? 'checked' : '' %> class="trigger-chk" onchange="updateTriggerCardState('card-trigger-app', 'badge-trigger-app', this)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <strong class="trigger-title">Account Approvals</strong>
+            <p class="trigger-desc">Sends "Account Approved" welcome email with login link once verified by admin.</p>
+          </div>
+
+          <!-- Trigger 3: Equipment Repair Requests -->
+          <div class="trigger-card <%= settings.notifyOnRequests ? 'is-on' : '' %>" id="card-trigger-req" onclick="toggleTriggerCard('chk-req', event)">
+            <div class="trigger-card-top">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="trigger-icon" style="background: rgba(245, 158, 11, 0.12); color: #d97706;">
+                  <%- icon('wrench') %>
+                </div>
+                <span class="trigger-badge badge <%= settings.notifyOnRequests ? 'badge-green' : 'badge-gray' %>" id="badge-trigger-req">
+                  <%= settings.notifyOnRequests ? 'ON' : 'OFF' %>
+                </span>
+              </div>
+              <label class="toggle-switch toggle-switch-sm" title="Turn Repair Requests email ON or OFF" onclick="event.stopPropagation()">
+                <input type="checkbox" name="notifyOnRequests" id="chk-req" value="1" <%= settings.notifyOnRequests ? 'checked' : '' %> class="trigger-chk" onchange="updateTriggerCardState('card-trigger-req', 'badge-trigger-req', this)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <strong class="trigger-title">Repair Requests</strong>
+            <p class="trigger-desc">Sends ticket confirmation and status update emails for maintenance requests.</p>
+          </div>
+
+          <!-- Trigger 4: Account Login Alerts -->
+          <div class="trigger-card <%= settings.notifyOnLogin !== false ? 'is-on' : '' %>" id="card-trigger-log" onclick="toggleTriggerCard('chk-log', event)">
+            <div class="trigger-card-top">
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div class="trigger-icon" style="background: rgba(239, 68, 68, 0.12); color: #ef4444;">
+                  <%- icon('shield') %>
+                </div>
+                <span class="trigger-badge badge <%= settings.notifyOnLogin !== false ? 'badge-green' : 'badge-gray' %>" id="badge-trigger-log">
+                  <%= settings.notifyOnLogin !== false ? 'ON' : 'OFF' %>
+                </span>
+              </div>
+              <label class="toggle-switch toggle-switch-sm" title="Turn Login Security Alerts ON or OFF" onclick="event.stopPropagation()">
+                <input type="checkbox" name="notifyOnLogin" id="chk-log" value="1" <%= settings.notifyOnLogin !== false ? 'checked' : '' %> class="trigger-chk" onchange="updateTriggerCardState('card-trigger-log', 'badge-trigger-log', this)">
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <strong class="trigger-title">Login Security Alerts</strong>
+            <p class="trigger-desc">Sends immediate security alerts with timestamp and device info upon account login.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <button type="submit" class="btn btn-primary btn-save-settings" style="flex: 1; min-width: 220px;">
+          <%- icon('check-circle') %> Save Email Settings
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  // Toggle password visibility (eye icon)
+  function togglePassVisibility(id, btn) {
+    var input = document.getElementById(id);
+    if (!input) return;
+    var isPw = input.type === 'password';
+    input.type = isPw ? 'text' : 'password';
+    btn.setAttribute('aria-label', isPw ? 'Hide password' : 'Show password');
+    btn.innerHTML = isPw
+      ? '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>'
+      : '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  }
+
+  // Dynamic status badge update on toggle change
+  function onEmailToggleChange(chk) {
+    var badge = document.getElementById('enable-status-badge');
+    var box = document.getElementById('enable-banner-box');
+    if (chk.checked) {
+      if (badge) {
+        badge.className = 'badge badge-green';
+        badge.textContent = 'ACTIVE';
+      }
+      if (box) {
+        box.style.background = 'rgba(16, 185, 129, 0.08)';
+        box.style.borderColor = 'rgba(16, 185, 129, 0.28)';
+      }
+    } else {
+      if (badge) {
+        badge.className = 'badge badge-gray';
+        badge.textContent = 'DISABLED';
+      }
+      if (box) {
+        box.style.background = 'var(--bg)';
+        box.style.borderColor = 'var(--border)';
+      }
+    }
+  }
+
+  // Auto clean whitespace when pasting into app password
+  var passInput = document.getElementById('pass');
+  if (passInput) {
+    passInput.addEventListener('paste', function () {
+      setTimeout(function () {
+        passInput.value = passInput.value.replace(/\s+/g, '');
+      }, 10);
+    });
+  }
+
+  // Dynamic provider selector
+  var provSelect = document.getElementById('provider');
+  var customFields = document.getElementById('custom-smtp-fields');
+  if (provSelect && customFields) {
+    provSelect.addEventListener('change', function () {
+      customFields.style.display = this.value === 'custom' ? '' : 'none';
+    });
+  }
+
+  // Update single trigger card state (badge + card border)
+  function updateTriggerCardState(cardId, badgeId, chk) {
+    var card = document.getElementById(cardId);
+    var badge = document.getElementById(badgeId);
+    if (chk.checked) {
+      if (badge) {
+        badge.className = 'trigger-badge badge badge-green';
+        badge.textContent = 'ON';
+      }
+      if (card) {
+        card.classList.add('is-on');
+      }
+    } else {
+      if (badge) {
+        badge.className = 'trigger-badge badge badge-gray';
+        badge.textContent = 'OFF';
+      }
+      if (card) {
+        card.classList.remove('is-on');
+      }
+    }
+  }
+
+  // Click handler on card to toggle switch
+  function toggleTriggerCard(chkId, evt) {
+    var chk = document.getElementById(chkId);
+    if (!chk) return;
+    chk.checked = !chk.checked;
+    chk.dispatchEvent(new Event('change'));
+  }
+</script>
+
+<%- include('../partials/footer') %>

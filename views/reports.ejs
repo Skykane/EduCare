@@ -1,0 +1,210 @@
+<%- include('partials/header') %>
+<% var range = qs({ from: f.from, to: f.to }); %>
+<div class="no-print">
+  <%- include('partials/header-banner', {
+    breadcrumb: '<a href="/">Home</a> &rsaquo; Reports',
+    title: 'Maintenance Reports & Analytics',
+    subtitle: 'Comprehensive performance breakdown: ' + (f.from ? fmtDate(f.from) : 'Beginning') + ' to ' + (f.to ? fmtDate(f.to) : 'Today') + '.',
+    extraActions: `<button class="btn-banner-sub" type="button" onclick="window.print()" style="cursor:pointer;">🖨️ Print Report</button>`
+  }) %>
+</div>
+
+<div class="print-only" style="margin-bottom:12px">
+  <strong>EDUCARE: School Equipment Maintenance and Repair Management System</strong><br>
+  Generated <%= fmtDateTime(generatedAt) %> by <%= currentUser.name %>
+</div>
+
+<form class="card filters" method="get" action="/reports">
+  <div class="field"><label for="from">From</label><input type="date" id="from" name="from" value="<%= f.from %>"></div>
+  <div class="field"><label for="to">To</label><input type="date" id="to" name="to" value="<%= f.to %>"></div>
+  <div class="actions">
+    <button class="btn" type="submit">Apply</button>
+    <a class="btn btn-light" href="/reports?from=<%= addDays(todayISO(), -29) %>&to=<%= todayISO() %>">Last 30 days</a>
+    <a class="btn btn-light" href="/reports?from=<%= todayISO().slice(0, 8) %>01&to=<%= todayISO() %>">This month</a>
+    <a class="btn btn-light" href="/reports">All time</a>
+  </div>
+</form>
+
+<!-- 1. Repair requests -->
+<div class="card">
+  <div class="card-head">
+    <h2>1. Repair Requests</h2>
+    <a class="btn btn-light btn-sm no-print" href="/reports/export/requests<%= range %>">Export CSV</a>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="label">Total submitted</div><div class="value"><%= rep.requestSummary.total %></div></div>
+    <div class="stat"><div class="label">Avg. time to resolve</div><div class="value"><%= rep.requestSummary.avgResolutionDays === null ? '—' : rep.requestSummary.avgResolutionDays.toFixed(1) + 'd' %></div></div>
+  </div>
+  <div class="grid grid-3">
+    <div>
+      <h3 style="margin: 0 0 12px 0;">By status</h3>
+      <% rep.requestSummary.byStatus.forEach(function (x) { %>
+        <div class="bar-row"><span><%= x.label %></span><div class="bar"><span class="<%= statusColor(x.label) %>" style="width:<%= (x.count / Math.max(rep.requestSummary.total, 1) * 100).toFixed(1) %>%"></span></div><strong class="text-right"><%= x.count %></strong></div>
+      <% }) %>
+    </div>
+    <div>
+      <h3 style="margin: 0 0 12px 0;">By priority</h3>
+      <% rep.requestSummary.byPriority.forEach(function (x) { %>
+        <div class="bar-row"><span><%= x.label %></span><div class="bar"><span class="<%= statusColor(x.label) %>" style="width:<%= (x.count / Math.max(rep.requestSummary.total, 1) * 100).toFixed(1) %>%"></span></div><strong class="text-right"><%= x.count %></strong></div>
+      <% }) %>
+      <h3 style="margin: 18px 0 10px 0;">By type</h3>
+      <% rep.requestSummary.byType.forEach(function (x) { %>
+        <div class="bar-row"><span><%= x.label %></span><div class="bar"><span class="indigo" style="width:<%= (x.count / Math.max(rep.requestSummary.total, 1) * 100).toFixed(1) %>%"></span></div><strong class="text-right"><%= x.count %></strong></div>
+      <% }) %>
+    </div>
+    <div>
+      <h3 style="margin: 0 0 12px 0;">By category</h3>
+      <div class="report-table-box">
+        <table class="report-grid-table">
+          <thead>
+            <tr>
+              <th class="th-cat">Category</th>
+              <th class="th-num" style="width: 85px;">Requests</th>
+              <th class="th-num" style="width: 95px;">Completed</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!rep.requestSummary.byCategory.length) { %>
+              <tr><td colspan="3" class="empty" style="padding: 24px 10px;">No requests.</td></tr>
+            <% } %>
+            <% rep.requestSummary.byCategory.forEach(function (x) { %>
+              <tr>
+                <td class="td-cat"><%= x.label %></td>
+                <td class="td-num"><strong><%= x.count %></strong></td>
+                <td class="td-num">
+                  <% if (x.completed > 0) { %>
+                    <span class="badge badge-green" style="font-size: 11px; padding: 2px 7px;"><%= x.completed %></span>
+                  <% } else { %>
+                    <span class="muted">0</span>
+                  <% } %>
+                </td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <h3 class="mt" style="margin-top: 24px; margin-bottom: 12px;">Request list</h3>
+  <%- include('partials/request-table', { rows: rep.requests, showTech: true, showRequester: true }) %>
+</div>
+
+<!-- 2. Equipment conditions -->
+<div class="card">
+  <div class="card-head">
+    <h2>2. Equipment Conditions <span class="muted" style="font-weight:400;font-size:13px">(current)</span></h2>
+    <a class="btn btn-light btn-sm no-print" href="/reports/export/equipment">Export CSV</a>
+  </div>
+  <div class="stats">
+    <% rep.conditions.byStatus.forEach(function (x) { %>
+      <div class="stat <%= statusColor(x.label) %>"><div class="label"><%= x.label %></div><div class="value"><%= x.count %></div></div>
+    <% }) %>
+  </div>
+  <div class="grid grid-2">
+    <div>
+      <h3 style="margin-bottom: 10px;">Status by category</h3>
+      <div class="report-table-box">
+        <table class="report-grid-table">
+          <thead>
+            <tr>
+              <th class="th-cat">Category</th>
+              <% C.EQUIPMENT_STATUSES.forEach(function (s) { %>
+                <th class="th-num" style="font-size: 10.5px; padding: 10px 4px;"><%= s %></th>
+              <% }) %>
+              <th class="th-num" style="width: 65px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% rep.conditions.byCategory.forEach(function (x) { %>
+              <tr>
+                <td class="td-cat"><%= x.label %></td>
+                <% x.counts.forEach(function (n) { %>
+                  <td class="td-num"><%= n || '·' %></td>
+                <% }) %>
+                <td class="td-num"><strong><%= x.total %></strong></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h3 style="margin-bottom: 10px;">Equipment needing attention</h3>
+      <% if (!rep.conditions.attention.length) { %>
+        <p class="muted">All equipment is operational.</p>
+      <% } else { %>
+        <div class="report-table-box">
+          <table class="report-grid-table">
+            <tbody>
+              <% rep.conditions.attention.forEach(function (e) { %>
+                <tr>
+                  <td class="td-cat"><a href="/equipment/<%= e.id %>"><%= e.code %></a> <%= e.name %><span class="sub"><%= e.location %></span></td>
+                  <td class="td-num" style="width: 140px; text-align: right; padding-right: 14px;"><span class="<%= statusClass(e.status) %>"><%= e.status %></span></td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      <% } %>
+    </div>
+  </div>
+</div>
+
+<!-- 3. Completed maintenance -->
+<div class="card">
+  <div class="card-head">
+    <h2>3. Completed Maintenance</h2>
+    <a class="btn btn-light btn-sm no-print" href="/reports/export/maintenance<%= range %>">Export CSV</a>
+  </div>
+  <p>
+    <strong><%= rep.records.length %></strong> record(s):
+    <% rep.recordsByType.forEach(function (x, i) { %><%= i ? ', ' : '' %><%= x.count %> <%= x.label.toLowerCase() %><% }) %>.
+  </p>
+  <div class="table-wrap">
+  <table class="stack-table">
+    <thead><tr><th>Date</th><th>Equipment</th><th>Type</th><th>Problem</th><th>Actions performed</th><th>Parts replaced</th><th>Technician</th></tr></thead>
+    <tbody>
+      <% if (!rep.records.length) { %><tr><td colspan="7" class="empty">No maintenance completed in this period.</td></tr><% } %>
+      <% rep.records.forEach(function (m) { %>
+        <tr>
+          <td class="nowrap"><%= fmtDate(m.serviceDate) %></td>
+          <td><%= m.equipment ? m.equipment.code + ' ' + m.equipment.name : '—' %></td>
+          <td><span class="<%= statusClass(m.type) %>"><%= m.type %></span></td>
+          <td><%= m.problem || '—' %></td>
+          <td><%= m.actionsTaken %></td>
+          <td><%= m.partsReplaced || '—' %></td>
+          <td><%= m.technician ? m.technician.name : '—' %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<!-- 4. Technician workload -->
+<div class="card">
+  <div class="card-head">
+    <h2>4. Technician Workload</h2>
+    <a class="btn btn-light btn-sm no-print" href="/reports/export/workload<%= range %>">Export CSV</a>
+  </div>
+  <div class="table-wrap">
+  <table class="stack-table">
+    <thead><tr><th>Technician</th><th>Availability</th><th class="text-right">Assigned (period)</th><th class="text-right">Active now</th><th class="text-right">Completed (period)</th><th class="text-right">Overdue now</th><th class="text-right">Avg. days to complete</th></tr></thead>
+    <tbody>
+      <% if (!rep.workload.length) { %><tr><td colspan="7" class="empty">No technicians.</td></tr><% } %>
+      <% rep.workload.forEach(function (w) { %>
+        <tr>
+          <td><a href="/technicians/<%= w.tech.id %>"><%= w.tech.name %></a><% if (!w.tech.active) { %> <span class="badge badge-gray">Inactive</span><% } %></td>
+          <td><span class="<%= statusClass(w.tech.availability) %>"><%= w.tech.availability %></span></td>
+          <td class="text-right"><%= w.assignedInRange %></td>
+          <td class="text-right"><strong><%= w.active %></strong></td>
+          <td class="text-right"><%= w.completed %></td>
+          <td class="text-right" style="<%= w.overdue ? 'color:var(--red);font-weight:700' : '' %>"><%= w.overdue %></td>
+          <td class="text-right"><%= w.avgDays === null ? '—' : w.avgDays.toFixed(1) %></td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+</div>
+<%- include('partials/footer') %>

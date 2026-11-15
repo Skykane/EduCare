@@ -1,0 +1,287 @@
+<%- include('partials/header') %>
+
+<%- include('partials/header-banner', {
+  breadcrumb: '<a href="/">Home</a> &rsaquo; Email History',
+  title: 'Outgoing Email History',
+  subtitle: 'History of all notifications and emails sent by EduCare.'
+}) %>
+
+<!-- Search & Status Filter Card -->
+<div class="card" style="margin-bottom: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
+    <form method="get" action="/email-history" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex: 1; min-width: 280px;">
+      <div style="position: relative; flex: 1; min-width: 200px;">
+        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; display: grid; place-items: center;">
+          <%- icon('search') %>
+        </span>
+        <input type="search" name="q" value="<%= f.q || '' %>" placeholder="Search recipient, subject, keywords..." style="width: 100%; height: 38px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 12px 0 38px; font-size: 13px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+      </div>
+      <div style="min-width: 150px;">
+        <select name="status" style="width: 100%; height: 38px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 10px; font-size: 13px; background: var(--surface); color: var(--text);">
+          <option value="" <%= !f.status ? 'selected' : '' %>>All Statuses</option>
+          <option value="delivered" <%= f.status === 'delivered' ? 'selected' : '' %>>Delivered</option>
+          <option value="simulated" <%= f.status === 'simulated' ? 'selected' : '' %>>Logged / Outbox</option>
+          <option value="failed" <%= f.status === 'failed' ? 'selected' : '' %>>Failed</option>
+        </select>
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <button type="submit" class="btn btn-sm btn-primary">Filter</button>
+        <% if (f.q || f.status) { %>
+          <a href="/email-history" class="btn btn-sm btn-light">Clear</a>
+        <% } %>
+      </div>
+    </form>
+
+    <% if (totalCount > 0) { %>
+      <form method="post" action="/email-history/clear" class="inline-form" data-confirm="Are you sure you want to clear the entire outgoing email history log?">
+        <button type="submit" class="btn btn-sm btn-light" style="color: var(--red); display: inline-flex; align-items: center; gap: 6px;">
+          <%- icon('trash') %> Clear Outbox Logs
+        </button>
+      </form>
+    <% } %>
+  </div>
+</div>
+
+<!-- Outgoing Email Logs Table Card -->
+<div class="card email-history-card">
+  <div class="card-head" style="margin-bottom: 14px;">
+    <div>
+      <h2 style="margin: 0; font-size: 17px; font-weight: 700;">Outgoing Email History (<%= totalCount %>)</h2>
+      <p style="margin: 3px 0 0; font-size: 12.5px; color: var(--muted);">History of all notifications and emails sent by EduCare.</p>
+    </div>
+  </div>
+
+  <% if (!outgoingEmails.length) { %>
+    <div style="text-align: center; padding: 48px 16px;">
+      <span style="display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: rgba(99, 102, 241, 0.1); color: #6366f1; margin-bottom: 12px;">
+        <%- icon('mail') %>
+      </span>
+      <strong style="display: block; font-size: 15px; color: var(--text);">No Outgoing Emails Found</strong>
+      <p style="color: var(--muted); font-size: 13px; max-width: 420px; margin: 4px auto 16px;">
+        <% if (f.q || f.status) { %>
+          No records matched your search query. Try clearing filters.
+        <% } else { %>
+          No outgoing emails logged yet. Emails will be logged here whenever users register, request approvals, or log in.
+        <% } %>
+      </p>
+      <a href="/settings/email" class="btn btn-sm btn-primary">
+        <%- icon('settings') %> Go to Email Settings
+      </a>
+    </div>
+  <% } else { %>
+    <div class="email-history-table-box">
+      <div class="table-wrap">
+        <table class="stack-table email-history-table">
+        <thead>
+          <tr>
+            <th style="min-width: 155px;">Time</th>
+            <th style="min-width: 170px;">Recipient</th>
+            <th>Subject</th>
+            <th style="min-width: 130px;">Status</th>
+            <th style="min-width: 140px;">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% outgoingEmails.forEach(function (m, idx) { %>
+            <tr>
+              <td data-label="Time" class="nowrap" style="font-size: 12.5px; color: var(--muted);">
+                <%= m.createdAt ? fmtDateTime(m.createdAt) : 'Recently' %>
+              </td>
+              <td data-label="Recipient">
+                <strong style="font-size: 13.5px;"><%= m.to %></strong>
+              </td>
+              <td data-label="Subject">
+                <span style="font-weight: 600; color: var(--text);"><%= m.subject %></span>
+              </td>
+              <td data-label="Status">
+                <% if (m.status === 'delivered') { %>
+                  <span class="badge badge-green" style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('check-circle') %> Delivered</span>
+                <% } else if (m.status === 'simulated') { %>
+                  <span class="badge badge-amber" title="<%= m.error || 'Saved in log' %>" style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('clock') %> Logged / Outbox</span>
+                <% } else if (m.status === 'failed') { %>
+                  <span class="badge badge-red" title="<%= m.error %>" style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('x') %> Failed</span>
+                <% } else { %>
+                  <span class="badge badge-gray"><%= m.status %></span>
+                <% } %>
+              </td>
+              <td data-label="" class="nowrap">
+                <button type="button" class="btn btn-sm btn-light" onclick="viewEmailModal(<%= idx %>)" style="display: inline-flex; align-items: center; gap: 4px;">
+                  <%- icon('eye') %> Preview Email
+                </button>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+      </div>
+    </div>
+  <% } %>
+</div>
+
+<!-- Floating Modal Card: Email Preview Modal -->
+<div id="email-preview-modal" class="submit-modal-backdrop" style="display: none;" onclick="closeEmailModal(event)">
+  <div class="submit-modal-card" style="max-width: 760px; width: 100%; max-height: min(92vh, 850px); display: flex; flex-direction: column;" onclick="event.stopPropagation()">
+    <!-- Header -->
+    <div class="submit-modal-header" style="align-items: flex-start; padding: 18px 22px 14px;">
+      <div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
+        <span style="display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: rgba(99, 102, 241, 0.12); color: #6366f1; flex-shrink: 0;">
+          <%- icon('mail') %>
+        </span>
+        <div style="min-width: 0; flex: 1;">
+          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px;">
+            <h2 id="modal-email-subject" style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px;">Email Preview</h2>
+            <span id="modal-email-status-badge" class="badge"></span>
+          </div>
+          <p id="modal-email-meta-time" style="margin: 0; font-size: 12px; color: var(--muted);"></p>
+        </div>
+      </div>
+      <button type="button" class="submit-modal-close" onclick="closeEmailModal()" aria-label="Close modal" title="Close (Esc)">&times;</button>
+    </div>
+
+    <!-- Metadata Details Strip -->
+    <div style="padding: 12px 22px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;">
+      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div>
+          <span style="color: var(--muted); font-weight: 600;">Recipient:</span>
+          <strong id="modal-email-to" style="color: var(--text); font-family: var(--mono); margin-left: 4px;"></strong>
+        </div>
+        <div id="modal-email-sender-wrap">
+          <span style="color: var(--muted); font-weight: 600;">From:</span>
+          <span id="modal-email-from" style="color: var(--muted); margin-left: 4px;"></span>
+        </div>
+      </div>
+      <!-- Error / Delivery Info Box (Shown dynamically if error present) -->
+      <div id="modal-email-error-box" style="display: none; background: rgba(220, 38, 38, 0.08); border: 1px solid rgba(220, 38, 38, 0.25); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--red); line-height: 1.4;">
+        <strong style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('alert') %> Delivery Log:</strong>
+        <span id="modal-email-error-msg" style="word-break: break-word;"></span>
+      </div>
+    </div>
+
+    <!-- Modal Body: Email Preview Frame -->
+    <div style="flex: 1; min-height: 340px; padding: 16px 22px; background: var(--surface); display: flex; flex-direction: column; overflow: hidden;">
+      <iframe id="modal-email-frame" style="width: 100%; height: 100%; flex: 1; border: 1px solid var(--border); border-radius: 12px; background: #ffffff; box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);" title="Email Content"></iframe>
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="padding: 12px 22px; border-top: 1px solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; border-radius: 0 0 20px 20px;">
+      <span style="font-size: 11.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px;">
+        <%- icon('check-circle') %> Interactive HTML Email Preview
+      </span>
+      <div style="display: flex; gap: 8px;">
+        <button type="button" class="btn btn-sm btn-light" id="modal-raw-toggle" onclick="toggleRawView()">View Raw HTML</button>
+        <button type="button" class="btn btn-sm btn-primary" onclick="closeEmailModal()">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  var outgoingData = <%- JSON.stringify(outgoingEmails) %>;
+  var modal = document.getElementById('email-preview-modal');
+  var modalSubject = document.getElementById('modal-email-subject');
+  var modalTo = document.getElementById('modal-email-to');
+  var modalFrom = document.getElementById('modal-email-from');
+  var modalStatusBadge = document.getElementById('modal-email-status-badge');
+  var modalTime = document.getElementById('modal-email-meta-time');
+  var modalErrorBox = document.getElementById('modal-email-error-box');
+  var modalErrorMsg = document.getElementById('modal-email-error-msg');
+  var modalFrame = document.getElementById('modal-email-frame');
+  var rawToggleBtn = document.getElementById('modal-raw-toggle');
+
+  var currentEmail = null;
+  var isRawView = false;
+
+  function viewEmailModal(idx) {
+    var email = outgoingData[idx];
+    if (!email) return;
+    currentEmail = email;
+    isRawView = false;
+    if (rawToggleBtn) rawToggleBtn.textContent = 'View Raw HTML';
+
+    modalSubject.textContent = email.subject || 'No Subject';
+    modalTo.textContent = email.to || '—';
+    modalFrom.textContent = email.from || 'EduCare System';
+
+    // Format timestamp
+    if (email.createdAt) {
+      try {
+        var d = new Date(email.createdAt);
+        modalTime.textContent = 'Sent: ' + d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+      } catch (err) {
+        modalTime.textContent = email.createdAt;
+      }
+    } else {
+      modalTime.textContent = 'Sent recently';
+    }
+
+    // Status badge
+    var st = (email.status || 'simulated').toLowerCase();
+    if (st === 'delivered') {
+      modalStatusBadge.className = 'badge badge-green';
+      modalStatusBadge.textContent = 'Delivered';
+    } else if (st === 'failed') {
+      modalStatusBadge.className = 'badge badge-red';
+      modalStatusBadge.textContent = 'Failed';
+    } else {
+      modalStatusBadge.className = 'badge badge-amber';
+      modalStatusBadge.textContent = 'Logged in Outbox';
+    }
+
+    // Error message display
+    if (email.error) {
+      modalErrorBox.style.display = 'block';
+      modalErrorMsg.textContent = email.error;
+    } else {
+      modalErrorBox.style.display = 'none';
+      modalErrorMsg.textContent = '';
+    }
+
+    // Render iframe content
+    renderFrameContent();
+
+    modal.style.display = 'flex';
+    document.body.classList.add('modal-open');
+  }
+
+  function renderFrameContent() {
+    if (!currentEmail || !modalFrame) return;
+    var doc = modalFrame.contentDocument || modalFrame.contentWindow.document;
+    doc.open();
+    if (isRawView) {
+      doc.write('<!DOCTYPE html><html><body style="margin:0;padding:16px;background:#1e1e2e;color:#cdd6f4;font-family:monospace;font-size:12px;white-space:pre-wrap;word-break:break-all;">' +
+        escapeHtml(currentEmail.html || currentEmail.text || 'No content') +
+        '</body></html>');
+    } else {
+      doc.write(currentEmail.html || ('<pre style="padding:16px;font-family:monospace;font-size:13px;line-height:1.5;">' + escapeHtml(currentEmail.text || 'No content') + '</pre>'));
+    }
+    doc.close();
+  }
+
+  function toggleRawView() {
+    isRawView = !isRawView;
+    if (rawToggleBtn) rawToggleBtn.textContent = isRawView ? 'View Rendered' : 'View Raw HTML';
+    renderFrameContent();
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function closeEmailModal(e) {
+    if (e && e.target && e.target !== modal && !e.target.classList.contains('submit-modal-close')) {
+      return;
+    }
+    if (modal) {
+      modal.style.display = 'none';
+      document.body.classList.remove('modal-open');
+    }
+  }
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
+      closeEmailModal();
+    }
+  });
+</script>
+
+<%- include('partials/footer') %>

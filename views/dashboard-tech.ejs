@@ -1,0 +1,155 @@
+<%- include('partials/header') %>
+<div class="dash">
+  <!-- Reference Style Header Page Banner -->
+  <%- include('partials/header-banner', {
+    breadcrumb: 'Home',
+    title: 'Dashboard',
+    subtitle: 'Where work orders are assigned, repairs logged, and preventive maintenance scheduled.'
+  }) %>
+
+  <!-- Technician Status Bar & Quick Availability -->
+  <div class="card" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:14px 20px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span class="chip-role"><%- icon('wrench') %> Technician: <strong><%= currentUser.name %></strong></span>
+      <span class="chip-role"><%- icon('check-circle') %><span class="<%= statusClass(currentUser.availability) %>"><%= currentUser.availability %></span></span>
+      <% if (currentUser.department) { %>
+        <span class="chip-role ghost"><%- icon('building') %><%= currentUser.department %></span>
+      <% } %>
+    </div>
+    <form method="post" action="/technicians/<%= currentUser.id %>/availability" style="display:flex;gap:8px;align-items:center;margin:0;">
+      <input type="hidden" name="back" value="/">
+      <label for="availability" style="font-size:13px;font-weight:600;margin:0;">Status:</label>
+      <select name="availability" id="availability" style="padding:6px 10px;font-size:13px;border-radius:8px;">
+        <% C.AVAILABILITY.forEach(function (a) { %><option <%= currentUser.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
+      </select>
+      <button class="btn btn-sm btn-primary" type="submit">Update</button>
+    </form>
+  </div>
+
+  <!-- Key Metric KPI Cards -->
+  <div class="istats istats-4" style="margin-top:14px;">
+    <a class="istat indigo" href="/requests?status=Assigned">
+      <span class="istat-ic"><%- icon('user-check') %></span>
+      <div class="istat-inline-content">
+        <div class="istat-top-line">
+          <span class="istat-num"><%= stats.assigned %></span>
+          <span class="istat-label">New / Assigned</span>
+        </div>
+        <span class="istat-sub">Awaiting your inspection</span>
+      </div>
+    </a>
+    <a class="istat blue" href="/requests?status=In%20Progress">
+      <span class="istat-ic"><%- icon('wrench') %></span>
+      <div class="istat-inline-content">
+        <div class="istat-top-line">
+          <span class="istat-num"><%= stats.inProgress %></span>
+          <span class="istat-label">In Progress / On Hold</span>
+        </div>
+        <span class="istat-sub">Currently under repair</span>
+      </div>
+    </a>
+    <a class="istat <%= stats.overdue ? 'red pulse' : 'gray' %>" href="/requests?overdue=1">
+      <span class="istat-ic"><%- icon('alert') %></span>
+      <div class="istat-inline-content">
+        <div class="istat-top-line">
+          <span class="istat-num"><%= stats.overdue %></span>
+          <span class="istat-label">Overdue Tasks</span>
+        </div>
+        <span class="istat-sub"><%= stats.overdue ? 'Attention required immediately' : 'All tasks within schedule' %></span>
+      </div>
+    </a>
+    <a class="istat green" href="/requests?status=Completed">
+      <span class="istat-ic"><%- icon('check-circle') %></span>
+      <div class="istat-inline-content">
+        <div class="istat-top-line">
+          <span class="istat-num"><%= stats.completedMonth %></span>
+          <span class="istat-label">Completed (This Month)</span>
+        </div>
+        <span class="istat-sub">Resolved equipment issues</span>
+      </div>
+    </a>
+  </div>
+
+  <!-- Main Technician Layout Grid -->
+  <div class="grid grid-main" style="margin-top:14px;">
+    <div>
+      <!-- Overdue warning banner if any -->
+      <% if (stats.overdue > 0) { %>
+        <div class="alert alert-error" style="margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <%- icon('alert') %>
+            <span>You have <strong><%= stats.overdue %></strong> overdue maintenance task(s) past target completion date.</span>
+          </div>
+          <a href="/requests?overdue=1" class="btn btn-sm btn-danger">View Overdue</a>
+        </div>
+      <% } %>
+
+      <!-- Active Work Queue -->
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>My Active Work Queue (<%= active.length %>)</h2>
+            <p class="muted" style="margin:2px 0 0;font-size:12.5px;">Ordered by priority score. Click any ticket to view details and log repairs.</p>
+          </div>
+          <a href="/requests" class="btn btn-light btn-sm">All My Tasks</a>
+        </div>
+
+        <% if (!active.length) { %>
+          <div class="empty-state" style="padding:36px 16px;">
+            <span class="empty-ic"><%- icon('check-circle') %></span>
+            <strong>All caught up!</strong>
+            <small>No active repair tasks assigned right now. You can check upcoming preventive maintenance or update your availability.</small>
+          </div>
+        <% } else { %>
+          <div class="rlist rlist-1" style="margin-top:12px;">
+            <% active.forEach(function (r) { %>
+              <%- include('partials/report-card', { r: r, showRequester: true, showPriority: true }) %>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+
+      <!-- Recent Completed by Me -->
+      <% if (typeof myCompleted !== 'undefined' && myCompleted.length) { %>
+        <div class="card">
+          <div class="card-head">
+            <h2>Recently Completed by Me</h2>
+            <a href="/requests?status=Completed" class="btn btn-light btn-sm">View History</a>
+          </div>
+          <div class="rlist rlist-1" style="margin-top:8px;">
+            <% myCompleted.forEach(function (r) { %>
+              <%- include('partials/report-card', { r: r, showRequester: true, showPriority: false }) %>
+            <% }) %>
+          </div>
+        </div>
+      <% } %>
+    </div>
+
+    <div>
+      <!-- Preventive Maintenance Alerts -->
+      <%- include('partials/pm-alerts') %>
+
+      <!-- My Specializations Quick Card -->
+      <div class="card">
+        <div class="card-head">
+          <h2>My Specializations</h2>
+          <a href="/profile" class="btn btn-light btn-sm"><%- icon('settings') %> Edit in Profile</a>
+        </div>
+        <p class="muted" style="margin:-4px 0 10px;font-size:12.5px;">Auto-assignment prioritizes new requests matching your skills.</p>
+        <div class="spec-chips-wrap" style="display:flex;flex-wrap:wrap;gap:6px;">
+          <% if (typeof specs !== 'undefined' && specs.length) { %>
+            <% specs.forEach(function (c) { %>
+              <span class="tag" style="padding:6px 12px;font-size:12.5px;font-weight:600;"><%- icon('tag') %> <%= c.name %></span>
+            <% }) %>
+          <% } else { %>
+            <span class="tag" style="padding:6px 12px;font-size:12.5px;">General Maintenance (Available for all categories)</span>
+          <% } %>
+        </div>
+      </div>
+
+      <!-- Equipment Status Summary -->
+      <%- include('partials/equipment-status') %>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>

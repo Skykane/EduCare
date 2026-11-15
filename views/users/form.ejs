@@ -1,0 +1,88 @@
+<%- include('../partials/header') %>
+<div class="form-floating-wrap">
+<div class="page-head">
+  <div>
+    <h1><%= account.id ? 'Edit Account' : 'New User Account' %></h1>
+    <p style="margin:4px 0 0;font-size:13.5px;color:var(--muted);">Manage user credentials, permissions, and institutional role.</p>
+  </div>
+  <a class="btn btn-light" href="/users">Cancel</a>
+</div>
+
+<%- include('../partials/errors', { errors: errors }) %>
+
+<form method="post" action="<%= account.id ? '/users/' + account.id : '/users' %>" class="card card-floating">
+  <div class="form-grid">
+    <div class="field">
+      <label for="name">Full name *</label>
+      <input type="text" id="name" name="name" value="<%= account.name || '' %>" required maxlength="120">
+    </div>
+    <div class="field">
+      <label for="email">Email *</label>
+      <input type="email" id="email" name="email" value="<%= account.email || '' %>" required maxlength="200">
+    </div>
+    <div class="field">
+      <label for="role">Role *</label>
+      <select id="role" name="role">
+        <% Object.keys(C.ROLES).forEach(function (k) { %><option value="<%= k %>" <%= account.role === k ? 'selected' : '' %>><%= C.ROLES[k] %></option><% }) %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="password">Password <%= account.id ? '' : '*' %></label>
+      <div class="input-icon-wrap">
+        <input type="password" id="password" name="password" minlength="8" autocomplete="new-password" placeholder="<%= account.id ? 'Enter new password to change' : 'Enter password' %>" <%= account.id ? '' : 'required' %>>
+        <button type="button" class="btn-toggle-pw" data-target="password" title="Show / hide password" aria-label="Toggle password visibility"><%- icon('eye') %></button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="department">Department / Office</label>
+      <input type="text" id="department" name="department" value="<%= account.department || '' %>" maxlength="150">
+    </div>
+    <div class="field" id="student-id-field">
+      <label for="studentId">Student ID</label>
+      <input type="text" id="studentId" name="studentId" value="<%= account.studentId || '' %>" placeholder="e.g. 2024-00101" maxlength="50">
+    </div>
+    <div class="field">
+      <label for="address">Address</label>
+      <input type="text" id="address" name="address" value="<%= account.address || '' %>" placeholder="e.g. 142 San Agustin St., Pasig City" maxlength="250">
+    </div>
+    <div class="field">
+      <label for="phone">Phone</label>
+      <input type="tel" id="phone" name="phone" value="<%= account.phone || '' %>" maxlength="11" pattern="[0-9]{11}" inputmode="numeric" placeholder="09171234567" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)">
+    </div>
+    <% if (account.id) { %>
+      <div class="field">
+        <label for="approvalStatus">Account Approval Status</label>
+        <select id="approvalStatus" name="approvalStatus">
+          <option value="approved" <%= (account.approvalStatus || 'approved') === 'approved' ? 'selected' : '' %>>Approved & Active</option>
+          <option value="pending" <%= account.approvalStatus === 'pending' ? 'selected' : '' %>>Pending Approval</option>
+          <option value="rejected" <%= account.approvalStatus === 'rejected' ? 'selected' : '' %>>Rejected</option>
+        </select>
+      </div>
+    <% } %>
+  </div>
+
+  <div id="tech-fields" style="border-top:1px solid var(--border);padding-top:14px;margin-bottom:14px">
+    <h2>Technician Profile</h2>
+    <div class="field">
+      <label>Specializations</label>
+      <div class="checks">
+        <% categories.forEach(function (c) { %>
+          <label><input type="checkbox" name="specializations" value="<%= c.id %>" <%= (account.specializations || []).includes(c.id) ? 'checked' : '' %>> <%= c.name %></label>
+        <% }) %>
+      </div>
+    </div>
+    <div class="field" style="max-width:260px">
+      <label for="availability">Availability</label>
+      <select id="availability" name="availability">
+        <% C.AVAILABILITY.forEach(function (a) { %><option <%= account.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
+      </select>
+    </div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:24px;padding-top:16px;border-top:1px solid var(--border);">
+    <a class="btn btn-light" href="/users">Cancel</a>
+    <button class="btn btn-primary" type="submit" style="padding:10px 24px;font-weight:700;"><%- icon('check') %> <%= account.id ? 'Save Changes' : 'Create Account' %></button>
+  </div>
+</form>
+</div>
+<%- include('../partials/footer') %>

@@ -1,0 +1,85 @@
+<!-- Floating Card: Equipment Details Quick View Modal -->
+<div id="equipment-details-modal" class="submit-modal-backdrop" style="display:none;" onclick="closeEquipmentDetailsModal(event)">
+  <div class="submit-modal-card" style="max-width:700px;" onclick="event.stopPropagation()">
+    <!-- Modal Header -->
+    <div class="submit-modal-header" style="align-items:flex-start;padding:18px 24px 16px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <span id="eq-modal-icon-wrap" style="display:inline-grid;place-items:center;width:44px;height:44px;border-radius:12px;background:rgba(140,23,36,0.1);color:var(--primary);flex-shrink:0;">
+          <%- icon('monitor') %>
+        </span>
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px;">
+            <h2 id="eq-modal-title" style="margin:0;font-size:18px;font-weight:800;color:var(--text);letter-spacing:-0.3px;">Equipment</h2>
+            <span id="eq-modal-code" class="mono" style="font-size:12px;background:rgba(140,23,36,0.1);color:var(--primary);padding:2px 8px;border-radius:6px;font-weight:700;">EQ-0001</span>
+            <span id="eq-modal-status-badge" class="badge"></span>
+          </div>
+          <p id="eq-modal-category-location" style="margin:0;font-size:13px;color:var(--muted);"></p>
+        </div>
+      </div>
+      <button type="button" class="submit-modal-close" onclick="closeEquipmentDetailsModal()" aria-label="Close modal" title="Close (Esc)">&times;</button>
+    </div>
+
+    <!-- Modal Body -->
+    <div class="submit-modal-body" style="padding:20px 24px;">
+      <!-- Photo preview if available -->
+      <div id="eq-modal-photo-wrap" style="display:none;margin-bottom:16px;text-align:center;">
+        <img id="eq-modal-photo" src="" alt="Equipment Photo" style="max-height:180px;border-radius:10px;border:1px solid var(--border);object-fit:cover;max-width:100%;box-shadow:var(--shadow-sm);">
+      </div>
+
+      <!-- Details Specification Grid -->
+      <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:14px 20px;background:var(--bg);padding:16px;border-radius:12px;border:1px solid var(--border);margin-bottom:18px;">
+        <div>
+          <small style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:0.4px;">Model</small>
+          <strong id="eq-modal-model" style="font-size:13.5px;color:var(--text);">—</strong>
+        </div>
+        <div>
+          <small style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:0.4px;">Serial Number</small>
+          <span id="eq-modal-serial" class="mono" style="font-size:13px;color:var(--text);font-weight:600;">—</span>
+        </div>
+        <div>
+          <small style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:0.4px;">Category</small>
+          <span id="eq-modal-category" style="font-size:13.5px;color:var(--text);font-weight:600;">—</span>
+        </div>
+        <div>
+          <small style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:0.4px;">Department / Office</small>
+          <span id="eq-modal-dept" style="font-size:13.5px;color:var(--text);font-weight:600;">—</span>
+        </div>
+        <div>
+          <small style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:0.4px;">Location</small>
+          <span id="eq-modal-location" style="font-size:13.5px;color:var(--text);font-weight:600;">—</span>
+        </div>
+        <div>
+          <small style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:0.4px;">Priority Level</small>
+          <span id="eq-modal-importance" style="font-size:13.5px;color:var(--text);font-weight:600;">—</span>
+        </div>
+        <div>
+          <small style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:0.4px;">Next Routine Checkup</small>
+          <span id="eq-modal-next-pm" style="font-size:13.5px;color:var(--text);font-weight:600;">—</span>
+        </div>
+        <div>
+          <small style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:0.4px;">Active Repair Requests</small>
+          <span id="eq-modal-open-reqs" style="font-size:13.5px;color:var(--text);font-weight:700;">—</span>
+        </div>
+        <div style="grid-column:1 / -1;">
+          <small style="display:block;font-size:11px;text-transform:uppercase;color:var(--muted);font-weight:700;letter-spacing:0.4px;">Date Purchased</small>
+          <span id="eq-modal-acq-date" style="font-size:13px;color:var(--text);">—</span>
+        </div>
+      </div>
+
+      <!-- Notes if any -->
+      <div id="eq-modal-notes-wrap" style="display:none;background:rgba(245, 158, 11, 0.08);border:1px solid rgba(245, 158, 11, 0.25);border-radius:10px;padding:10px 14px;margin-bottom:18px;">
+        <small style="display:block;font-size:11px;text-transform:uppercase;color:#d97706;font-weight:700;letter-spacing:0.4px;margin-bottom:2px;">Notes</small>
+        <p id="eq-modal-notes" style="margin:0;font-size:13px;color:var(--text);"></p>
+      </div>
+
+      <!-- Actions Footer -->
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-top:14px;border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-light" onclick="closeEquipmentDetailsModal()"><%- icon('x') %> Close</button>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <a id="eq-modal-submit-req-btn" href="#" class="btn btn-primary" onclick="submitRequestForCurrentEq();return false;"><%- icon('plus') %> Submit Request</a>
+          <a id="eq-modal-full-view-btn" href="#" class="btn btn-light"><%- icon('eye') %> Full Profile & History &rarr;</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,78 @@
+<%- include('partials/header') %>
+<%
+  var schedExtraActions = '';
+  if (currentUser.role === 'admin') {
+    schedExtraActions = `
+      <form method="post" action="/schedule/check" style="margin:0;">
+        <button class="btn-banner-sub" type="submit" style="cursor:pointer;">${icon('refresh')} Check Reminders Now</button>
+      </form>
+    `;
+  }
+%>
+<%- include('partials/header-banner', {
+  breadcrumb: '<a href="/">Home</a> &rsaquo; Maintenance Schedule',
+  title: 'Maintenance & Checkup Schedule',
+  subtitle: 'Scheduled checkups, overdue alerts, and routine equipment inspection dates.',
+  extraActions: schedExtraActions
+}) %>
+
+<div class="stats">
+  <a class="stat red" href="/schedule?status=Overdue"><div class="label">Overdue</div><div class="value"><%= counts.Overdue %></div></a>
+  <a class="stat amber" href="/schedule?status=Due%20Soon"><div class="label">Due within 7 days</div><div class="value"><%= counts['Due Soon'] %></div></a>
+  <a class="stat green" href="/schedule?status=Scheduled"><div class="label">Scheduled</div><div class="value"><%= counts.Scheduled %></div></a>
+  <a class="stat" href="/schedule"><div class="label">All scheduled equipment</div><div class="value"><%= counts.Overdue + counts['Due Soon'] + counts.Scheduled %></div></a>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2><%= status ? status : 'All' %> (<%= rows.length %>)</h2>
+    <% if (status) { %><a class="btn btn-light btn-sm" href="/schedule">Show all</a><% } %>
+  </div>
+  <div class="table-wrap">
+  <table class="stack-table">
+    <thead><tr><th>Equipment</th><th>Location</th><th>Interval</th><th>Last done</th><th>Next due</th><th>Status</th><th>Task</th></tr></thead>
+    <tbody>
+      <% if (!rows.length) { %><tr><td colspan="7" class="empty">Nothing here.</td></tr><% } %>
+      <% rows.forEach(function (s) { var e = s.equipment; %>
+        <tr class="<%= s.status === 'Overdue' ? 'row-overdue' : '' %>">
+          <td><a href="/equipment/<%= e.id %>"><%= e.name %></a><span class="sub mono"><%= e.code %></span></td>
+          <td><%= e.location %></td>
+          <td>Every <%= s.interval %> days<% if (s.intervalLabel) { %><span class="sub"><%= s.intervalLabel %></span><% } %></td>
+          <td class="nowrap"><%= fmtDate(s.base) %><span class="sub"><%= s.basedOn %></span></td>
+          <td class="nowrap"><strong><%= fmtDate(s.nextDue) %></strong>
+            <% if (s.daysLeft < 0) { %>
+              <span class="sub" style="color:var(--red);font-weight:600;"><%= Math.abs(s.daysLeft) %> day(s) late</span>
+            <% } else if (s.daysLeft === 0) { %>
+              <span class="sub" style="color:var(--amber);font-weight:600;">due today</span>
+            <% } else { %>
+              <span class="sub">in <%= s.daysLeft %> day(s)</span>
+            <% } %>
+          </td>
+          <td><span class="<%= statusClass(s.status) %>"><%= s.status %></span></td>
+          <td class="nowrap">
+            <% if (s.openTask) { %>
+              <a href="/requests/<%= s.openTask.id %>" class="mono"><%= s.openTask.code %></a>
+              <span class="sub"><span class="<%= statusClass(s.openTask.status) %>"><%= s.openTask.status %></span></span>
+            <% } else if (currentUser.role === 'admin') { %>
+              <form method="post" action="/schedule/<%= e.id %>/task" class="inline-form">
+                <button class="btn btn-sm <%= s.status === 'Scheduled' ? 'btn-light' : '' %>" type="submit">Create task</button>
+              </form>
+            <% } else { %>—<% } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  </div>
+</div>
+
+<% if (unscheduled.length) { %>
+<div class="card">
+  <h2>Equipment without a schedule (<%= unscheduled.length %>)</h2>
+  <p class="muted">Set an inspection interval in the equipment profile to include these.</p>
+  <% unscheduled.forEach(function (e) { %>
+    <a class="tag" href="<%= currentUser.role === 'admin' ? '/equipment/' + e.id + '/edit' : '/equipment/' + e.id %>"><%= e.code %> <%= e.name %></a>
+  <% }) %>
+</div>
+<% } %>
+<%- include('partials/footer') %>

@@ -1,0 +1,164 @@
+<%- include('partials/header') %>
+<div class="dash">
+  <!-- Reference Style Header Page Banner -->
+  <%
+    var reqExtraActions = `
+      <a href="/requests/new" class="btn-banner-sub">${icon('plus')} Report Issue</a>
+    `;
+  %>
+  <%- include('partials/header-banner', {
+    breadcrumb: 'Home',
+    title: 'Dashboard',
+    subtitle: 'Where classroom and laboratory equipment status is tracked and reported.',
+    extraActions: reqExtraActions
+  }) %>
+
+  <!-- Primary Action Banner -->
+  <a class="cta" href="/requests/new" style="margin-top:16px;">
+    <span class="cta-ic"><%- icon('camera') %></span>
+    <span class="cta-text">
+      <strong>Report a Broken or Malfunctioning Item</strong>
+      <small>Take or upload a photo, describe what happened, and a technician will be assigned to help you.</small>
+    </span>
+    <span class="cta-go"><%- icon('chevron-right') %></span>
+  </a>
+
+  <!-- Status Summary Metrics -->
+  <div class="istats istats-3" style="margin-top:14px;">
+    <a class="istat amber" href="/requests?status=Pending">
+      <span class="istat-ic"><%- icon('clock') %></span>
+      <div class="istat-inline-content">
+        <div class="istat-top-line">
+          <span class="istat-num"><%= summary.pending %></span>
+          <span class="istat-label">Pending Approval</span>
+        </div>
+        <span class="istat-sub">Awaiting Admin review</span>
+      </div>
+    </a>
+    <a class="istat blue" href="/requests?status=active">
+      <span class="istat-ic"><%- icon('wrench') %></span>
+      <div class="istat-inline-content">
+        <div class="istat-top-line">
+          <span class="istat-num"><%= summary.inProgress %></span>
+          <span class="istat-label">In Progress / Assigned</span>
+        </div>
+        <span class="istat-sub">Technician is working on it</span>
+      </div>
+    </a>
+    <a class="istat green" href="/requests?status=Completed">
+      <span class="istat-ic"><%- icon('check-circle') %></span>
+      <div class="istat-inline-content">
+        <div class="istat-top-line">
+          <span class="istat-num"><%= summary.completed %></span>
+          <span class="istat-label">Resolved & Completed</span>
+        </div>
+        <span class="istat-sub">Repairs finished successfully</span>
+      </div>
+    </a>
+  </div>
+
+  <!-- Main Requester Layout Grid -->
+  <div class="grid grid-main" style="margin-top:14px;">
+    <div>
+      <div class="card">
+        <div class="card-head">
+          <div>
+            <h2>My Recent Requests</h2>
+            <p class="muted" style="margin:2px 0 0;font-size:12.5px;">Latest repair tickets submitted from your account.</p>
+          </div>
+          <% if (total > 0) { %>
+            <a href="/requests" class="btn btn-light btn-sm">View All (<%= total %>)</a>
+          <% } %>
+        </div>
+
+        <% if (!recentRequests.length) { %>
+          <div class="empty-state" style="padding:40px 16px;">
+            <span class="empty-ic"><%- icon('file') %></span>
+            <strong>No requests submitted yet</strong>
+            <small>If an aircon, projector, computer, or classroom equipment is not working, click below to submit a request.</small>
+            <a href="/requests/new" class="btn btn-primary btn-sm" style="margin-top:14px;"><%- icon('plus') %> Report Your First Issue</a>
+          </div>
+        <% } else { %>
+          <div class="rlist rlist-1" style="margin-top:12px;">
+            <% recentRequests.forEach(function (r) { %>
+              <%- include('partials/report-card', { r: r, showTech: true, showRequester: false, showPriority: true }) %>
+            <% }) %>
+          </div>
+        <% } %>
+      </div>
+    </div>
+
+    <div>
+      <!-- How It Works Card -->
+      <div class="card">
+        <div class="card-head">
+          <h2>How Repair Requests Work</h2>
+          <span class="sub muted">4 Easy Steps</span>
+        </div>
+        <div class="process-steps" style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
+          <div class="process-step" style="display:flex;gap:12px;align-items:flex-start;">
+            <span class="step-num" style="width:28px;height:28px;border-radius:50%;background:var(--primary-soft);color:var(--primary);font-weight:700;display:grid;place-items:center;flex-shrink:0;font-size:13px;">1</span>
+            <div>
+              <strong style="font-size:13.5px;">Submit Request</strong>
+              <p class="muted" style="margin:2px 0 0;font-size:12px;">Select equipment, take a photo, and describe the problem.</p>
+            </div>
+          </div>
+          <div class="process-step" style="display:flex;gap:12px;align-items:flex-start;">
+            <span class="step-num" style="width:28px;height:28px;border-radius:50%;background:var(--primary-soft);color:var(--primary);font-weight:700;display:grid;place-items:center;flex-shrink:0;font-size:13px;">2</span>
+            <div>
+              <strong style="font-size:13.5px;">Admin Approval & Triage</strong>
+              <p class="muted" style="margin:2px 0 0;font-size:12px;">Administrator reviews and approves your report, validating the issue and setting priority.</p>
+            </div>
+          </div>
+          <div class="process-step" style="display:flex;gap:12px;align-items:flex-start;">
+            <span class="step-num" style="width:28px;height:28px;border-radius:50%;background:var(--primary-soft);color:var(--primary);font-weight:700;display:grid;place-items:center;flex-shrink:0;font-size:13px;">3</span>
+            <div>
+              <strong style="font-size:13.5px;">Technician Assigned</strong>
+              <p class="muted" style="margin:2px 0 0;font-size:12px;">A technician will be assigned with a target completion date.</p>
+            </div>
+          </div>
+          <div class="process-step" style="display:flex;gap:12px;align-items:flex-start;">
+            <span class="step-num" style="width:28px;height:28px;border-radius:50%;background:#eaf8ef;color:#16a34a;font-weight:700;display:grid;place-items:center;flex-shrink:0;font-size:13px;">4</span>
+            <div>
+              <strong style="font-size:13.5px;">Resolved & Notification</strong>
+              <p class="muted" style="margin:2px 0 0;font-size:12px;">You receive an in-app alert once the repair is completed.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Department & Contact Card -->
+      <div class="card">
+        <div class="card-head">
+          <h2>My Profile Details</h2>
+          <a href="/profile" class="btn btn-light btn-sm"><%- icon('settings') %> Edit Profile</a>
+        </div>
+        <dl class="dl" style="grid-template-columns:105px 1fr;margin-top:6px;font-size:13px;">
+          <% if (currentUser.studentId) { %><dt>Student ID</dt><dd class="mono"><strong><%= currentUser.studentId %></strong></dd><% } %>
+          <dt>Name</dt><dd><strong><%= currentUser.name %></strong></dd>
+          <dt>Email</dt><dd class="mono"><%= currentUser.email %></dd>
+          <% if (typeof studentInfo !== 'undefined' && studentInfo) { %>
+            <dt>Grade & Section</dt><dd><%= studentInfo.gradeLevel %> · <%= studentInfo.section %></dd>
+            <dt>School Year</dt><dd><%= studentInfo.schoolYear || '2024-2025' %></dd>
+          <% } else { %>
+            <dt>Department</dt><dd><%= currentUser.department || 'Not specified' %></dd>
+          <% } %>
+          <dt>Phone</dt><dd><%= currentUser.phone || 'Not specified' %></dd>
+          <dt>Address</dt><dd><%= currentUser.address || (typeof studentInfo !== 'undefined' && studentInfo && studentInfo.address) || 'Not specified' %></dd>
+        </dl>
+      </div>
+
+      <!-- Campus Emergency Support -->
+      <div class="card" style="border-left:4px solid var(--primary);">
+        <h3 style="margin:0 0 6px;font-size:14.5px;display:flex;align-items:center;gap:6px;">
+          <%- icon('alert') %> Urgent Facilities Assistance
+        </h3>
+        <p class="muted" style="font-size:12.5px;margin:0 0 8px;">
+          For physical emergencies like electrical sparks, major water leaks, or immediate hazards, please contact the Facilities Management Office directly.
+        </p>
+        <span class="tag tag-sm" style="font-weight:600;"><%- icon('phone') %> Campus FMO Hotline: Loc. 101 / 102</span>
+      </div>
+    </div>
+  </div>
+</div>
+<%- include('partials/footer') %>

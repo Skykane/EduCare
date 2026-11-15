@@ -1,0 +1,58 @@
+<%- include('../partials/header') %>
+<% var t = s.tech; %>
+<div class="page-head">
+  <div style="display:flex;gap:12px;align-items:center">
+    <% if (t.avatar) { %>
+      <span class="avatar avatar-has-img" style="width:52px;height:52px"><img src="/uploads/<%= t.avatar %>" alt="" class="avatar-img"></span>
+    <% } else { %>
+      <span class="avatar" style="width:52px;height:52px;font-size:18px"><%= initials(t.name) %></span>
+    <% } %>
+    <div>
+      <h1 style="margin:0"><%= t.name %></h1>
+      <p><%= t.email %><%= t.phone ? ' · ' + t.phone : '' %> · <%= t.department || 'Technician' %></p>
+    </div>
+  </div>
+  <div class="actions">
+    <% if (currentUser.role === 'admin') { %><a class="btn btn-light" href="/users/<%= t.id %>/edit">Edit profile</a><% } %>
+    <% if (t.active) { %>
+    <form method="post" action="/technicians/<%= t.id %>/availability" class="actions">
+      <select name="availability" aria-label="Availability" style="width:auto">
+        <% C.AVAILABILITY.forEach(function (a) { %><option <%= t.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
+      </select>
+      <button class="btn btn-light" type="submit">Set availability</button>
+    </form>
+    <% } %>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="label">Availability</div><div class="value" style="font-size:18px;margin-top:10px"><span class="<%= statusClass(t.availability) %>"><%= t.availability %></span></div></div>
+  <div class="stat blue"><div class="label">Active tasks</div><div class="value"><%= s.active.length %></div></div>
+  <div class="stat red"><div class="label">Overdue</div><div class="value"><%= s.overdue %></div></div>
+  <div class="stat green"><div class="label">Completed</div><div class="value"><%= s.completedCount %></div></div>
+  <div class="stat"><div class="label">Avg. days to complete</div><div class="value"><%= s.avgDays === null ? '—' : s.avgDays.toFixed(1) %></div></div>
+</div>
+
+<div class="card">
+  <div class="card-head">
+    <h2>Specializations</h2>
+    <% if (currentUser.id === t.id) { %>
+      <a class="btn btn-sm btn-light" href="/profile"><%- icon('wrench') %> Edit Specializations</a>
+    <% } else if (currentUser.role === 'admin') { %>
+      <a class="btn btn-sm btn-light" href="/users/<%= t.id %>/edit"><%- icon('wrench') %> Edit Specializations</a>
+    <% } %>
+  </div>
+  <% if (!s.specializations.length) { %><span class="tag">General (no specialization)</span><% } %>
+  <% s.specializations.forEach(function (c) { %><span class="tag"><%= c.name %></span><% }) %>
+</div>
+
+<div class="card">
+  <h2>Assigned Maintenance Tasks</h2>
+  <%- include('../partials/request-table', { rows: active, showTech: false, showRequester: true }) %>
+</div>
+
+<div class="card">
+  <h2>Task History</h2>
+  <%- include('../partials/request-table', { rows: history, showTech: false, showRequester: true }) %>
+</div>
+<%- include('../partials/footer') %>

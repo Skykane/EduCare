@@ -1,0 +1,256 @@
+<%- include('../partials/header') %>
+<% var sev = {
+     1: { label: 'Minor', help: 'Still usable', icon: 'check-circle' },
+     2: { label: 'Moderate', help: 'Needs attention', icon: 'alert-circle' },
+     3: { label: 'Major', help: 'Cannot be used', icon: 'alert' },
+     4: { label: 'Critical', help: 'Safety risk', icon: 'octagon' },
+   }; %>
+
+<div class="form-floating-wrap">
+<div class="page-head">
+  <div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+      <span class="mono badge badge-gray"><%= r.code %></span>
+      <span class="<%= statusClass(r.status) %>"><%= r.status %></span>
+    </div>
+    <h1>Edit Report · <%= r.code %></h1>
+    <p class="muted">Correct any mistakes in your equipment selection, issue description, or attached photos.</p>
+  </div>
+  <div class="actions">
+    <a class="btn btn-light" href="/requests/<%= r.id %>"><%- icon('arrow-left') %> Back to Request</a>
+  </div>
+</div>
+
+<div class="alert alert-info" style="margin-bottom:20px;display:flex;align-items:center;gap:10px;">
+  <%- icon('info') %>
+  <span>You can edit this request while it is still <strong>Pending</strong> review. Once a technician is assigned, details can no longer be changed.</span>
+</div>
+
+<%- include('../partials/errors', { errors: errors }) %>
+
+<form method="post" action="/requests/<%= r.id %>/edit" enctype="multipart/form-data" class="card card-floating" id="edit-report-form">
+  <h2>Report Information</h2>
+  
+  <div class="field">
+    <label for="title">Issue Summary / Title <span class="req">*</span></label>
+    <input type="text" id="title" name="title" value="<%= r.title || '' %>" required maxlength="150" placeholder="e.g., Projector won't turn on, Aircon leaking water">
+    <small class="field-hint">A short headline explaining what is wrong with the equipment.</small>
+  </div>
+
+  <div class="form-grid">
+    <div class="field">
+      <label for="equipment-category">Filter by Category</label>
+      <select id="equipment-category">
+        <option value="">All categories</option>
+        <% categories.forEach(function (c) { %>
+          <option value="<%= c.id %>" <%= r.equipment && r.equipment.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="equipmentId">Equipment / Location <span class="req">*</span></label>
+      <select id="equipmentId" name="equipmentId" required>
+        <option value="">Select equipment…</option>
+        <% equipment.forEach(function (e) { var cat = categories.find(function (c) { return c.id === e.categoryId; }); %>
+          <option value="<%= e.id %>" data-category="<%= e.categoryId %>" data-category-name="<%= cat ? cat.name : '' %>" data-name="<%= e.name %>" data-code="<%= e.code %>" data-location="<%= e.location %>" <%= r.equipmentId === e.id ? 'selected' : '' %>>
+            <%= e.name %> – <%= e.location %> (<%= e.code %>)
+          </option>
+        <% }) %>
+      </select>
+      <small class="field-hint">Choose the exact machine or classroom asset needing repair.</small>
+    </div>
+  </div>
+
+  <% if (currentUser && currentUser.role === 'admin') { %>
+  <div class="field">
+    <span class="label">How serious is the problem?</span>
+    <div class="sev-grid" role="radiogroup" aria-label="Severity">
+      <% Object.keys(sev).forEach(function (k) { var s = sev[k]; var on = Number(r.severity) === Number(k); %>
+        <label class="sev sev-<%= k %> <%= on ? 'checked' : '' %>">
+          <input type="radio" name="severity" value="<%= k %>" <%= on ? 'checked' : '' %> onchange="document.querySelectorAll('.sev').forEach(function(el){el.classList.remove('checked')}); this.closest('.sev').classList.add('checked')">
+          <span class="sev-tick"><%- icon('check') %></span>
+          <span class="sev-ic"><%- icon(s.icon) %></span>
+          <strong><%= s.label %></strong>
+          <small><%= s.help %></small>
+        </label>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
+
+  <div class="field">
+    <label for="description">Detailed Description <span class="req">*</span></label>
+    <textarea id="description" name="description" required maxlength="3000" rows="5" placeholder="Explain what happened, error codes, strange noises, when it started, etc."><%= r.description || '' %></textarea>
+    <div class="counter" style="text-align:right;font-size:11px;color:var(--muted);margin-top:2px;">
+      <span id="desc-count"><%= (r.description || '').length %></span> / 3000
+    </div>
+  </div>
+
+  <!-- Existing Photos (if any) -->
+  <% if (attachments && attachments.length) { %>
+  <div class="field" style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
+    <label>Current Attached Photos (<%= attachments.length %>)</label>
+    <p class="muted" style="margin:2px 0 10px;font-size:12.5px;">Check the box on any photo you want to remove.</p>
+    <div class="edit-attachments-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:12px;">
+      <% attachments.forEach(function (a) { %>
+        <div class="edit-att-card" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg);position:relative;">
+          <img src="/uploads/<%= a.filename %>" alt="" style="width:100%;height:100px;object-fit:cover;display:block;">
+          <label style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;cursor:pointer;background:var(--surface);">
+            <input type="checkbox" name="removeAttachments" value="<%= a.id %>">
+            <span style="color:var(--red);font-weight:600;"><%- icon('trash') %> Remove</span>
+          </label>
+        </div>
+      <% }) %>
+    </div>
+  </div>
+  <% } %>
+
+  <!-- Add New Photos -->
+  <div class="field" style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
+    <label>Add Additional / Replacement Photos</label>
+    <p class="muted" style="margin:2px 0 10px;font-size:12.5px;">Upload clearer photos of the damaged area (optional). Max 6 files, 5 MB each.</p>
+    <label class="dropzone" for="photos" id="dropzone" style="cursor:pointer;">
+      <span class="dz-ic"><%- icon('camera') %></span>
+      <strong>Click to select new photos</strong>
+      <span>JPG, PNG, GIF, WEBP up to 5 MB</span>
+    </label>
+    <input type="file" id="photos" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" multiple style="display:none;">
+    <div id="new-photos-preview" style="display:none;margin-top:10px;">
+      <div id="preview-list" style="display:flex;flex-wrap:wrap;gap:10px;"></div>
+    </div>
+    <div class="field" style="margin-top:10px;">
+      <label for="photoNote">Photo note <span class="hint">(optional)</span></label>
+      <input type="text" id="photoNote" name="photoNote" maxlength="1000" placeholder="e.g. Taken from the side showing damaged power switch">
+    </div>
+  </div>
+
+  <div class="profile-card-footer" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:18px;margin-top:18px;">
+    <button type="submit" class="btn btn-primary">
+      <%- icon('check') %> Save Changes
+    </button>
+    <a href="/requests/<%= r.id %>" class="btn btn-light">Discard Changes</a>
+    <button type="button" class="btn btn-danger btn-sm" onclick="openCancelModal()" style="margin-left:auto;">
+      <%- icon('trash') %> Cancel Report
+    </button>
+  </div>
+</form>
+</div>
+
+<!-- Cancel Modal Dialog -->
+<div id="cancel-modal" class="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;align-items:center;justify-content:center;padding:16px;">
+  <div class="modal-card card" style="max-width:480px;width:100%;margin:0;box-shadow:0 12px 36px rgba(0,0,0,0.3);">
+    <div class="modal-head" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h2 style="margin:0;color:var(--red);display:flex;align-items:center;gap:8px;">
+        <%- icon('alert') %> Cancel Report
+      </h2>
+      <button type="button" class="btn-link" onclick="closeCancelModal()" style="font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <p style="font-size:13.5px;line-height:1.4;margin:0 0 14px;">
+      Are you sure you want to cancel request <strong><%= r.code %></strong>? Once cancelled, this ticket will be closed and technicians will not be dispatched.
+    </p>
+    <form method="post" action="/requests/<%= r.id %>/cancel">
+      <div class="field">
+        <label>Reason for cancellation:</label>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px;font-size:13px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason" value="Reported by mistake (wrong equipment or details)" checked>
+            <span>Reported by mistake (wrong equipment or details)</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason" value="Problem is already resolved / working now">
+            <span>Problem is already resolved / working now</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason" value="Duplicate report">
+            <span>Duplicate report</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="radio" name="reason" value="" id="reason-other-radio">
+            <span>Other reason (specify below)</span>
+          </label>
+        </div>
+      </div>
+      <div class="field" id="other-reason-field" style="margin-top:8px;">
+        <input type="text" id="custom-reason" name="custom_reason" maxlength="500" placeholder="Type specific reason (optional)..." oninput="document.getElementById('reason-other-radio').value = this.value">
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+        <button type="button" class="btn btn-light" onclick="closeCancelModal()">Keep Report</button>
+        <button type="submit" class="btn btn-danger">Yes, Cancel Report</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  (function () {
+    // Category filter for equipment dropdown
+    var catSelect = document.getElementById('equipment-category');
+    var eqSelect = document.getElementById('equipmentId');
+    if (catSelect && eqSelect) {
+      catSelect.addEventListener('change', function () {
+        var catId = this.value;
+        var options = eqSelect.querySelectorAll('option');
+        options.forEach(function (opt) {
+          if (!opt.value) return;
+          var optCat = opt.getAttribute('data-category');
+          if (!catId || optCat === catId) {
+            opt.style.display = '';
+          } else {
+            opt.style.display = 'none';
+          }
+        });
+      });
+    }
+
+    // Character counter for description
+    var desc = document.getElementById('description');
+    var count = document.getElementById('desc-count');
+    if (desc && count) {
+      desc.addEventListener('input', function () {
+        count.textContent = this.value.length;
+      });
+    }
+
+    // Photo preview
+    var photoInput = document.getElementById('photos');
+    var previewWrap = document.getElementById('new-photos-preview');
+    var previewList = document.getElementById('preview-list');
+    if (photoInput && previewWrap && previewList) {
+      photoInput.addEventListener('change', function () {
+        previewList.innerHTML = '';
+        var files = Array.from(this.files || []);
+        if (!files.length) {
+          previewWrap.style.display = 'none';
+          return;
+        }
+        previewWrap.style.display = 'block';
+        files.forEach(function (file) {
+          if (!file.type.startsWith('image/')) return;
+          var r = new FileReader();
+          r.onload = function (e) {
+            var img = document.createElement('img');
+            img.src = e.target.result;
+            img.style.width = '70px';
+            img.style.height = '70px';
+            img.style.objectFit = 'cover';
+            img.style.borderRadius = '8px';
+            img.style.border = '1px solid var(--border)';
+            previewList.appendChild(img);
+          };
+          r.readAsDataURL(file);
+        });
+      });
+    }
+  })();
+
+  function openCancelModal() {
+    var modal = document.getElementById('cancel-modal');
+    if (modal) modal.style.display = 'flex';
+  }
+  function closeCancelModal() {
+    var modal = document.getElementById('cancel-modal');
+    if (modal) modal.style.display = 'none';
+  }
+</script>
+
+<%- include('../partials/footer') %>

@@ -1,0 +1,153 @@
+<%- include('../partials/header') %>
+<% var role = currentUser.role; var advanced = role !== 'requester';
+   var pills = [
+     { label: 'All', status: '' },
+     { label: 'Pending Approval', status: 'Pending' },
+     { label: 'Approved', status: 'Approved' },
+     { label: 'In Progress', status: 'active' },
+     { label: 'Completed', status: 'Completed' },
+     { label: 'Cancelled', status: 'Cancelled' },
+   ];
+   var moreActive = ['priority', 'categoryId', 'location', 'technicianId', 'type', 'from', 'to', 'overdue'].some(function (k) { return f[k]; })
+     || (f.status && !pills.some(function (p) { return p.status === f.status; })); %>
+<%
+  var reqExtraActions = '';
+  if (role !== 'technician') {
+    reqExtraActions += `<a class="btn-banner-sub" href="/requests/new" onclick="if(window.openSubmitRequestModal){openSubmitRequestModal();return false;}">${icon('plus')} Submit Request</a>`;
+  }
+  if (role === 'admin') {
+    reqExtraActions += `<a class="btn-banner-sub" href="/reports/export/requests${qs({ from: f.from, to: f.to })}">${icon('upload')} Export CSV</a>`;
+  }
+%>
+<%- include('../partials/header-banner', {
+  breadcrumb: '<a href="/">Home</a> &rsaquo; Maintenance Requests',
+  title: 'Maintenance Requests',
+  subtitle: 'Track incoming problem reports, technician dispatches, and equipment service status.',
+  extraActions: reqExtraActions
+}) %>
+
+<nav class="pills" aria-label="Filter by status">
+  <% pills.forEach(function (p) { var on = (f.status || '') === p.status; %>
+    <a href="/requests<%= qs(f, { status: p.status, q: f.q }) %>" class="<%= on ? 'active' : '' %>"<%- on ? ' aria-current="true"' : '' %>><%= p.label %></a>
+  <% }) %>
+</nav>
+
+<form class="list-search" method="get" action="/requests">
+  <label class="searchbar">
+    <%- icon('search') %>
+    <span class="visually-hidden">Search</span>
+    <input type="search" name="q" value="<%= f.q %>" placeholder="Search request, equipment, or ID…">
+  </label>
+  <% if (!advanced) { %>
+    <% if (f.status) { %><input type="hidden" name="status" value="<%= f.status %>"><% } %>
+    <button class="btn" type="submit">Search</button>
+  <% } else { %>
+    <button class="btn" type="submit">Search</button>
+    <details class="more-filters"<%= moreActive ? ' open' : '' %>>
+      <summary class="btn btn-light"><%- icon('layers') %>More filters</summary>
+      <div class="filters card">
+        <div class="field">
+          <label for="status">Status</label>
+          <select id="status" name="status">
+            <option value="">All</option>
+            <option value="open" <%= f.status === 'open' ? 'selected' : '' %>>All open</option>
+            <option value="active" <%= f.status === 'active' ? 'selected' : '' %>>Assigned / In progress / On hold</option>
+            <% C.REQUEST_STATUSES.forEach(function (s) { %><option <%= f.status === s ? 'selected' : '' %>><%= s %></option><% }) %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="priority">Priority</label>
+          <select id="priority" name="priority">
+            <option value="">All</option>
+            <% C.PRIORITIES.forEach(function (p) { %><option <%= f.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="categoryId">Category</label>
+          <select id="categoryId" name="categoryId">
+            <option value="">All</option>
+            <% categories.forEach(function (c) { %><option value="<%= c.id %>" <%= f.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="location">Location</label>
+          <select id="location" name="location">
+            <option value="">All</option>
+            <% if (typeof C !== 'undefined' && C.HIGH_SCHOOL_ROOMS) { %>
+              <% Object.keys(C.HIGH_SCHOOL_ROOMS).forEach(function (groupName) { %>
+                <optgroup label="<%= groupName %>">
+                  <% C.HIGH_SCHOOL_ROOMS[groupName].forEach(function (room) { %>
+                    <option value="<%= room %>" <%= f.location === room ? 'selected' : '' %>><%= room %></option>
+                  <% }) %>
+                </optgroup>
+              <% }) %>
+              <% var otherLocs = (locations || []).filter(function (l) { return !C.HIGH_SCHOOL_LOCATIONS.includes(l); }); %>
+              <% if (otherLocs.length > 0) { %>
+                <optgroup label="Other Locations">
+                  <% otherLocs.forEach(function (room) { %>
+                    <option value="<%= room %>" <%= f.location === room ? 'selected' : '' %>><%= room %></option>
+                  <% }) %>
+                </optgroup>
+              <% } %>
+            <% } else { %>
+              <% locations.forEach(function (l) { %><option <%= f.location === l ? 'selected' : '' %>><%= l %></option><% }) %>
+            <% } %>
+          </select>
+        </div>
+        <% if (role === 'admin') { %>
+        <div class="field">
+          <label for="technicianId">Technician</label>
+          <select id="technicianId" name="technicianId">
+            <option value="">All</option>
+            <% technicians.forEach(function (t) { %><option value="<%= t.id %>" <%= f.technicianId === t.id ? 'selected' : '' %>><%= t.name %></option><% }) %>
+          </select>
+        </div>
+        <% } %>
+        <div class="field">
+          <label for="type">Type</label>
+          <select id="type" name="type">
+            <option value="">All</option>
+            <% C.REQUEST_TYPES.forEach(function (t) { %><option <%= f.type === t ? 'selected' : '' %>><%= t %></option><% }) %>
+          </select>
+        </div>
+        <div class="field">
+          <label for="from">Submitted from</label>
+          <input type="date" id="from" name="from" value="<%= f.from %>">
+        </div>
+        <div class="field">
+          <label for="to">to</label>
+          <input type="date" id="to" name="to" value="<%= f.to %>">
+        </div>
+        <div class="field">
+          <label for="sort">Sort by</label>
+          <select id="sort" name="sort">
+            <option value="priority" <%= f.sort === 'priority' ? 'selected' : '' %>>Priority</option>
+            <option value="newest" <%= f.sort === 'newest' ? 'selected' : '' %>>Newest</option>
+            <option value="oldest" <%= f.sort === 'oldest' ? 'selected' : '' %>>Oldest</option>
+            <option value="target" <%= f.sort === 'target' ? 'selected' : '' %>>Target date</option>
+          </select>
+        </div>
+        <div class="checks" style="align-self:center">
+          <label><input type="checkbox" name="overdue" value="1" <%= f.overdue ? 'checked' : '' %>> Overdue only</label>
+        </div>
+        <div class="actions">
+          <button class="btn" type="submit">Apply filters</button>
+          <a class="btn btn-light" href="/requests">Clear</a>
+        </div>
+      </div>
+    </details>
+  <% } %>
+</form>
+
+<% if (!rows.length) { %>
+  <div class="empty-state">
+    <span class="empty-ic"><%- icon('search') %></span>
+    <strong>No requests found</strong>
+    <small><%= f.q || f.status || moreActive ? 'Try a different search or filter.' : 'Requests you submit will appear here.' %></small>
+  </div>
+<% } else { %>
+  <div class="rlist">
+    <% rows.forEach(function (r) { %><%- include('../partials/report-card', { r: r, showTech: role !== 'technician', showRequester: role !== 'requester', showPriority: role !== 'requester' }) %><% }) %>
+  </div>
+<% } %>
+<%- include('../partials/footer') %>
