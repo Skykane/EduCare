@@ -1,0 +1,6 @@
+# Keep shell scripts LF so the Gradle wrapper runs on Linux CI.
+android/gradlew text eol=lf
+*.sh text eol=lf
+android/gradlew.bat text eol=crlf
+*.jar binary
+*.apk binary

@@ -1,8 +1,9 @@
 name: Build EduCare APK
 
 # Builds the Android WebView wrapper and publishes the debug APK.
-#   - Manual run  : Actions -> Build EduCare APK -> Run workflow (artifact + "apk-latest" release)
-#   - Tag push    : git tag v1.0.0 && git push origin v1.0.0 (attached to that GitHub Release)
+#   - Push to master : build + upload artifact (when android/ or this workflow changes)
+#   - Manual run     : Actions -> Build EduCare APK -> Run workflow (artifact + "apk-latest" release)
+#   - Tag push       : git tag v1.0.0 && git push origin v1.0.0 (attached to that GitHub Release)
 # The server URL comes from the EDUCARE_URL repository variable, or the
 # educare_url input when the workflow is started manually.
 
@@ -14,6 +15,11 @@ on:
         required: false
         type: string
   push:
+    branches:
+      - master
+    paths:
+      - 'android/**'
+      - '.github/workflows/build-apk.yml'
     tags:
       - 'v*'
   pull_request:
@@ -85,7 +91,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: educare-apk-${{ github.run_number }}
+          name: educare-apk-${{ github.run_number }}-${{ github.run_attempt }}
           path: artifacts/*.apk
           if-no-files-found: error
           retention-days: 30
@@ -133,6 +139,6 @@ jobs:
             echo "| --- | --- |"
             echo "| Server URL | \`$EDUCARE_URL\` |"
             echo "| Version | \`${{ steps.version.outputs.name }}\` (code ${{ github.run_number }}) |"
-            echo "| Artifact | \`educare-apk-${{ github.run_number }}\` |"
+            echo "| Artifact | \`educare-apk-${{ github.run_number }}-${{ github.run_attempt }}\` |"
             echo "| Trigger | \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` |"
           } >> "$GITHUB_STEP_SUMMARY"
