@@ -39,7 +39,7 @@ EduCare is server-rendered, so the APK is a thin WebView shell (`android/`) that
 1. Repo → **Settings → Secrets and variables → Actions → Variables → New repository variable**
    - Name: `EDUCARE_URL`
    - Value: e.g. `https://your-server.example.com` (or your current `trycloudflare.com` URL)
-2. **Actions → Build EduCare APK → Run workflow**. Then download the `educare-apk-*` artifact from the run page, or open **Releases → EduCare APK (latest build)**. Pushes that touch `android/` also build an artifact automatically.
+2. **Actions → Build EduCare APK → Run workflow**, or just push to `master` (any change under `android/` or the workflow file). Every build refreshes the rolling **Releases → EduCare APK (latest build)** release, whose asset always lives at [`releases/download/apk-latest/educare-latest-debug.apk`](https://github.com/Skykane/EduCare/releases/download/apk-latest/educare-latest-debug.apk). A versioned `educare-apk-*` artifact is kept on the run page too.
 3. For a versioned release: `git tag v1.0.0` and `git push origin v1.0.0` — the APK is attached to that GitHub Release.
 
 Tag builds take their version from the tag (`v1.0.0` → `1.0.0`); manual builds use `1.0.0-dev.<run number>`. The APK is debug-signed, so it installs by sideloading (allow "install unknown apps").

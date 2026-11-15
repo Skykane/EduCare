@@ -1,9 +1,12 @@
 name: Build EduCare APK
 
 # Builds the Android WebView wrapper and publishes the debug APK.
-#   - Push to master : build + upload artifact (when android/ or this workflow changes)
-#   - Manual run     : Actions -> Build EduCare APK -> Run workflow (artifact + "apk-latest" release)
+#   - Push to master : build + artifact + refresh the "apk-latest" release
+#                      (when android/ or this workflow changes)
+#   - Manual run     : Actions -> Build EduCare APK -> Run workflow (same as a push)
 #   - Tag push       : git tag v1.0.0 && git push origin v1.0.0 (attached to that GitHub Release)
+# The "apk-latest" release always exposes the same download URL:
+#   .../releases/download/apk-latest/educare-latest-debug.apk
 # The server URL comes from the EDUCARE_URL repository variable, or the
 # educare_url input when the workflow is started manually.
 
@@ -95,9 +98,12 @@ jobs:
 
       - name: Collect APK
         run: |
-          mkdir -p artifacts
+          mkdir -p artifacts artifacts/rolling
           cp android/app/build/outputs/apk/debug/app-debug.apk \
              "artifacts/educare-${{ steps.version.outputs.name }}-debug.apk"
+          # Stable filename so the rolling release keeps one permanent download link.
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             artifacts/rolling/educare-latest-debug.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -107,10 +113,10 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # Manual runs keep a rolling "apk-latest" prerelease so there is always
-      # a stable download link without creating a version tag.
-      - name: Publish rolling release (manual run)
-        if: github.event_name == 'workflow_dispatch'
+      # Every non-PR build keeps a rolling "apk-latest" prerelease so there is
+      # always a stable download link, even before the first version tag.
+      - name: Publish rolling release
+        if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: apk-latest
@@ -125,8 +131,10 @@ jobs:
             - Version: `${{ steps.version.outputs.name }}` (`${{ github.run_number }}`)
             - Workflow run: [#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
 
+            Download: [educare-latest-debug.apk](${{ github.server_url }}/${{ github.repository }}/releases/download/apk-latest/educare-latest-debug.apk)
+
             Install it by opening the `.apk` on an Android phone (allow "install unknown apps").
-          files: artifacts/*.apk
+          files: artifacts/rolling/educare-latest-debug.apk
 
       - name: Publish tagged release
         if: startsWith(github.ref, 'refs/tags/')
