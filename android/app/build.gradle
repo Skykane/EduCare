@@ -5,9 +5,19 @@ plugins {
 // EduCare is a server-rendered Express app, so the APK is a WebView shell
 // that loads the live server URL. Override it at build time with:
 //   gradlew -p android assembleDebug -PeduCareUrl=https://your-server.example.com
-def educareUrl = (project.findProperty('eduCareUrl')
-        ?: System.getenv('EDUCARE_URL')
-        ?: 'https://busy-artwork-england-hands.trycloudflare.com').toString().trim()
+// Resolution order: -PeduCareUrl, EDUCARE_URL env var, data/tunnel.json, fallback.
+def educareUrl = project.findProperty('eduCareUrl') ?: System.getenv('EDUCARE_URL')
+if (!educareUrl) {
+    def tunnelFile = rootProject.file('../data/tunnel.json')
+    if (tunnelFile.exists()) {
+        try {
+            educareUrl = new groovy.json.JsonSlurper().parseText(tunnelFile.text)?.url
+        } catch (Exception ignored) {
+            // corrupt/unreadable tunnel.json: fall through to the built-in default
+        }
+    }
+}
+educareUrl = (educareUrl ?: 'https://busy-artwork-england-hands.trycloudflare.com').toString().trim()
 if (educareUrl && !educareUrl.startsWith('http://') && !educareUrl.startsWith('https://')) {
     educareUrl = "https://${educareUrl}"
 }

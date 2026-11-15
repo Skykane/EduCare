@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  The server URL can be entered on the device, and a LAN/tunnel address may be
+  plain http (http://192.168.x.x:3000, http://10.0.2.2:3000), so cleartext has
+  to stay permitted. Traffic to the production https:// URL is still TLS.
+-->
 <network-security-config>
-    <base-config cleartextTrafficPermitted="false" />
-    <!-- Local development only: http://localhost:3000 or http://10.0.2.2:3000 -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">localhost</domain>
-        <domain includeSubdomains="false">127.0.0.1</domain>
-        <domain includeSubdomains="false">10.0.2.2</domain>
-    </domain-config>
+    <base-config cleartextTrafficPermitted="true" />
 </network-security-config>

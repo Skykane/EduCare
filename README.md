@@ -44,7 +44,15 @@ EduCare is server-rendered, so the APK is a thin WebView shell (`android/`) that
 
 Tag builds take their version from the tag (`v1.0.0` → `1.0.0`); manual builds use `1.0.0-dev.<run number>`. The APK is debug-signed, so it installs by sideloading (allow "install unknown apps").
 
-The fallback URL when `EDUCARE_URL` is not set is the tunnel URL in `data/tunnel.json`. Quick tunnels expire — if the app shows the offline screen, update the repository variable and rerun the workflow.
+The fallback URL when `EDUCARE_URL` is not set is the tunnel URL in `data/tunnel.json`. Quick tunnels expire whenever the `cloudflared` process stops, so the app also lets you fix it without a rebuild: when a page fails to load, tap **Server settings** on the error screen and paste the new URL. The value is stored on the device (SharedPreferences) and is used from then on.
+
+To bring the tunnel back up on the PC running the server:
+
+```powershell
+.\cloudflared.exe tunnel --url http://localhost:3000
+```
+
+Copy the printed `https://<random>.trycloudflare.com` URL. If you want new installs to point at it, set the `EDUCARE_URL` repository variable (or pass `-PeduCareUrl`) and rerun the workflow.
 
 ### Build locally
 

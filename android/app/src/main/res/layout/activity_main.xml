@@ -64,6 +64,15 @@
             android:backgroundTint="@color/brand_crimson"
             android:text="@string/retry"
             android:textColor="@android:color/white" />
+
+        <Button
+            android:id="@+id/settings_button"
+            style="?android:attr/borderlessButtonStyle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/server_settings"
+            android:textColor="@color/brand_navy" />
     </LinearLayout>
 
 </FrameLayout>
