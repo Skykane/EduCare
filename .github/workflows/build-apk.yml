@@ -51,14 +51,24 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      # ubuntu-latest already ships the Android SDK (ANDROID_HOME +
-      # cmdline-tools on PATH), so install the exact platform/build tools
-      # directly. android-actions/setup-android@v3 fails on the current
-      # runner image because it tries to install the removed 'tools' package.
+      # ubuntu-latest already ships the Android SDK, but ANDROID_HOME and
+      # sdkmanager are not on PATH, and android-actions/setup-android@v3
+      # fails on the current image (it installs the removed 'tools' package).
       - name: Install SDK platform and build tools
         run: |
-          yes | sdkmanager --licenses > /dev/null 2>&1 || true
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" > /dev/null
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKM="$(ls -d "$SDK_ROOT"/cmdline-tools/*/bin/sdkmanager 2>/dev/null | tail -n 1)"
+          if [ -z "$SDKM" ]; then
+            echo "No sdkmanager found under $SDK_ROOT" >&2
+            ls -R "$SDK_ROOT/cmdline-tools" >&2 || true
+            exit 1
+          fi
+          echo "Using SDK $SDK_ROOT ($SDKM)"
+          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          yes | "$SDKM" --licenses > /dev/null 2>&1 || true
+          "$SDKM" "platform-tools" "platforms;android-35" "build-tools;35.0.0" > /dev/null
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
