@@ -30,6 +30,43 @@ Other commands:
 
 Settings (optional environment variables): `PORT`, `SESSION_SECRET`, `DATA_DIR`, `UPLOAD_DIR`.
 
+## Android APK
+
+EduCare is server-rendered, so the APK is a thin WebView shell (`android/`) that opens the live server URL. The phone must be able to reach that URL (a cloudflared tunnel or a public deployment).
+
+### Build with GitHub Actions (recommended)
+
+1. Repo → **Settings → Secrets and variables → Actions → Variables → New repository variable**
+   - Name: `EDUCARE_URL`
+   - Value: e.g. `https://your-server.example.com` (or your current `trycloudflare.com` URL)
+2. **Actions → Build EduCare APK → Run workflow**. Then download `educare-apk-<run>` from the run page, or open **Releases → EduCare APK (latest build)**.
+3. For a versioned release: `git tag v1.0.0` and `git push origin v1.0.0` — the APK is attached to that GitHub Release.
+
+Tag builds take their version from the tag (`v1.0.0` → `1.0.0`); manual builds use `1.0.0-dev.<run number>`. The APK is debug-signed, so it installs by sideloading (allow "install unknown apps").
+
+The fallback URL when `EDUCARE_URL` is not set is the tunnel URL in `data/tunnel.json`. Quick tunnels expire — if the app shows the offline screen, update the repository variable and rerun the workflow.
+
+### Build locally
+
+Requires JDK 17+ and the Android SDK (`ANDROID_HOME`). The Gradle wrapper (8.11) is included:
+
+```bash
+./android/gradlew -p android assembleDebug -PeduCareUrl=https://your-server.example.com
+# APK: android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+On Windows: `android\gradlew.bat -p android assembleDebug -PeduCareUrl=https://your-server.example.com` (or `npm run apk`).
+
+You can also set the `EDUCARE_URL` environment variable instead of `-PeduCareUrl`. `-PeduCareVersionName` and `-PeduCareVersionCode` override the version. `npm run apk` runs the same Gradle task.
+
+### What the APK does
+
+- Full-screen WebView; Android back button walks the web history; offline/error screen with a retry button.
+- Repair-photo uploads use the Android file picker; report/CSV downloads land in the Downloads folder.
+- Sessions and cookies work normally against the server.
+- Cleartext HTTP is allowed only for `localhost`, `127.0.0.1`, and `10.0.2.2` (local testing); production URLs must be HTTPS.
+
+
 ## Where things are saved
 
 - `data/db.json` – all records (users, equipment, requests, history, notifications)

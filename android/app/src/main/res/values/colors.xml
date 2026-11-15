@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="brand_crimson">#8C1724</color>
+    <color name="brand_navy">#580D16</color>
+    <color name="brand_gold">#F59E0B</color>
+    <color name="brand_surface">#F5F6F9</color>
+    <color name="brand_text">#222630</color>
+    <color name="brand_muted">#6B7280</color>
+    <color name="ic_launcher_background">#580D16</color>
+</resources>

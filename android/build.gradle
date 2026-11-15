@@ -1,0 +1,4 @@
+// Root build file for the EduCare Android WebView wrapper.
+plugins {
+    id 'com.android.application' version '8.7.3' apply false
+}

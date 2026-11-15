@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">EduCare</string>
+    <string name="retry">Try again</string>
+    <string name="error_title">Can\'t load EduCare</string>
+    <string name="error_message">Check your internet connection and make sure the EduCare server is running at:\n%1$s</string>
+    <string name="error_no_app">No app can open this link.</string>
+    <string name="error_no_file_picker">No file picker available.</string>
+    <string name="download_started">Downloading %1$s…</string>
+    <string name="download_failed">Download failed. Try opening it in a browser.</string>
+</resources>

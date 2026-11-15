@@ -4,3 +4,13 @@ data/*.tmp
 uploads/*
 !uploads/.gitkeep
 .env
+
+# Android build output
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+*.keystore
+*.jks

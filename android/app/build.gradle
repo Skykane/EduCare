@@ -1,0 +1,52 @@
+plugins {
+    id 'com.android.application'
+}
+
+// EduCare is a server-rendered Express app, so the APK is a WebView shell
+// that loads the live server URL. Override it at build time with:
+//   gradlew -p android assembleDebug -PeduCareUrl=https://your-server.example.com
+def educareUrl = (project.findProperty('eduCareUrl')
+        ?: System.getenv('EDUCARE_URL')
+        ?: 'https://busy-artwork-england-hands.trycloudflare.com').toString().trim()
+if (educareUrl && !educareUrl.startsWith('http://') && !educareUrl.startsWith('https://')) {
+    educareUrl = "https://${educareUrl}"
+}
+educareUrl = educareUrl.replace('\\', '\\\\').replace('"', '\\"')
+
+def educareVersionName = (project.findProperty('eduCareVersionName') ?: '1.0.0').toString()
+def educareVersionCode = (project.findProperty('eduCareVersionCode') ?: '1').toString().toInteger()
+
+android {
+    namespace 'com.educare.app'
+    compileSdk 35
+    buildToolsVersion '35.0.0'
+
+    defaultConfig {
+        applicationId 'com.educare.app'
+        minSdk 26
+        targetSdk 35
+        versionCode educareVersionCode
+        versionName educareVersionName
+
+        buildConfigField 'String', 'EDUCARE_URL', "\"${educareUrl}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        abortOnError false
+    }
+}
