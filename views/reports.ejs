@@ -675,7 +675,7 @@
                 <td class="rep-center">
                   <span class="badge badge-<%= statusColor(r.status) %>"><%= r.status %></span>
                   <% if (r.overdue) { %><span class="reports-cell-sub" style="color:var(--red)">Overdue</span><% } %>
-                  <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending') { %>
+                  <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending Approval') { %>
                     <a class="reports-edit-link no-print" href="/requests/<%= r.id %>/edit"><%- icon('edit') %> Edit</a>
                   <% } %>
                 </td>

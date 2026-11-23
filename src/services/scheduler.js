@@ -6,7 +6,7 @@ const { allSchedules } = require('./preventive');
 const { todayISO, fmtDate } = require('../helpers');
 
 function isOverdueRequest(r, today = todayISO()) {
-  return !!r.targetDate && C.OPEN_STATUSES.includes(r.status) && r.targetDate < today;
+  return !!r.targetDate && C.OPEN_STATUSES.includes(C.normalizeStatus(r.status, r)) && r.targetDate < today;
 }
 
 function runAutomatedChecks() {

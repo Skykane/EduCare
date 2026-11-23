@@ -1,4 +1,70 @@
 // Shared lists and labels used across the app.
+//
+// Canonical repair-request vocabulary. These seven exact strings are the only
+// statuses new code may write. Legacy values survive only as aliases for old
+// records and are rewritten by scripts/migrate-repair-workflow.js.
+// NOTE: the approval label uses an en dash (U+2013), not a hyphen.
+const STATUS = {
+  PENDING_APPROVAL: 'Pending Approval',
+  APPROVED_AWAITING_ASSIGNMENT: 'Approved – Awaiting Assignment',
+  ASSIGNED: 'Assigned',
+  IN_PROGRESS: 'In Progress',
+  ON_HOLD: 'On Hold',
+  COMPLETED: 'Completed',
+  REJECTED: 'Rejected',
+};
+
+const REQUEST_STATUSES = [
+  STATUS.PENDING_APPROVAL,
+  STATUS.APPROVED_AWAITING_ASSIGNMENT,
+  STATUS.ASSIGNED,
+  STATUS.IN_PROGRESS,
+  STATUS.ON_HOLD,
+  STATUS.COMPLETED,
+  STATUS.REJECTED,
+];
+
+// Legacy -> canonical mapping. `Pending` is context-sensitive and handled in
+// normalizeStatus (it meant "assigned" in older builds when a technician was
+// already linked, otherwise it meant "awaiting approval").
+const STATUS_ALIASES = {
+  Reported: STATUS.PENDING_APPROVAL,
+  Approved: STATUS.APPROVED_AWAITING_ASSIGNMENT,
+  'Approved - Awaiting Assignment': STATUS.APPROVED_AWAITING_ASSIGNMENT,
+  'Nearing Completion': STATUS.IN_PROGRESS,
+  Cancelled: STATUS.REJECTED,
+  Canceled: STATUS.REJECTED,
+};
+
+const LEGACY_REQUEST_STATUSES = [
+  'Reported', 'Pending', 'Approved', 'Assigned', 'In Progress', 'On Hold',
+  'Nearing Completion', 'Completed', 'Cancelled', 'Rejected',
+];
+
+const STATUS_ALIAS_LOOKUP = {};
+for (const [from, to] of Object.entries(STATUS_ALIASES)) {
+  STATUS_ALIAS_LOOKUP[from.trim().toLocaleLowerCase()] = to;
+}
+for (const value of REQUEST_STATUSES) {
+  STATUS_ALIAS_LOOKUP[value.toLocaleLowerCase()] = value;
+}
+
+// Display/storage normalizer. Unknown values are preserved verbatim so that
+// verification and equipment statuses are never rewritten by this helper.
+function normalizeStatus(status, request) {
+  if (status === undefined || status === null) return status;
+  const raw = String(status).trim();
+  if (!raw) return status;
+  const key = raw.toLocaleLowerCase();
+  if (REQUEST_STATUSES.includes(raw)) return raw;
+  if (key === 'pending') {
+    const hasTechnician = !!request && request.technicianId !== undefined && request.technicianId !== null && request.technicianId !== '';
+    return hasTechnician ? STATUS.ASSIGNED : STATUS.PENDING_APPROVAL;
+  }
+  if (Object.prototype.hasOwnProperty.call(STATUS_ALIAS_LOOKUP, key)) return STATUS_ALIAS_LOOKUP[key];
+  return raw;
+}
+
 module.exports = {
   ROLES: {
     admin: 'Administrator',
@@ -8,20 +74,17 @@ module.exports = {
 
   EQUIPMENT_STATUSES: ['Operational', 'Needs Repair', 'Under Maintenance', 'Out of Service'],
 
-  // Legacy values (Approved, Assigned, On Hold) stay for older records. New
-  // reports use the connected workflow: Reported -> Pending -> In Progress ->
-  // Nearing Completion -> Completed.
-  REQUEST_STATUSES: [
-    'Reported', 'Pending', 'Approved', 'Assigned', 'In Progress', 'On Hold',
-    'Nearing Completion', 'Completed', 'Cancelled', 'Rejected',
-  ],
-  OPEN_STATUSES: ['Reported', 'Pending', 'Approved', 'Assigned', 'In Progress', 'On Hold', 'Nearing Completion'],
-  TECH_ACTIVE_STATUSES: ['Pending', 'Assigned', 'In Progress', 'On Hold', 'Nearing Completion'],
-  REPAIR_STATUSES: ['Reported', 'Pending', 'In Progress', 'Nearing Completion', 'Completed'],
-  REPORTED_STATUSES: ['Reported'],
-  ASSIGNABLE_STATUSES: ['Reported', 'Pending', 'Approved'],
-  STARTABLE_STATUSES: ['Pending', 'Approved', 'Assigned'],
-  NEARING_STATUSES: ['In Progress', 'On Hold'],
+  STATUS,
+  STATUS_ALIASES,
+  LEGACY_REQUEST_STATUSES,
+  normalizeStatus,
+  REQUEST_STATUSES,
+  OPEN_STATUSES: REQUEST_STATUSES.filter((s) => s !== STATUS.COMPLETED && s !== STATUS.REJECTED),
+  TECH_ACTIVE_STATUSES: [STATUS.ASSIGNED, STATUS.IN_PROGRESS, STATUS.ON_HOLD],
+  REPAIR_STATUSES: [STATUS.ASSIGNED, STATUS.IN_PROGRESS, STATUS.ON_HOLD, STATUS.COMPLETED],
+  REPORTED_STATUSES: [STATUS.PENDING_APPROVAL],
+  ASSIGNABLE_STATUSES: [STATUS.APPROVED_AWAITING_ASSIGNMENT],
+  STARTABLE_STATUSES: [STATUS.ASSIGNED],
 
   // Verification is a separate track; Completed remains the repair status.
   VERIFICATION_STATUSES: ['Not Submitted', 'Awaiting Verification', 'Verified', 'Rework Required'],

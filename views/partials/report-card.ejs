@@ -39,7 +39,7 @@
       <% if (typeof showPriority !== 'undefined' && showPriority) { %><span class="chip chip-<%= statusColor(r.effectivePriority) %> soft"><%= r.effectivePriority %> priority</span><% } %>
       <% if (r.type === 'Preventive') { %><span class="chip chip-teal soft">Preventive</span><% } %>
       <% if (r.overdue) { %><span class="chip chip-red soft"><%- icon('alert') %>Overdue</span><% } %>
-      <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending') { %>
+      <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending Approval') { %>
         <span class="chip chip-amber soft" title="Can be edited or cancelled"><%- icon('edit') %>Editable</span>
       <% } %>
     </span>
@@ -78,7 +78,7 @@
       <% if (typeof showPriority !== 'undefined' && showPriority) { %><span class="chip chip-<%= statusColor(r.effectivePriority) %> soft"><%= r.effectivePriority %> priority</span><% } %>
       <% if (r.type === 'Preventive') { %><span class="chip chip-teal soft">Preventive</span><% } %>
       <% if (r.overdue) { %><span class="chip chip-red soft"><%- icon('alert') %>Overdue</span><% } %>
-      <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending') { %>
+      <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending Approval') { %>
         <span class="chip chip-amber soft" title="Can be edited or cancelled"><%- icon('edit') %>Editable</span>
       <% } %>
     </span>

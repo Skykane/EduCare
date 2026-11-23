@@ -11,7 +11,28 @@ const C = require('../constants');
 const HIGH_WORKLOAD_AT = 3;
 
 function activeTaskCount(technicianId) {
-  return db.where('requests', (r) => r.technicianId === technicianId && C.TECH_ACTIVE_STATUSES.includes(r.status)).length;
+  if (technicianId === undefined || technicianId === null || technicianId === '') return 0;
+  return db.where(
+    'requests',
+    (r) => Number(r.technicianId) === Number(technicianId) &&
+      C.TECH_ACTIVE_STATUSES.includes(C.normalizeStatus(r.status, r))
+  ).length;
+}
+
+/**
+ * Recalculate a technician's availability after an assignment or completion.
+ * The rule is: any active assignment means Busy, none means Available. Manual
+ * availability edits stay possible, but the next workflow change recalculates
+ * them (including an On Leave override).
+ */
+function syncTechnicianAvailability(technicianId) {
+  if (technicianId === undefined || technicianId === null || technicianId === '') return null;
+  const tech = db.find('users', technicianId);
+  if (!tech || tech.role !== 'technician') return null;
+  const activeCount = activeTaskCount(tech.id);
+  const availability = activeCount > 0 ? 'Busy' : 'Available';
+  if (tech.availability === availability) return tech;
+  return db.update('users', tech.id, { availability });
 }
 
 function recommendTechnicians(equipment) {
@@ -60,4 +81,4 @@ function recommendTechnicians(equipment) {
   return results;
 }
 
-module.exports = { recommendTechnicians, activeTaskCount, HIGH_WORKLOAD_AT };
+module.exports = { recommendTechnicians, activeTaskCount, syncTechnicianAvailability, HIGH_WORKLOAD_AT };

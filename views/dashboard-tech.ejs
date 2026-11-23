@@ -1,239 +1,216 @@
 <%- include('partials/header') %>
+<%
+  var S = {
+    assigned: 'Assigned',
+    inProgress: 'In Progress',
+    onHold: 'On Hold',
+    completed: 'Completed',
+    rework: 'Rework Required'
+  };
+  function rows(value) { return Array.isArray(value) ? value : []; }
+  function ic(name) { return typeof icon === 'function' ? icon(name) : ''; }
+  function sc(value) { return typeof statusClass === 'function' ? statusClass(value) : 'badge badge-gray'; }
+  function dt(value) { return typeof fmtDateTime === 'function' ? fmtDateTime(value) : String(value || ''); }
+  function dtOnly(value) { return typeof fmtDate === 'function' ? fmtDate(value) : String(value || ''); }
+  function statusUrl(status) { return '/requests?status=' + encodeURIComponent(status); }
+  function numberOr(value, fallback) { return typeof value === 'number' ? value : fallback; }
+
+  var techSummary = (typeof summary !== 'undefined' && summary) ? summary : (typeof stats !== 'undefined' && stats ? stats : {});
+  var techActiveTasks = rows(typeof activeTasks !== 'undefined' ? activeTasks : (typeof active !== 'undefined' ? active : null));
+  var techCompletedTasks = rows(typeof completedTasks !== 'undefined' ? completedTasks : (typeof myCompleted !== 'undefined' ? myCompleted : null));
+  var techSpecs = rows(typeof specs !== 'undefined' ? specs : null);
+  var availabilityOptions = (typeof C !== 'undefined' && Array.isArray(C.AVAILABILITY)) ? C.AVAILABILITY : ['Available', 'Busy', 'On Leave'];
+  var inProgressCount = techActiveTasks.filter(function (r) { return r && (r.status === S.inProgress || r.status === S.onHold); }).length;
+  var assignedCount = techActiveTasks.filter(function (r) { return r && r.status === S.assigned; }).length;
+  var overdueCount = numberOr(techSummary.overdue, techActiveTasks.filter(function (r) { return r && r.overdue; }).length);
+
+  function taskName(r) {
+    var eq = r && r.equipment;
+    var cat = r && r.category ? r.category.name : '';
+    return {
+      title: r ? (r.title || (eq ? eq.name : 'Repair request')) : 'Repair request',
+      sub: eq ? [eq.code, eq.name].filter(Boolean).join(' · ') : (cat || (r && r.location) || 'General repair')
+    };
+  }
+%>
 <div class="admin-ui-page admin-ui-dashboard dash adm-dash tech-dash">
   <%- include('partials/header-banner', {
     breadcrumb: 'Home',
     title: 'Dashboard',
-    subtitle: 'Where work orders are assigned, repairs logged, and preventive maintenance scheduled.'
+    subtitle: 'Your assigned repair tasks, progress updates, and completion reports.'
   }) %>
 
-  <!-- Technician Status Card -->
+  <!-- Technician status and availability -->
   <section class="card admin-ui-card tech-status-card" aria-label="Technician status">
     <div class="tech-status-main">
       <div class="tech-status-profile">
         <%- include('partials/avatar', { user: currentUser, name: currentUser.name, size: 'sm' }) %>
         <div class="tech-status-identity">
-          <span class="tech-status-role"><%- icon('wrench') %> Technician</span>
+          <span class="tech-status-role"><%- ic('wrench') %> Technician</span>
           <strong class="tech-status-name"><%= currentUser.name %></strong>
         </div>
       </div>
       <div class="tech-status-meta">
-        <span class="chip-role tech-status-availability"><%- icon('check-circle') %><span class="<%= statusClass(currentUser.availability) %>"><%= currentUser.availability %></span></span>
+        <span class="chip-role tech-status-availability"><%- ic('check-circle') %><span class="<%= sc(currentUser.availability) %>"><%= currentUser.availability %></span></span>
         <% if (currentUser.department) { %>
-          <span class="chip-role ghost tech-status-dept"><%- icon('building') %><%= currentUser.department %></span>
+          <span class="chip-role ghost tech-status-dept"><%- ic('building') %><%= currentUser.department %></span>
         <% } %>
-        <% if (typeof specs !== 'undefined') { specs.forEach(function (c) { %>
+        <% techSpecs.forEach(function (c) { %>
           <span class="pill tech-status-spec"><%= c.name %></span>
-        <% }) } %>
+        <% }) %>
       </div>
     </div>
     <form method="post" action="/technicians/<%= currentUser.id %>/availability" class="tech-status-form">
       <input type="hidden" name="back" value="/">
       <label for="availability" class="tech-status-label">Status</label>
       <select data-ec-select="1" name="availability" id="availability" class="tech-status-select">
-        <% C.AVAILABILITY.forEach(function (a) { %><option <%= currentUser.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
+        <% availabilityOptions.forEach(function (a) { %><option <%= currentUser.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
       </select>
-      <button class="btn btn-sm btn-primary tech-status-update" type="submit"><%- icon('refresh') %> Update</button>
+      <button class="btn btn-sm btn-primary tech-status-update" type="submit"><%- ic('refresh') %> Update</button>
     </form>
   </section>
 
-  <!-- Key Metric KPI Cards -->
+  <!-- Compact assigned-work summary -->
   <section class="adm-summary tech-summary" aria-label="Technician summary">
-    <a class="adm-stat" href="/requests?status=active">
-      <span class="adm-stat-ic tone-indigo"><%- icon('user-check') %></span>
-      <div class="adm-stat-body">
-        <span class="adm-stat-num"><%= stats.assigned %></span>
-        <span class="adm-stat-label">New / Assigned</span>
+    <a class="adm-stat" href="<%= statusUrl(S.assigned) %>">
+      <span class="adm-stat-ic tone-indigo"><%- ic('clipboard') %></span>
+      <span class="adm-stat-body">
+        <strong class="adm-stat-num"><%= numberOr(techSummary.assigned, assignedCount) %></strong>
+        <span class="adm-stat-label">Assigned</span>
         <span class="adm-stat-note">Awaiting your inspection</span>
-      </div>
+      </span>
     </a>
-    <a class="adm-stat" href="/requests?status=In%20Progress">
-      <span class="adm-stat-ic tone-blue"><%- icon('wrench') %></span>
-      <div class="adm-stat-body">
-        <span class="adm-stat-num"><%= stats.inProgress %></span>
+    <a class="adm-stat" href="<%= statusUrl(S.inProgress) %>">
+      <span class="adm-stat-ic tone-blue"><%- ic('wrench') %></span>
+      <span class="adm-stat-body">
+        <strong class="adm-stat-num"><%= numberOr(techSummary.inProgress, inProgressCount) %></strong>
         <span class="adm-stat-label">In Progress / On Hold</span>
         <span class="adm-stat-note">Currently under repair</span>
-      </div>
+      </span>
     </a>
-    <a class="adm-stat<%= stats.overdue ? ' tech-stat-alert' : '' %>" href="/requests?overdue=1">
-      <span class="adm-stat-ic <%= stats.overdue ? 'tone-red' : 'tone-gray' %>"><%- icon('alert') %></span>
-      <div class="adm-stat-body">
-        <span class="adm-stat-num"><%= stats.overdue %></span>
+    <a class="adm-stat<%= overdueCount ? ' tech-stat-alert' : '' %>" href="/requests?overdue=1">
+      <span class="adm-stat-ic <%= overdueCount ? 'tone-red' : 'tone-gray' %>"><%- ic('alert') %></span>
+      <span class="adm-stat-body">
+        <strong class="adm-stat-num"><%= overdueCount %></strong>
         <span class="adm-stat-label">Overdue Tasks</span>
-        <span class="adm-stat-note"><%= stats.overdue ? 'Attention required immediately' : 'All tasks within schedule' %></span>
-      </div>
+        <span class="adm-stat-note"><%= overdueCount ? 'Attention required immediately' : 'All tasks within schedule' %></span>
+      </span>
     </a>
-    <a class="adm-stat" href="/requests?status=Completed">
-      <span class="adm-stat-ic tone-green"><%- icon('check-circle') %></span>
-      <div class="adm-stat-body">
-        <span class="adm-stat-num"><%= stats.completedMonth %></span>
-        <span class="adm-stat-label">Completed (This Month)</span>
-        <span class="adm-stat-note">Resolved equipment issues</span>
-      </div>
+    <a class="adm-stat" href="<%= statusUrl(S.completed) %>">
+      <span class="adm-stat-ic tone-green"><%- ic('check-circle') %></span>
+      <span class="adm-stat-body">
+        <strong class="adm-stat-num"><%= numberOr(techSummary.completedTasks, techCompletedTasks.length) %></strong>
+        <span class="adm-stat-label">Completed</span>
+        <span class="adm-stat-note">Repairs you finished</span>
+      </span>
     </a>
   </section>
 
-  <!-- Connected Maintenance workflow statistics -->
-  <section class="adm-summary adm-summary-cards workflow-stats" data-revision-region aria-label="Maintenance workflow summary">
-    <a class="adm-stat" href="/requests"><span class="adm-stat-ic tone-indigo"><%- icon('clipboard') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.assignedTasks %></strong><span class="adm-stat-label">Assigned Tasks</span></span></a>
-    <a class="adm-stat" href="/requests?status=Pending"><span class="adm-stat-ic tone-amber"><%- icon('clock') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.pendingTasks %></strong><span class="adm-stat-label">Pending Tasks</span></span></a>
-    <a class="adm-stat" href="/requests?status=In%20Progress"><span class="adm-stat-ic tone-blue"><%- icon('wrench') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.inProgress %></strong><span class="adm-stat-label">In Progress Tasks</span></span></a>
-    <a class="adm-stat" href="/requests?status=Nearing%20Completion"><span class="adm-stat-ic tone-teal"><%- icon('wrench') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.nearingTasks %></strong><span class="adm-stat-label">Nearing Completion Tasks</span></span></a>
-    <a class="adm-stat" href="/requests?status=Completed"><span class="adm-stat-ic tone-green"><%- icon('check-circle') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.completedTasks %></strong><span class="adm-stat-label">Completed Tasks</span></span></a>
-    <% if (stats.reworkTasks) { %>
-    <a class="adm-stat" href="/requests?status=In%20Progress"><span class="adm-stat-ic tone-red"><%- icon('alert') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.reworkTasks %></strong><span class="adm-stat-label">Rework Required</span></span></a>
-    <% } %>
-  </section>
-
-  <% if (currentJob) { %>
-  <section class="card admin-ui-card current-job-card" data-revision-region>
-    <div class="card-body">
-      <span class="eyebrow">Current Job</span>
-      <div class="current-job-main">
-        <% if (currentJob.photo && currentJob.photo.filename) { %>
-          <img class="current-job-photo" src="/uploads/<%= encodeURIComponent(currentJob.photo.filename) %>" alt="Equipment photo" loading="lazy">
-        <% } %>
-        <div>
-          <h3><a href="/requests/<%= currentJob.id %>"><%= currentJob.code %> · <%= currentJob.equipment ? currentJob.equipment.name : currentJob.title %></a></h3>
-          <p class="muted"><%= currentJob.equipment ? currentJob.equipment.location : '' %> · Assigned <%= fmtManila(currentJob.assignedAt) %></p>
-          <span class="badge badge-blue"><%= currentJob.verificationStatus === 'Rework Required' ? 'Rework Required' : currentJob.status %></span>
-        </div>
-      </div>
-    </div>
-  </section>
-  <% } %>
-
-  <% if (recentActivities && recentActivities.length) { %>
-  <section class="card admin-ui-card" aria-label="Recent activities">
-    <div class="card-body">
-      <h3>Recent Activities</h3>
-      <div class="recent-activity-list">
-        <% recentActivities.forEach(function (a) { %>
-          <div class="workflow-row"><strong><%= a.action %></strong><span><%= a.details %></span><span class="muted"><%= fmtManila(a.createdAt) %></span></div>
-        <% }); %>
-      </div>
-    </div>
-  </section>
-  <% } %>
-
-  <!-- Main Technician Layout Grid -->
   <div class="adm-grid tech-grid">
     <div class="adm-main">
-      <% if (stats.overdue > 0) { %>
+      <% if (overdueCount > 0) { %>
         <div class="alert alert-error tech-overdue-alert">
           <div class="tech-overdue-copy">
-            <%- icon('alert') %>
-            <span>You have <strong><%= stats.overdue %></strong> overdue maintenance task(s) past target completion date.</span>
+            <%- ic('alert') %>
+            <span>You have <strong><%= overdueCount %></strong> overdue maintenance task<%= overdueCount === 1 ? '' : 's' %> past target completion date.</span>
           </div>
           <a href="/requests?overdue=1" class="btn btn-sm btn-danger">View Overdue</a>
         </div>
       <% } %>
 
-      <section class="adm-panel" aria-label="My active work queue">
+      <!-- Active assigned tasks -->
+      <section class="adm-panel" aria-labelledby="tech-active-heading">
         <div class="adm-panel-head">
           <div class="adm-panel-title">
-            <span class="adm-icon-chip"><%- icon('clipboard') %></span>
+            <span class="adm-icon-chip tone-blue"><%- ic('clipboard') %></span>
             <div>
-              <h2>My Active Work Queue (<%= active.length %>)</h2>
-              <p class="muted tech-panel-sub">Ordered by priority score. Click any ticket to view details and log repairs.</p>
+              <h2 id="tech-active-heading">My Active Tasks (<%= techActiveTasks.length %>)</h2>
+              <p class="muted tech-panel-sub">Only tasks assigned to you. Open a task to log work and progress.</p>
             </div>
           </div>
-          <a href="/requests" class="adm-panel-link">All My Tasks <%- icon('arrow-right') %></a>
+          <a href="/requests?status=active" class="adm-panel-link">All My Tasks <%- ic('arrow-right') %></a>
         </div>
-
         <div class="tech-panel-body">
-          <% if (!active.length) { %>
+          <% if (!techActiveTasks.length) { %>
             <div class="empty-state tech-empty-state">
-              <span class="empty-ic"><%- icon('check-circle') %></span>
+              <span class="empty-ic"><%- ic('check-circle') %></span>
               <strong>All caught up!</strong>
-              <small>No active repair tasks assigned right now. You can check upcoming preventive maintenance or update your availability.</small>
+              <small>No active repair tasks are assigned to you right now.</small>
             </div>
           <% } else { %>
-            <div class="tech-queue-desktop">
-              <div class="rlist rlist-1">
-                <% active.forEach(function (r) { %>
-                  <%- include('partials/report-card', { r: r, showRequester: true, showPriority: true }) %>
-                <% }) %>
-              </div>
-            </div>
-
-            <div class="tech-queue-mobile" aria-label="Active work queue">
-              <% active.forEach(function (r) { %>
-                <%
-                  var eq = r.equipment;
-                  var catName = r.category ? r.category.name : '';
-                  var eqName = eq ? eq.name : (catName || 'General repair');
-                  var eqLoc = r.location || (eq && eq.location) || '';
-                  var eqMeta = [eqName, eqLoc].filter(Boolean).join(' · ');
-                  var priorityLevel = r.effectivePriority || r.priority || (r.rec ? r.rec.level : '');
-                %>
-                <a class="tq-card<%= r.overdue ? ' is-overdue' : '' %>" href="/requests/<%= r.id %>" aria-label="Open request <%= r.code %>">
-                  <div class="tq-top">
-                    <span class="tq-id"><%= r.code %></span>
-                    <span class="chip chip-<%= statusColor(r.status) %> tq-status"><%- icon(statusIcon(r.status)) %><%= r.status %></span>
-                  </div>
-
-                  <div class="tq-mid">
-                    <span class="tq-thumb" aria-hidden="true">
-                      <% if (r.photo) { %>
-                        <img src="/uploads/<%= r.photo.filename %>" alt="" loading="lazy">
-                      <% } else { %>
-                        <span class="tq-thumb-ph"><%- icon(categoryIcon(catName)) %></span>
-                      <% } %>
-                    </span>
-                    <div class="tq-mid-body">
-                      <div class="tq-title"><%= r.title %></div>
-                      <div class="tq-eq"><%= eqMeta %></div>
-                      <div class="tq-badges">
-                        <% if (priorityLevel) { %>
-                          <span class="chip chip-<%= statusColor(priorityLevel) %> soft tq-priority"><%= priorityLevel %> Priority</span>
-                        <% } %>
-                        <% if (r.overdue) { %>
-                          <span class="chip chip-red soft tq-overdue">Overdue</span>
-                        <% } %>
-                      </div>
-                    </div>
-                    <span class="tq-arrow" aria-hidden="true"><%- icon('chevron-right') %></span>
-                  </div>
-
-                  <div class="tq-bottom">
-                    <div class="tq-detail">
-                      <span class="tq-label"><%- icon('calendar') %> Submitted</span>
-                      <span class="tq-value"><%= fmtDateTime(r.createdAt) %></span>
-                    </div>
-                    <div class="tq-detail">
-                      <span class="tq-label"><%- icon('clock') %> Target Completion</span>
-                      <span class="tq-value"><%= r.targetDate ? fmtDate(r.targetDate) : 'Not set' %></span>
-                    </div>
-                    <div class="tq-detail">
-                      <span class="tq-label"><%- icon('user') %> Requester</span>
-                      <span class="tq-value"><%= r.requester ? r.requester.name : '—' %></span>
-                    </div>
-                  </div>
-                </a>
+            <div class="wf-list">
+              <% techActiveTasks.forEach(function (r) { var name = taskName(r); %>
+                <div class="workflow-row adm-wf-row tech-task-row">
+                  <span class="wf-main">
+                    <a class="mono wf-code" href="/requests/<%= r.id %>"><%= r.code %></a>
+                    <strong><%= name.title %></strong>
+                    <span class="muted"><%= name.sub %> · <%= r.requester ? r.requester.name : 'Requester' %></span>
+                  </span>
+                  <span class="wf-meta">
+                    <span class="<%= sc(r.status) %>"><%= r.status %></span>
+                    <span class="muted"><%= r.targetDate ? 'Due ' + dtOnly(r.targetDate) : 'No target date' %></span>
+                  </span>
+                  <span class="wf-action tech-task-actions">
+                    <% if (r.status === S.assigned) { %>
+                      <a class="btn btn-primary btn-sm" href="/requests/<%= r.id %>#progress">▶ Start Repair</a>
+                    <% } %>
+                    <% if (r.status === S.inProgress) { %>
+                      <a class="btn btn-light btn-sm" href="/requests/<%= r.id %>#progress"><%- ic('pause') %> Put On Hold</a>
+                      <a class="btn btn-success btn-sm" href="/requests/<%= r.id %>#complete"><%- ic('check-circle') %> Complete</a>
+                    <% } %>
+                    <% if (r.status === S.onHold) { %>
+                      <a class="btn btn-primary btn-sm" href="/requests/<%= r.id %>#progress">▶ Resume Work</a>
+                      <a class="btn btn-success btn-sm" href="/requests/<%= r.id %>#complete"><%- ic('check-circle') %> Complete</a>
+                    <% } %>
+                    <a class="btn btn-light btn-sm" href="/requests/<%= r.id %>">Details</a>
+                  </span>
+                </div>
               <% }) %>
             </div>
           <% } %>
         </div>
       </section>
 
-      <% if (typeof myCompleted !== 'undefined' && myCompleted.length) { %>
-        <section class="adm-panel" aria-label="Recently completed by me">
-          <div class="adm-panel-head">
-            <div class="adm-panel-title">
-              <span class="adm-icon-chip tone-green"><%- icon('check-circle') %></span>
-              <h2>Recently Completed by Me</h2>
+      <!-- Completed assigned tasks -->
+      <section class="adm-panel" aria-labelledby="tech-completed-heading">
+        <div class="adm-panel-head">
+          <div class="adm-panel-title">
+            <span class="adm-icon-chip tone-green"><%- ic('check-circle') %></span>
+            <div>
+              <h2 id="tech-completed-heading">Recently Completed (<%= techCompletedTasks.length %>)</h2>
+              <p class="muted tech-panel-sub">Completion reports and verification decisions for your repairs.</p>
             </div>
-            <a href="/requests?status=Completed" class="adm-panel-link">View History <%- icon('arrow-right') %></a>
           </div>
-          <div class="tech-panel-body">
-            <div class="rlist rlist-1">
-              <% myCompleted.forEach(function (r) { %>
-                <%- include('partials/report-card', { r: r, showRequester: true, showPriority: false }) %>
+          <a href="<%= statusUrl(S.completed) %>" class="adm-panel-link">View History <%- ic('arrow-right') %></a>
+        </div>
+        <div class="tech-panel-body">
+          <% if (!techCompletedTasks.length) { %>
+            <p class="adm-empty">No completed repairs yet.</p>
+          <% } else { %>
+            <div class="wf-list">
+              <% techCompletedTasks.forEach(function (r) { var name = taskName(r); %>
+                <div class="workflow-row adm-wf-row">
+                  <span class="wf-main">
+                    <a class="mono wf-code" href="/requests/<%= r.id %>"><%= r.code %></a>
+                    <strong><%= name.title %></strong>
+                    <span class="muted">Completed <%= dt(r.completedAt) %></span>
+                  </span>
+                  <span class="wf-meta">
+                    <span class="<%= sc(S.completed) %>"><%= S.completed %></span>
+                    <span class="<%= sc(r.verificationStatus || 'Not Submitted') %>"><%= r.verificationStatus || 'Not Submitted' %></span>
+                  </span>
+                  <span class="wf-action">
+                    <% if (r.verificationStatus === S.rework) { %>
+                      <a class="btn btn-danger btn-sm" href="/requests/<%= r.id %>#verification">View Rework</a>
+                    <% } %>
+                    <a class="btn btn-light btn-sm" href="/requests/<%= r.id %>">Report</a>
+                  </span>
+                </div>
               <% }) %>
             </div>
-          </div>
-        </section>
-      <% } %>
+          <% } %>
+        </div>
+      </section>
     </div>
 
     <div class="adm-side">
@@ -242,17 +219,17 @@
       <section class="adm-panel" aria-label="My specializations">
         <div class="adm-panel-head">
           <div class="adm-panel-title">
-            <span class="adm-icon-chip tone-teal"><%- icon('tag') %></span>
+            <span class="adm-icon-chip tone-teal"><%- ic('tag') %></span>
             <h2>My Specializations</h2>
           </div>
-          <a href="/profile/edit" class="adm-panel-link">Edit in Profile <%- icon('arrow-right') %></a>
+          <a href="/profile/edit" class="adm-panel-link">Edit in Profile <%- ic('arrow-right') %></a>
         </div>
         <div class="tech-panel-body">
-          <p class="muted tech-panel-sub">Auto-assignment prioritizes new requests matching your skills.</p>
+          <p class="muted tech-panel-sub">Your skills help administrators match new requests to your queue.</p>
           <div class="spec-chips-wrap tech-spec-chips">
-            <% if (typeof specs !== 'undefined' && specs.length) { %>
-              <% specs.forEach(function (c) { %>
-                <span class="tag"><%- icon('tag') %> <%= c.name %></span>
+            <% if (techSpecs.length) { %>
+              <% techSpecs.forEach(function (c) { %>
+                <span class="tag"><%- ic('tag') %> <%= c.name %></span>
               <% }) %>
             <% } else { %>
               <span class="tag">General Maintenance (Available for all categories)</span>

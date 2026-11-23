@@ -9,7 +9,8 @@ function openPreventiveTask(equipmentId) {
   return (
     db.where(
       'requests',
-      (r) => r.equipmentId === equipmentId && r.type === 'Preventive' && C.OPEN_STATUSES.includes(r.status)
+      (r) => r.equipmentId === equipmentId && r.type === 'Preventive' &&
+        C.OPEN_STATUSES.includes(C.normalizeStatus(r.status, r))
     )[0] || null
   );
 }

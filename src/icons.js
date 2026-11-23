@@ -1,4 +1,6 @@
 // Line icons (24x24, stroke-based) used across the UI: <%- icon('home') %>
+const C = require('./constants');
+
 const PATHS = {
   home: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>',
   grid: '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>',
@@ -67,22 +69,28 @@ function icon(name, cls = '') {
 }
 
 const STATUS_ICON = {
-  Pending: 'clock',
-  Approved: 'check-circle',
+  // Canonical repair-request statuses. Legacy labels are normalized first.
+  'Pending Approval': 'clock',
+  'Approved – Awaiting Assignment': 'check-circle',
   Assigned: 'user-check',
   'In Progress': 'refresh',
   'On Hold': 'pause',
   Completed: 'check-circle',
-  Cancelled: 'x-circle',
   Rejected: 'x-circle',
   // Equipment condition icons used by the Categories status summary.
   Operational: 'check-circle',
   'Needs Repair': 'alert-circle',
   'Under Maintenance': 'wrench',
   'Out of Service': 'x-circle',
+  // Verification sub-track under Completed.
+  'Not Submitted': 'clock',
+  'Awaiting Verification': 'clock',
+  Verified: 'check-circle',
+  'Rework Required': 'refresh',
 };
 function statusIcon(status) {
-  return STATUS_ICON[status] || 'alert-circle';
+  const key = C.normalizeStatus(status);
+  return STATUS_ICON[key] || 'alert-circle';
 }
 
 // Picks an icon from the category name (used when a request has no photo).

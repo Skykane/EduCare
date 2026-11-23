@@ -46,7 +46,7 @@
     <p class="empty-state">No materials recorded yet.</p>
   <% } %>
 
-  <% if (canWork && ['In Progress', 'Nearing Completion'].includes(r.status) && !isRework) { %>
+  <% if (canWork && ['In Progress', 'On Hold'].includes(r.status) && !isRework) { %>
     <form method="post" action="/requests/<%= r.id %>/materials" enctype="multipart/form-data" id="materials-form" class="materials-form">
       <input type="hidden" name="idempotencyKey" value="<%= Date.now() %>-<%= Math.random().toString(36).slice(2, 10) %>">
       <div id="material-items"></div>

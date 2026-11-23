@@ -42,7 +42,7 @@
         <td class="col-center">
           <span class="<%= statusClass(r.status) %>"><%= r.status %></span>
           <% if (r.overdue) { %><span class="sub" style="color:var(--red)">Overdue</span><% } %>
-          <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending') { %>
+          <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending Approval') { %>
             <% if (isDispatchQueue) { %>
               <span class="sub queue-edit-wrap"><a href="/requests/<%= r.id %>/edit" class="queue-edit-link"><%- icon('edit') %>Edit</a></span>
             <% } else { %>

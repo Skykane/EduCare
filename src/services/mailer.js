@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const nodemailer = require('nodemailer');
 const db = require('../db');
+const C = require('../constants');
 
 const SETTINGS_FILE = path.join(__dirname, '..', 'data', 'email-settings.json');
 
@@ -468,15 +469,17 @@ async function sendRequestCreatedEmail(request, requester, equipment) {
 
   const fallbackLabel = [request.location, request.categoryName].filter(Boolean).join(' · ') || 'General repair';
   const subject = `[EduCare] Repair Request Received: ${request.code} (${equipment ? equipment.name : fallbackLabel})`;
+  // Always show a canonical workflow label, even for an old stored record.
+  const statusLabel = C.normalizeStatus(request.status, request) || C.STATUS.PENDING_APPROVAL;
   const bodyHtml = `
-    <p>Your repair request has been submitted and is currently queued for evaluation by our maintenance team.</p>
+    <p>Your repair request has been submitted and is awaiting administrator approval.</p>
     
     <div style="background-color:#f8fafc;border-radius:10px;padding:16px 20px;margin:18px 0;border:1px solid #e2e8f0;">
       <h3 style="margin:0 0 10px;font-size:14px;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;">Ticket #${esc(request.code)}</h3>
       <table width="100%" style="font-size:13.5px;color:#334155;border-collapse:collapse;">
         <tr><td style="padding:4px 0;width:140px;color:#64748b;">${equipment ? 'Equipment' : 'Location / Category'}:</td><td><strong>${esc(equipment ? equipment.name : fallbackLabel)}</strong> ${equipment ? `(${esc(equipment.code)})` : ''}</td></tr>
         <tr><td style="padding:4px 0;color:#64748b;">Issue Title:</td><td><strong>${esc(request.title)}</strong></td></tr>
-        <tr><td style="padding:4px 0;color:#64748b;">Status:</td><td><span style="color:#d97706;font-weight:700;">${esc(request.status || 'Pending')}</span></td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Status:</td><td><span style="color:#d97706;font-weight:700;">${esc(statusLabel)}</span></td></tr>
         <tr><td style="padding:4px 0;color:#64748b;">Submitted:</td><td>${new Date().toLocaleString()}</td></tr>
       </table>
     </div>
@@ -498,7 +501,7 @@ async function sendRequestCreatedEmail(request, requester, equipment) {
     to: requester.email,
     subject,
     html,
-    text: `Hello ${requester.name},\n\nYour repair request ${request.code} for ${equipment ? equipment.name : fallbackLabel} has been received.\n\nView details: http://localhost:3000/requests/${request.id}`,
+    text: `Hello ${requester.name},\n\nYour repair request ${request.code} for ${equipment ? equipment.name : fallbackLabel} has been received. Status: ${statusLabel}.\n\nView details: http://localhost:3000/requests/${request.id}`,
     metadata: { requestId: request.id, event: 'request_created' },
   });
 }

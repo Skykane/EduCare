@@ -10,18 +10,37 @@ const { notify, adminIds } = require('../services/notify');
 
 const router = express.Router();
 
+function normalizeStatus(r) {
+  if (typeof C.normalizeStatus === 'function') {
+    const normalized = C.normalizeStatus(r.status, r);
+    if (normalized) return normalized;
+  }
+  if (r.status === 'Pending') return r.technicianId ? 'Assigned' : 'Pending Approval';
+  if (r.status === 'Nearing Completion') return 'In Progress';
+  if (r.status === 'Cancelled') return 'Rejected';
+  return r.status;
+}
+
 function techSummary(t) {
-  const tasks = db.where('requests', (r) => r.technicianId === t.id).map(enrichRequest);
+  const tasks = db.where('requests', (r) => r.technicianId === t.id).map(enrichRequest).map((r) => ({
+    ...r,
+    status: normalizeStatus(r),
+  }));
   const completed = tasks.filter((r) => r.status === 'Completed');
+  const active = tasks.filter((r) => C.TECH_ACTIVE_STATUSES.includes(r.status));
   const durations = completed.filter((r) => r.assignedAt && r.completedAt).map((r) => (new Date(r.completedAt) - new Date(r.assignedAt)) / 86400000);
   return {
     tech: t,
+    id: t.id,
+    name: t.name,
+    availability: t.availability,
+    activeCount: active.length,
     // Seeded demo technicians carry exact specialization labels. Use those when
     // present; otherwise fall back to names derived from the selected categories.
     specializations: (t.specializationLabels && t.specializationLabels.length)
       ? t.specializationLabels.map((name) => ({ name }))
       : (t.specializations || []).map((id) => db.find('categories', id)).filter(Boolean),
-    active: tasks.filter((r) => C.TECH_ACTIVE_STATUSES.includes(r.status)),
+    active,
     overdue: tasks.filter((r) => r.overdue).length,
     completedCount: completed.length,
     avgDays: durations.length ? durations.reduce((a, b) => a + b, 0) / durations.length : null,
@@ -32,9 +51,9 @@ function techSummary(t) {
 router.get('/', requireRole('admin'), (req, res) => {
   const list = db
     .where('users', (u) => u.role === 'technician')
-    .sort((a, b) => b.active - a.active || a.name.localeCompare(b.name))
-    .map(techSummary);
-  res.render('technicians/index', { title: 'Technicians', list });
+    .map(techSummary)
+    .sort((a, b) => b.activeCount - a.activeCount || a.name.localeCompare(b.name));
+  res.render('technicians/index', { title: 'Technicians', list, statuses: C.REQUEST_STATUSES });
 });
 
 router.get('/:id', (req, res) => {

@@ -172,20 +172,19 @@ function int(v, def = null) {
 }
 
 const STATUS_CLASS = {
+  // Canonical repair-request statuses. Legacy labels are normalized first.
+  'Pending Approval': 'amber',
+  'Approved – Awaiting Assignment': 'blue',
+  Assigned: 'indigo',
+  'In Progress': 'blue',
+  'On Hold': 'gray',
+  Completed: 'green',
+  Rejected: 'red',
+  // Equipment condition and verification sub-track labels.
   Operational: 'green',
   'Needs Repair': 'amber',
   'Under Maintenance': 'blue',
   'Out of Service': 'red',
-  Pending: 'amber',
-  Approved: 'blue',
-  Assigned: 'indigo',
-  'In Progress': 'blue',
-  'On Hold': 'gray',
-  Reported: 'amber',
-  'Nearing Completion': 'teal',
-  Completed: 'green',
-  Cancelled: 'gray',
-  Rejected: 'red',
   'Not Submitted': 'gray',
   'Awaiting Verification': 'amber',
   Verified: 'green',
@@ -203,12 +202,13 @@ const STATUS_CLASS = {
   Preventive: 'teal',
 };
 
-function statusClass(s) {
-  return 'badge badge-' + (STATUS_CLASS[s] || 'gray');
+function statusColor(s) {
+  const key = C.normalizeStatus(s);
+  return STATUS_CLASS[key] || 'gray';
 }
 
-function statusColor(s) {
-  return STATUS_CLASS[s] || 'gray';
+function statusClass(s) {
+  return 'badge badge-' + statusColor(s);
 }
 
 function initials(name) {
@@ -391,6 +391,7 @@ function safeLocalPath(p, fallback = '/') {
 
 module.exports = {
   C,
+  normalizeStatus: C.normalizeStatus,
   localISO,
   todayISO,
   parseDate,

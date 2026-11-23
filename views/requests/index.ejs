@@ -1,13 +1,32 @@
 <%- include('../partials/header') %>
 <% var role = currentUser.role; var advanced = role !== 'requester';
-   var pills = [
-     { label: 'All', status: '' },
-     { label: 'Pending Approval', status: 'Pending' },
-     { label: 'Approved', status: 'Approved' },
-     { label: 'In Progress', status: 'active' },
-     { label: 'Completed', status: 'Completed' },
-     { label: 'Cancelled', status: 'Cancelled' },
+   // Exact canonical statuses; fall back if constants are not exposed to views.
+   var S = (typeof C !== 'undefined' && C.STATUS) ? {
+     pendingApproval: C.STATUS.PENDING_APPROVAL || 'Pending Approval',
+     awaitingAssignment: C.STATUS.APPROVED_AWAITING_ASSIGNMENT || 'Approved – Awaiting Assignment',
+     assigned: C.STATUS.ASSIGNED || 'Assigned',
+     inProgress: C.STATUS.IN_PROGRESS || 'In Progress',
+     onHold: C.STATUS.ON_HOLD || 'On Hold',
+     completed: C.STATUS.COMPLETED || 'Completed',
+     rejected: C.STATUS.REJECTED || 'Rejected'
+   } : {
+     pendingApproval: 'Pending Approval',
+     awaitingAssignment: 'Approved – Awaiting Assignment',
+     assigned: 'Assigned',
+     inProgress: 'In Progress',
+     onHold: 'On Hold',
+     completed: 'Completed',
+     rejected: 'Rejected'
+   };
+   var allStatuses = [
+     S.pendingApproval, S.awaitingAssignment, S.assigned,
+     S.inProgress, S.onHold, S.completed, S.rejected
    ];
+   var pills = [{ label: 'All', status: '' }].concat(allStatuses.map(function (s) {
+     return { label: s, status: s };
+   }));
+   var priorityOptions = (typeof C !== 'undefined' && Array.isArray(C.PRIORITIES) && C.PRIORITIES.length)
+     ? C.PRIORITIES : ['Low', 'Medium', 'High'];
    var moreActive = ['priority', 'categoryId', 'location', 'technicianId', 'type', 'from', 'to', 'overdue'].some(function (k) { return f[k]; })
      || (f.status && !pills.some(function (p) { return p.status === f.status; })); %>
 <%
@@ -80,14 +99,14 @@
                 <option value="">All</option>
                 <option value="open" <%= f.status === 'open' ? 'selected' : '' %>>All open</option>
                 <option value="active" <%= f.status === 'active' ? 'selected' : '' %>>Assigned / In progress / On hold</option>
-                <% C.REQUEST_STATUSES.forEach(function (s) { %><option <%= f.status === s ? 'selected' : '' %>><%= s %></option><% }) %>
+                <% (typeof C !== 'undefined' && Array.isArray(C.REQUEST_STATUSES) ? C.REQUEST_STATUSES : allStatuses).forEach(function (s) { %><option <%= f.status === s ? 'selected' : '' %>><%= s %></option><% }) %>
               </select>
             </div>
             <div class="field">
               <label for="priority">Priority</label>
               <select id="priority" name="priority" data-ec-select="1">
                 <option value="">All</option>
-                <% C.PRIORITIES.forEach(function (p) { %><option <%= f.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
+                <% priorityOptions.forEach(function (p) { %><option <%= f.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
               </select>
             </div>
             <div class="field">

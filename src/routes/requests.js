@@ -7,7 +7,14 @@ const C = require('../constants');
 const { requireRole, flash, forbidden } = require('../auth');
 const { str, int, isISODate, todayISO, fmtDate, fmtManila, formatDuration, formatMoney } = require('../helpers');
 const { enrichRequest, sortByPriority, nextCode, canViewRequest, canWorkOn } = require('../services/requests');
-const { recommendTechnicians, activeTaskCount, HIGH_WORKLOAD_AT } = require('../services/assignment');
+const assignmentService = require('../services/assignment');
+const { recommendTechnicians, activeTaskCount, HIGH_WORKLOAD_AT } = assignmentService;
+// Availability is recalculated whenever a workflow change touches assignments.
+const syncAvailability = (technicianId) => {
+  if (technicianId && typeof assignmentService.syncTechnicianAvailability === 'function') {
+    assignmentService.syncTechnicianAvailability(technicianId);
+  }
+};
 const activity = require('../services/activity');
 const { notify, adminIds } = require('../services/notify');
 const { photos, workflowPhotos, saveAttachments, removeFiles, UPLOAD_DIR } = require('../upload');
@@ -17,6 +24,51 @@ const materials = require('../services/materials');
 const { sumCents } = require('../services/money');
 
 const router = express.Router();
+
+// Canonical workflow labels come from constants.js. The literal fallbacks only
+// matter while an older constants file is in place; they are the exact strings
+// required by the consolidated workflow (en dash in the approval label).
+const S = {
+  PENDING: (C.STATUS && (C.STATUS.PENDING_APPROVAL || C.STATUS.PENDING)) || 'Pending Approval',
+  APPROVED: (C.STATUS && (C.STATUS.APPROVED_AWAITING_ASSIGNMENT || C.STATUS.AWAITING_ASSIGNMENT || C.STATUS.APPROVED)) || 'Approved – Awaiting Assignment',
+  ASSIGNED: (C.STATUS && C.STATUS.ASSIGNED) || 'Assigned',
+  IN_PROGRESS: (C.STATUS && C.STATUS.IN_PROGRESS) || 'In Progress',
+  ON_HOLD: (C.STATUS && C.STATUS.ON_HOLD) || 'On Hold',
+  COMPLETED: (C.STATUS && C.STATUS.COMPLETED) || 'Completed',
+  REJECTED: (C.STATUS && C.STATUS.REJECTED) || 'Rejected',
+};
+const OPEN_STATUSES = Array.isArray(C.OPEN_STATUSES) && C.OPEN_STATUSES.length
+  ? C.OPEN_STATUSES
+  : [S.PENDING, S.APPROVED, S.ASSIGNED, S.IN_PROGRESS, S.ON_HOLD];
+const TECH_ACTIVE_STATUSES = Array.isArray(C.TECH_ACTIVE_STATUSES) && C.TECH_ACTIVE_STATUSES.length
+  ? C.TECH_ACTIVE_STATUSES
+  : [S.ASSIGNED, S.IN_PROGRESS, S.ON_HOLD];
+const ASSIGNABLE_STATUSES = Array.isArray(C.ASSIGNABLE_STATUSES) && C.ASSIGNABLE_STATUSES.length
+  ? C.ASSIGNABLE_STATUSES
+  : [S.APPROVED];
+const STARTABLE_STATUSES = Array.isArray(C.STARTABLE_STATUSES) && C.STARTABLE_STATUSES.length
+  ? C.STARTABLE_STATUSES
+  : [S.ASSIGNED];
+const REQUEST_STATUSES = Array.isArray(C.REQUEST_STATUSES) && C.REQUEST_STATUSES.length
+  ? C.REQUEST_STATUSES
+  : [S.PENDING, S.APPROVED, S.ASSIGNED, S.IN_PROGRESS, S.ON_HOLD, S.COMPLETED, S.REJECTED];
+
+// Display/navigation guard for records written before the migration. The
+// migration rewrites them, but a normalized read keeps every route predictable.
+function statusOf(r) {
+  if (!r) return '';
+  if (typeof C.normalizeStatus === 'function') {
+    const normalized = C.normalizeStatus(r.status, r);
+    if (normalized) return normalized;
+  }
+  const s = r.status;
+  if (s === 'Reported') return S.PENDING;
+  if (s === 'Approved') return S.APPROVED;
+  if (s === 'Pending') return r.technicianId ? S.ASSIGNED : S.PENDING;
+  if (s === 'Nearing Completion') return S.IN_PROGRESS;
+  if (s === 'Cancelled') return S.REJECTED;
+  return s || '';
+}
 
 // Legacy records stay on the old approval flow even after migration backfills
 // reportedAt/verificationStatus. Only newly submitted reports use strict workflow.
@@ -43,24 +95,36 @@ function loadRequest(req, res) {
     notFound(res);
     return null;
   }
-  if (!canViewRequest(req.user, r)) {
+  if (!canViewRequest(req.user, r) ||
+      (req.user.role === 'technician' && r.technicianId !== req.user.id)) {
     forbidden(res, 'You can only view repair requests that you submitted or that are assigned to you.');
     return null;
   }
   return r;
 }
 
-// Change a request's status, record it, and tell the people involved.
-function changeStatus(r, toStatus, user, { action, details = '', extra = {} }) {
-  const from = r.status;
-  db.update('requests', r.id, { status: toStatus, ...extra });
-  activity.log({ requestId: r.id, equipmentId: r.equipmentId, userId: user.id, action, details, fromStatus: from, toStatus });
-  notify([r.requesterId, r.technicianId, ...adminIds()], {
-    message: `${r.code} status changed: ${from} → ${toStatus} (by ${user.name}).`,
-    link: `/requests/${r.id}`,
-    type: toStatus === 'Completed' ? 'success' : 'info',
-    exceptUserId: user.id,
+// Change a request's status and record the actor, time and transition.
+// Notifications are intentionally sent by the individual workflow endpoints so
+// each event produces one specific message instead of a generic duplicate.
+function changeStatus(r, toStatus, user, { action, details = '', extra = {} } = {}) {
+  const from = statusOf(r);
+  const patch = { status: toStatus, ...extra };
+  db.update('requests', r.id, patch);
+  Object.assign(r, patch);
+  activity.log({
+    requestId: r.id,
+    equipmentId: r.equipmentId,
+    userId: user && user.id,
+    action,
+    details,
+    fromStatus: from,
+    toStatus,
   });
+  return r;
+}
+
+function notifyRequester(r, message, type = 'info', extra = {}) {
+  return notify([r.requesterId], { message, link: `/requests/${r.id}`, type, ...extra });
 }
 
 function setEquipmentStatus(equipmentId, status, user, details) {
@@ -90,14 +154,18 @@ router.get('/', (req, res) => {
 
   let base;
   if (user.role === 'admin') base = db.all('requests');
-  else if (user.role === 'technician') base = db.where('requests', (r) => r.technicianId === user.id || r.requesterId === user.id);
+  else if (user.role === 'technician') base = db.where('requests', (r) => r.technicianId === user.id);
   else base = db.where('requests', (r) => r.requesterId === user.id);
 
   const q = f.q.toLowerCase();
-  let rows = base.map(enrichRequest).filter((r) => {
+  let rows = base.map((r) => {
+    const row = enrichRequest(r);
+    const status = statusOf(r);
+    return { ...row, status, isOpen: OPEN_STATUSES.includes(status) };
+  }).filter((r) => {
     if (q && ![r.code, r.title, r.description, r.location, r.equipment && r.equipment.name, r.equipment && r.equipment.code, r.category && r.category.name].some((v) => (v || '').toLowerCase().includes(q))) return false;
     if (f.status === 'open') { if (!r.isOpen) return false; }
-    else if (f.status === 'active') { if (!C.TECH_ACTIVE_STATUSES.includes(r.status)) return false; }
+    else if (f.status === 'active') { if (!TECH_ACTIVE_STATUSES.includes(r.status)) return false; }
     else if (f.status && r.status !== f.status) return false;
     if (f.priority && r.effectivePriority !== f.priority) return false;
     if (f.type && r.type !== f.type) return false;
@@ -127,6 +195,7 @@ router.get('/', (req, res) => {
       ...db.all('requests').map((r) => r.location).filter(Boolean),
     ])].sort(),
     technicians: db.where('users', (u) => u.role === 'technician' && u.active),
+    statuses: REQUEST_STATUSES,
   });
 });
 
@@ -157,14 +226,14 @@ router.post('/', photos('photos', 1), (req, res) => {
     return forbidden(res, 'Technicians cannot submit repair requests.');
   }
   const b = req.body || {};
-  const isAdmin = req.user.role === 'admin';
+  const severityInput = Array.isArray(b.severity) ? b.severity[0] : b.severity;
   const values = {
     equipmentId: int(b.equipmentId) || null,
     categoryId: int(b.categoryId) || null,
     location: str(b.location, 150),
     title: str(b.title, 150),
     description: str(b.description, 3000),
-    severity: isAdmin && b.severity ? Math.min(4, Math.max(1, int(b.severity))) : null,
+    severity: severityInput ? Math.min(3, Math.max(1, int(severityInput))) : 2,
     photoNote: str(b.photoNote, 1000),
   };
   const errors = [];
@@ -179,12 +248,12 @@ router.post('/', photos('photos', 1), (req, res) => {
   if (!values.title) errors.push('Please enter a short summary of the problem.');
   const duplicate = eq
     ? db.where('requests', (x) =>
-        x.equipmentId === eq.id && x.requesterId === req.user.id && C.OPEN_STATUSES.includes(x.status)
+        x.equipmentId === eq.id && x.requesterId === req.user.id && OPEN_STATUSES.includes(statusOf(x))
       )[0]
     : db.where('requests', (x) =>
         !x.equipmentId && x.requesterId === req.user.id && x.location === values.location &&
         x.categoryId === values.categoryId && String(x.title || '').toLowerCase() === values.title.toLowerCase() &&
-        C.OPEN_STATUSES.includes(x.status)
+        OPEN_STATUSES.includes(statusOf(x))
       )[0];
   if (duplicate) errors.push(`You already have an open report for this issue (${duplicate.code}).`);
   if (errors.length) {
@@ -206,8 +275,9 @@ router.post('/', photos('photos', 1), (req, res) => {
       description: values.description,
       severity: values.severity,
       type: 'Corrective',
-      status: 'Reported',
+      status: S.PENDING,
       workflowVersion: 2,
+      submittedAt: now,
       reportedAt: now,
       verificationStatus: 'Not Submitted',
       verifiedAt: null,
@@ -220,7 +290,7 @@ router.post('/', photos('photos', 1), (req, res) => {
       completedAt: null,
       cancelledAt: null,
     });
-    activity.log({ requestId: r.id, equipmentId: eq ? eq.id : null, userId: req.user.id, action: 'Report submitted', details: r.title, toStatus: 'Reported' });
+    activity.log({ requestId: r.id, equipmentId: eq ? eq.id : null, userId: req.user.id, action: 'Report submitted', details: r.title, toStatus: S.PENDING });
     saveAttachments(req.files, { requestId: r.id, userId: req.user.id, stage: 'report', note: values.photoNote });
     if (eq && eq.status === 'Operational') setEquipmentStatus(eq.id, 'Needs Repair', req.user, `Reported in ${r.code}`);
   });
@@ -250,28 +320,37 @@ router.post('/', photos('photos', 1), (req, res) => {
 // ---------- Details ----------
 function requesterCanModify(user, r) {
   if (!r || r.requesterId !== user.id) return false;
-  // In the new flow, "Pending" already means dispatched to a technician.
-  return isNewFlow(r) ? r.status === 'Reported' : ['Reported', 'Pending'].includes(r.status);
+  // Only a report still waiting for admin review can be changed or withdrawn.
+  return statusOf(r) === S.PENDING;
 }
 
 function canEditRequest(user, r) {
   if (!r) return false;
-  if (user.role === 'admin') return r.isOpen;
+  if (user.role === 'admin') return OPEN_STATUSES.includes(statusOf(r));
   return requesterCanModify(user, r);
 }
 
 function canCancelRequest(user, r) {
   if (!r) return false;
-  if (user.role === 'admin') return r.isOpen;
+  if (user.role === 'admin') return [S.PENDING, S.APPROVED].includes(statusOf(r));
   return requesterCanModify(user, r);
 }
 
 router.get('/:id', (req, res) => {
   const raw = loadRequest(req, res);
   if (!raw) return;
-  const r = enrichRequest(raw);
+  const status = statusOf(raw);
+  const r = { ...enrichRequest(raw), status, isOpen: OPEN_STATUSES.includes(status) };
   const user = req.user;
   const attachments = db.where('attachments', (a) => a.requestId === r.id);
+  const technicians = db.where('users', (u) => u.role === 'technician' && u.active).map((t) => ({
+    ...t,
+    specNames: (t.specializations || [])
+      .map((id) => { const c = db.find('categories', id); return c ? c.name : null; })
+      .filter(Boolean),
+    activeCount: activeTaskCount(t.id),
+    activeTasks: activeTaskCount(t.id),
+  }));
   res.render('requests/show', {
     title: `${r.code} · ${r.title}`,
     r,
@@ -279,16 +358,16 @@ router.get('/:id', (req, res) => {
     canEdit: canEditRequest(user, r),
     canCancel: canCancelRequest(user, r),
     isAdmin: user.role === 'admin',
+    canApprove: user.role === 'admin' && status === S.PENDING,
+    canReject: user.role === 'admin' && [S.PENDING, S.APPROVED].includes(status),
+    canAssign: user.role === 'admin' && ASSIGNABLE_STATUSES.includes(status) && !r.technicianId,
+    canReassign: user.role === 'admin' && status === S.ASSIGNED && !!r.technicianId,
+    statuses: REQUEST_STATUSES,
     recommendations: user.role === 'admin' && r.isOpen
       ? recommendTechnicians(r.equipment || (r.category ? { categoryId: r.category.id } : null))
       : [],
-    technicians: db.where('users', (u) => u.role === 'technician' && u.active).map((t) => ({
-      ...t,
-      specNames: (t.specializations || [])
-        .map((id) => { const c = db.find('categories', id); return c ? c.name : null; })
-        .filter(Boolean),
-      activeTasks: activeTaskCount(t.id),
-    })),
+    technicians,
+    availableTechnicians: technicians.filter((t) => t.availability === 'Available'),
     highWorkloadAt: HIGH_WORKLOAD_AT,
     before: attachments.filter((a) => ['before', 'report'].includes(a.stage)),
     after: attachments.filter((a) => ['after', 'completion'].includes(a.stage)),
@@ -341,13 +420,13 @@ router.post('/:id/edit', photos(), (req, res) => {
     return res.redirect(`/requests/${raw.id}`);
   }
   const b = req.body || {};
-  const isAdmin = req.user.role === 'admin';
+  const severityInput = Array.isArray(b.severity) ? b.severity[0] : b.severity;
   const values = {
     categoryId: int(b.categoryId) || null,
     location: str(b.location, 150),
     title: str(b.title, 150),
     description: str(b.description, 3000),
-    severity: isAdmin && b.severity ? Math.min(4, Math.max(1, int(b.severity))) : raw.severity,
+    severity: severityInput ? Math.min(3, Math.max(1, int(severityInput))) : (raw.severity || 2),
     photoNote: str(b.photoNote, 1000),
   };
   const errors = [];
@@ -513,126 +592,74 @@ router.post('/:id/severity', requireRole('admin'), (req, res) => {
   res.redirect(`/requests/${r.id}`);
 });
 
-// ---------- Admin Approval Workflow ----------
+// ---------- Admin review ----------
 router.post('/:id/approve', requireRole('admin'), workflowPhotos(), (req, res) => {
   const r = loadRequest(req, res);
   if (!r) return;
-  if (![...new Set(['Reported', 'Pending', 'Approved'])].includes(r.status) || (isNewFlow(r) && r.status !== 'Reported')) {
-    flash(req, 'error', isNewFlow(r)
-      ? 'This request has already been approved and assigned; it cannot be approved again.'
-      : `This request is already ${r.status}.`);
+  const from = statusOf(r);
+  if (from !== S.PENDING) {
+    flash(req, 'error', from === S.APPROVED
+      ? `${r.code} is already approved and waiting for assignment.`
+      : `Only a request awaiting approval can be approved (currently ${from}).`);
     return res.redirect(`/requests/${r.id}`);
   }
-  const b = req.body || {};
-  const sevVal = int(b.severity);
-  const priorityVal = str(b.priority, 20);
-  const techId = int(b.technicianId);
-  const targetDate = isISODate(b.targetDate) ? b.targetDate : null;
-  const note = str(b.note, 500);
-  const today = todayISO();
 
-  // Never approve an incomplete or invalid request.
+  const b = req.body || {};
+  const note = str(b.note, 500);
+  // Approval is review only: no technician, proof or target date is accepted.
+  // Discard files posted by an older approval form instead of storing them.
+  if (req.files) removeFiles(Object.values(req.files).flat());
+
   const equipment = r.equipmentId ? db.find('equipment', r.equipmentId) : null;
   const errors = [];
   if (r.equipmentId && !equipment) errors.push('The linked equipment no longer exists, so this request cannot be approved.');
   if (!str(r.title, 150)) errors.push('This request has no problem summary and cannot be approved.');
-  if (!sevVal || !C.SEVERITIES[sevVal]) errors.push('Please assess a valid severity before approving.');
+  const hasSeverity = b.severity !== undefined && b.severity !== '';
+  const sevVal = int(b.severity);
+  if (hasSeverity && (!sevVal || !C.SEVERITIES[sevVal])) errors.push('Please assess a valid severity before approving.');
+  if (!hasSeverity && !r.severity) errors.push('Please assess a valid severity before approving.');
+  const priorityVal = str(b.priority, 20);
   if (priorityVal && priorityVal !== 'auto' && !C.PRIORITIES.includes(priorityVal)) errors.push('Please choose a valid priority.');
-  if (targetDate && targetDate < today) errors.push('Target completion date cannot be in the past.');
-
-  const tech = techId ? db.find('users', techId) : null;
-  if (techId) {
-    if (!tech || tech.role !== 'technician' || !tech.active) {
-      errors.push('Please choose an active technician, or leave the technician unassigned.');
-    } else if (!targetDate && !r.targetDate) {
-      errors.push('Please set a target completion date when assigning a technician.');
-    }
-  }
-  if (isNewFlow(r)) {
-    try { W.checkUpload(req); } catch (err) { return workflowError(res, req, err, r, '#approve'); }
-    if (tech && !((req.files && req.files.photos) || []).length && !str(b.existingProof)) {
-      errors.push('Supporting picture proof is required when approving and assigning.');
-    }
-  }
   if (errors.length) {
-    if (req.files) removeFiles(Object.values(req.files).flat());
     flash(req, 'error', errors.join(' '));
     return res.redirect(`/requests/${r.id}#approve`);
   }
 
-  const updates = {
+  const extra = {
     approvedAt: r.approvedAt || new Date().toISOString(),
     approvedBy: req.user.id,
-    severity: sevVal,
-    // Always persist a valid value; 'auto' (or no value) clears a manual override.
-    priority: priorityVal === 'auto' || !priorityVal ? null : priorityVal,
   };
-  if (targetDate) updates.targetDate = targetDate;
+  if (hasSeverity) extra.severity = sevVal;
+  if (priorityVal) extra.priority = priorityVal === 'auto' ? null : priorityVal;
 
-  if (tech && tech.role === 'technician' && tech.active) {
-    updates.technicianId = tech.id;
-    updates.targetDate = targetDate || r.targetDate;
-    updates.status = isNewFlow(r) ? 'Pending' : 'Assigned';
-    updates.assignedAt = new Date().toISOString();
-    if (isNewFlow(r)) updates.verificationStatus = 'Not Submitted';
-  } else {
-    updates.status = 'Approved';
-  }
-
-  db.transaction(() => {
-    db.update('requests', r.id, updates);
-    if (isNewFlow(r) && (req.files && req.files.photos || []).length) {
-      saveAttachments(req.files.photos, { requestId: r.id, userId: req.user.id, stage: 'assignment', note });
-    }
+  changeStatus(r, S.APPROVED, req.user, {
+    action: 'Request approved',
+    details: `Approved by ${req.user.name}; awaiting technician assignment${note ? ` · ${note}` : ''}`,
+    extra,
   });
 
-  const assigned = isNewFlow(r) ? updates.status === 'Pending' : updates.status === 'Assigned';
-  const actionDetail = assigned
-    ? `Approved by Administrator and assigned to ${tech.name}${note ? ` · Note: ${note}` : ''}`
-    : `Approved by Administrator; ready for technician dispatch${note ? ` · Note: ${note}` : ''}`;
-
-  activity.log({
-    requestId: r.id,
-    equipmentId: r.equipmentId,
-    userId: req.user.id,
-    action: assigned ? 'Request approved and assigned' : 'Request approved',
-    details: actionDetail,
-    fromStatus: r.status,
-    toStatus: updates.status,
-  });
-
-  notify([r.requesterId], {
-    message: `Your repair request ${r.code} has been approved by the Administrator${tech ? ` and assigned to ${tech.name}` : ''}.`,
-    link: `/requests/${r.id}`,
-    type: 'success',
-  });
-
-  if (tech) {
-    notify([tech.id], {
-      message: `Approved repair request ${r.code} has been assigned to you.`,
-      link: `/requests/${r.id}`,
-      type: 'info',
-    });
-  }
-
-  flash(req, 'success', assigned ? `${r.code} approved and assigned to ${tech.name}.` : `${r.code} approved.`);
+  notifyRequester(r, `Your repair request ${r.code} has been approved and is awaiting technician assignment.`, 'success');
+  flash(req, 'success', `${r.code} approved. Choose an available technician to continue.`);
   res.redirect(`/requests/${r.id}`);
 });
 
 router.post('/:id/reject', requireRole('admin'), (req, res) => {
   const r = loadRequest(req, res);
   if (!r) return;
-  if (!['Reported', 'Pending', 'Approved'].includes(r.status)) {
-    flash(req, 'error', `Cannot reject a request that is already ${r.status}.`);
+  const from = statusOf(r);
+  const canReject = [S.PENDING, S.APPROVED].includes(from) || (from === S.ASSIGNED && !r.startedAt);
+  if (!canReject) {
+    flash(req, 'error', `Cannot reject a request that is already ${from}.`);
     return res.redirect(`/requests/${r.id}`);
   }
-  const reason = str((req.body || {}).reason, 500);
-  if (!reason) {
-    flash(req, 'error', 'Please provide a reason for rejecting this request.');
+  const rawReason = String((req.body || {}).reason || '').trim();
+  const reason = str(rawReason, 1000);
+  if (reason.length < 5 || rawReason.length > 1000) {
+    flash(req, 'error', 'Please provide a rejection reason between 5 and 1000 characters.');
     return res.redirect(`/requests/${r.id}#reject`);
   }
 
-  changeStatus(r, 'Rejected', req.user, {
+  changeStatus(r, S.REJECTED, req.user, {
     action: 'Request rejected by Admin',
     details: reason,
     extra: {
@@ -644,157 +671,201 @@ router.post('/:id/reject', requireRole('admin'), (req, res) => {
 
   const eq = r.equipmentId ? db.find('equipment', r.equipmentId) : null;
   const othersOpen = eq
-    ? db.where('requests', (x) => x.equipmentId === eq.id && x.id !== r.id && C.OPEN_STATUSES.includes(x.status)).length
+    ? db.where('requests', (x) => x.equipmentId === eq.id && x.id !== r.id && OPEN_STATUSES.includes(statusOf(x))).length
     : 0;
   if (eq && !othersOpen && ['Needs Repair', 'Under Maintenance'].includes(eq.status) && r.type === 'Corrective') {
     setEquipmentStatus(eq.id, 'Operational', req.user, `${r.code} rejected`);
   }
 
-  notify([r.requesterId], {
-    message: `Your repair request ${r.code} was declined by the Administrator. Reason: ${reason}`,
-    link: `/requests/${r.id}`,
-    type: 'error',
-  });
-
+  // One reason-bearing notification to the requester; no generic status notice.
+  notifyRequester(r, `Your repair request ${r.code} was declined by the Administrator. Reason: ${reason}`, 'error');
   flash(req, 'success', `${r.code} has been rejected.`);
   res.redirect(`/requests/${r.id}`);
 });
 
-// ---------- Assign technician (features 10 and 16) ----------
-router.post('/:id/assign', requireRole('admin'), workflowPhotos(), (req, res) => {
+// ---------- Admin assignment / reassignment ----------
+function assignTechnician(req, res, explicitReassign = false) {
   const r = loadRequest(req, res);
   if (!r) return;
   const b = req.body || {};
-  if (isNewFlow(r)) {
-    try {
-      W.checkUpload(req);
-      W.assertAssign(r, req.user, { reassign: !!r.technicianId, reason: str(b.reassignReason, 500) });
-      if (!((req.files && req.files.photos) || []).length && !str(b.existingProof)) W.fail('Supporting picture proof is required for assignment.');
-    } catch (err) {
-      return workflowError(res, req, err, r, '#assign');
-    }
-  }
-  if (!C.OPEN_STATUSES.includes(r.status)) {
-    flash(req, 'error', 'Only open requests can be assigned.');
-    return res.redirect(`/requests/${r.id}`);
-  }
-  const tech = db.find('users', int(b.technicianId));
-  const targetDate = isISODate(b.targetDate) ? b.targetDate : null;
+  const from = statusOf(r);
+  const reason = str(b.reassignReason || b.reason, 1000);
+  // A reason posted to /assign on an already-assigned request is the reassign path.
+  const reassign = explicitReassign || (from === S.ASSIGNED && !!reason);
+  const note = str(b.note, 500);
   const errors = [];
-  if (!tech || tech.role !== 'technician' || !tech.active) errors.push('Please choose an active technician.');
-  if (!targetDate) errors.push('Please set a target completion date.');
-  else if (targetDate < todayISO()) errors.push('Target date cannot be in the past.');
+  if (req.uploadError) errors.push(req.uploadError);
+
+  if (reassign) {
+    if (from !== S.ASSIGNED || !r.technicianId) errors.push('Only an assigned request can be reassigned.');
+    if (!reason) errors.push('Please give a reason for reassigning this technician.');
+  } else if (!ASSIGNABLE_STATUSES.includes(from) || r.technicianId) {
+    errors.push('Only a request approved and awaiting assignment can be assigned.');
+  }
+
+  const techId = int(b.technicianId);
+  const tech = techId ? db.find('users', techId) : null;
+  if (!tech || tech.role !== 'technician' || !tech.active) {
+    errors.push('Please choose an active technician.');
+  } else if (tech.availability !== 'Available') {
+    errors.push(`${tech.name} is ${tech.availability || 'unavailable'}; only Available technicians can be assigned.`);
+  }
+  if (reassign && tech && r.technicianId && tech.id === r.technicianId) {
+    errors.push('Please choose a different technician.');
+  }
+
+  // Target date is optional; an existing date is kept when none is supplied.
+  let targetDate = r.targetDate || null;
+  if (b.targetDate) {
+    if (!isISODate(b.targetDate)) errors.push('Please choose a valid target date.');
+    else if (b.targetDate < todayISO()) errors.push('Target date cannot be in the past.');
+    else targetDate = b.targetDate;
+  }
+
   if (errors.length) {
+    if (req.files) removeFiles(Object.values(req.files).flat());
     flash(req, 'error', errors.join(' '));
     return res.redirect(`/requests/${r.id}#assign`);
   }
 
   const prevTech = r.technicianId ? db.find('users', r.technicianId) : null;
-  const from = r.status;
-  const toStatus = isNewFlow(r) ? 'Pending' : (['Pending', 'Approved'].includes(r.status) ? 'Assigned' : r.status);
-  const note = str(b.note, 500);
+  const assignedAt = new Date().toISOString();
+  const workload = activeTaskCount(tech.id);
+  const details = `${reassign && prevTech ? `From ${prevTech.name} to ` : 'Assigned to '}${tech.name}` +
+    `${targetDate ? `, target ${fmtDate(targetDate)}` : ''} · ${workload} active task(s)` +
+    `${reason ? ` · Reason: ${reason}` : ''}${note ? ` — ${note}` : ''}`;
+  const extra = {
+    technicianId: tech.id,
+    targetDate,
+    assignedAt,
+    assignedBy: req.user.id,
+    approvedAt: r.approvedAt || assignedAt,
+    approvedBy: r.approvedBy || req.user.id,
+  };
+
   db.transaction(() => {
-    db.update('requests', r.id, {
-      technicianId: tech.id,
-      targetDate,
-      status: toStatus,
-      assignedAt: new Date().toISOString(),
-      approvedAt: r.approvedAt || new Date().toISOString(),
-      approvedBy: r.approvedBy || req.user.id,
+    changeStatus(r, S.ASSIGNED, req.user, {
+      action: reassign ? 'Technician reassigned' : 'Technician assigned',
+      details,
+      extra,
     });
-    if (isNewFlow(r) && (req.files && req.files.photos || []).length) {
-      saveAttachments(req.files.photos, { requestId: r.id, userId: req.user.id, stage: 'assignment', note });
-    }
-  });
-  activity.log({
-    requestId: r.id,
-    equipmentId: r.equipmentId,
-    userId: req.user.id,
-    action: prevTech && prevTech.id !== tech.id ? 'Technician reassigned' : prevTech ? 'Assignment updated' : 'Technician assigned',
-    details: `${prevTech && prevTech.id !== tech.id ? `From ${prevTech.name} to ` : 'Assigned to '}${tech.name}, target ${fmtDate(targetDate)}${note ? ` — ${note}` : ''}`,
-    fromStatus: from !== toStatus ? from : null,
-    toStatus: from !== toStatus ? toStatus : null,
+    const proof = (req.files && req.files.photos) || [];
+    if (proof.length) saveAttachments(proof, { requestId: r.id, userId: req.user.id, stage: 'assignment', note });
   });
 
-  if (!prevTech || prevTech.id !== tech.id) {
+  syncAvailability(tech.id);
+  if (reassign && prevTech && prevTech.id !== tech.id) syncAvailability(prevTech.id);
+
+  if (reassign) {
     notify([tech.id], {
-      message: `New assignment: ${r.code} – ${r.title}. Target date: ${fmtDate(targetDate)}.`,
-      link: `/requests/${r.id}`,
-      type: 'warning',
-      exceptUserId: req.user.id,
+      message: `${r.code} has been reassigned to you. Reason: ${reason}`,
+      link: `/requests/${r.id}`, type: 'warning', exceptUserId: req.user.id,
     });
-    if (prevTech) notify([prevTech.id], { message: `${r.code} was reassigned to ${tech.name}.`, link: `/requests/${r.id}`, exceptUserId: req.user.id });
+    if (prevTech && prevTech.id !== tech.id) {
+      notify([prevTech.id], {
+        message: `${r.code} was reassigned to ${tech.name}. Reason: ${reason}`,
+        link: `/requests/${r.id}`, type: 'info', exceptUserId: req.user.id,
+      });
+    }
+    notifyRequester(r, `${r.code} has been reassigned to ${tech.name}. Reason: ${reason}`, 'warning');
   } else {
-    notify([tech.id], { message: `${r.code} target date updated to ${fmtDate(targetDate)}.`, link: `/requests/${r.id}`, exceptUserId: req.user.id });
+    notify([tech.id], {
+      message: `New assignment: ${r.code} – ${r.title}. Target date: ${targetDate ? fmtDate(targetDate) : 'not set'}.`,
+      link: `/requests/${r.id}`, type: 'warning', exceptUserId: req.user.id,
+    });
+    notifyRequester(r, `${r.code} has been assigned to technician ${tech.name}.`, 'info');
   }
-  notify([r.requesterId], { message: `${r.code} has been assigned to technician ${tech.name}.`, link: `/requests/${r.id}`, exceptUserId: req.user.id });
 
-  flash(req, 'success', `Assigned to ${tech.name}.`);
+  flash(req, 'success', reassign ? `Reassigned to ${tech.name}.` : `Assigned to ${tech.name}.`);
   res.redirect(`/requests/${r.id}`);
-});
+}
 
-// ---------- Work progress: start / hold / resume ----------
-router.post('/:id/status', workflowPhotos(), (req, res) => {
+router.post('/:id/assign', requireRole('admin'), workflowPhotos(), (req, res) => assignTechnician(req, res));
+router.post('/:id/reassign', requireRole('admin'), workflowPhotos(), (req, res) => assignTechnician(req, res, true));
+
+// ---------- Technician work: start / hold / resume ----------
+router.post('/:id/status', requireRole('technician'), workflowPhotos(), (req, res) => {
   const r = loadRequest(req, res);
   if (!r) return;
   if (!canWorkOn(req.user, r)) return forbidden(res, 'Only the assigned maintenance personnel can update this task.');
   const b = req.body || {};
-  const action = str(b.action, 20);
-  const note = str(b.note, 1000);
+  const action = str(req.query.action || b.action, 20);
+  const note = str(b.note || b.remarks, 1000);
+  const current = statusOf(r);
   const moves = {
-    start: { from: isNewFlow(r) ? ['Pending', 'Assigned'] : ['Assigned'], to: 'In Progress', label: 'Work started' },
-    hold: { from: ['In Progress'], to: 'On Hold', label: 'Put on hold' },
-    resume: { from: ['On Hold'], to: 'In Progress', label: 'Work resumed' },
+    start: { from: STARTABLE_STATUSES, to: S.IN_PROGRESS, label: 'Work started' },
+    hold: { from: [S.IN_PROGRESS], to: S.ON_HOLD, label: 'Put on hold' },
+    resume: { from: [S.ON_HOLD], to: S.IN_PROGRESS, label: 'Work resumed' },
   };
   const m = moves[action];
-  if (!m || !m.from.includes(r.status)) {
-    flash(req, 'error', `This action is not allowed while the request is ${r.status}.`);
+  if (!m || !m.from.includes(current)) {
+    flash(req, 'error', `This action is not allowed while the request is ${current}.`);
     return res.redirect(`/requests/${r.id}`);
   }
-  if (action === 'hold' && !note) {
-    flash(req, 'error', 'Please give a reason for putting the task on hold.');
-    return res.redirect(`/requests/${r.id}`);
-  }
-  let extra = {};
+  const errors = [];
+  if (req.uploadError) errors.push(req.uploadError);
+  if (action === 'hold' && !note) errors.push('Please give a reason for putting the task on hold.');
   if (action === 'start' && isNewFlow(r)) {
-    try {
-      W.checkUpload(req);
-      W.assertStart(r, req.user);
-      if (!((req.files && req.files.photos) || []).length || !note) W.fail('Repair remarks and picture proof are required to start a repair.');
-    } catch (err) {
-      return workflowError(res, req, err, r);
-    }
+    if (!((req.files && req.files.photos) || []).length) errors.push('Picture proof is required to start a repair.');
+    if (!note) errors.push('Repair remarks are required to start a repair.');
+    if (r.startedAt) errors.push('This repair has already been started.');
   }
-  if (action === 'start') extra = { startedAt: new Date().toISOString() };
+  if (errors.length) {
+    if (req.files) removeFiles(Object.values(req.files).flat());
+    flash(req, 'error', errors.join(' '));
+    return res.redirect(`/requests/${r.id}`);
+  }
+
+  const startedAt = new Date().toISOString();
+  const extra = action === 'start' ? { startedAt, startProofDate: todayISO() } : {};
   db.transaction(() => {
     changeStatus(r, m.to, req.user, { action: m.label, details: note, extra });
-    if (action === 'start' && isNewFlow(r)) {
-      attempts.start(r.id, req.user.id, { startedAt: extra.startedAt });
-      saveAttachments(req.files.photos, { requestId: r.id, userId: req.user.id, stage: 'start', note });
+    if (action === 'start') {
+      if (isNewFlow(r) || !attempts.current(r.id)) attempts.start(r.id, req.user.id, { startedAt });
+      const proof = (req.files && req.files.photos) || [];
+      if (proof.length) {
+        saveAttachments(proof, {
+          requestId: r.id,
+          userId: req.user.id,
+          stage: 'start',
+          note: note || `Start proof ${todayISO()}`,
+        });
+      }
     }
-    if (action === 'start' || action === 'resume') setEquipmentStatus(r.equipmentId, 'Under Maintenance', req.user, `Work on ${r.code}`);
+    if (action === 'start' || action === 'resume') {
+      setEquipmentStatus(r.equipmentId, 'Under Maintenance', req.user, `Work on ${r.code}`);
+    }
   });
+
+  notifyRequester(r,
+    action === 'hold'
+      ? `${r.code} was put on hold. Reason: ${note}`
+      : `${r.code} is now ${m.to}.`,
+    action === 'hold' ? 'warning' : 'info');
   flash(req, 'success', `${r.code} is now ${m.to}.`);
   res.redirect(`/requests/${r.id}`);
 });
 
-// ---------- Complete with maintenance record (features 3 and 12) ----------
-router.post('/:id/complete', workflowPhotos(), (req, res) => {
+// ---------- Complete: maintenance record + persisted completion report ----------
+router.post('/:id/complete', requireRole('technician'), workflowPhotos(), (req, res) => {
   const r = loadRequest(req, res);
   if (!r) return;
-  const b = req.body || {};
   if (!canWorkOn(req.user, r)) return forbidden(res, 'Only the assigned maintenance personnel can complete this task.');
+  const b = req.body || {};
   const errors = [];
   if (req.uploadError) errors.push(req.uploadError);
-  const newFlow = isNewFlow(r);
+  const current = statusOf(r);
   const rework = W.isRework(r);
-  if (newFlow) {
-    try { W.assertComplete(r, req.user, { rework }); } catch (err) { return workflowError(res, req, err, r, '#complete'); }
-    if (!((req.files && req.files.photos) || []).length) errors.push('Final picture proof is required.');
-    if (!str(b.remarks, 1000)) errors.push('Final completion remarks are required.');
-  } else if (!C.TECH_ACTIVE_STATUSES.includes(r.status)) {
-    errors.push('Only assigned or in-progress tasks can be completed.');
+  // Work must have started. On Hold is allowed; Nearing Completion is not a status.
+  if (![S.IN_PROGRESS, S.ON_HOLD].includes(current) && !(rework && current === S.IN_PROGRESS)) {
+    errors.push('Work must be started before it can be completed.');
   }
+  if (r.verificationStatus === 'Verified') errors.push('A verified repair cannot be completed again.');
+  const proof = (req.files && req.files.photos) || [];
+  if (!proof.length) errors.push('Completion picture proof is required.');
+  const completionNotes = str(b.remarks, 1000);
+  if (!completionNotes) errors.push('Final completion notes are required.');
+
   const linkedEquipment = r.equipmentId ? db.find('equipment', r.equipmentId) : null;
   const rec = {
     equipmentId: r.equipmentId || null,
@@ -803,12 +874,12 @@ router.post('/:id/complete', workflowPhotos(), (req, res) => {
     requestId: r.id,
     technicianId: r.technicianId,
     type: r.type,
-    problem: str(b.problem, 1000) || str(b.remarks, 1000),
+    problem: str(b.problem, 1000) || completionNotes,
     actionsTaken: str(b.actionsTaken, 2000) || str(b.remarks, 2000),
     partsReplaced: str(b.partsReplaced, 1000),
     serviceDate: isISODate(b.serviceDate) ? b.serviceDate : todayISO(),
     resultingStatus: C.EQUIPMENT_STATUSES.includes(b.resultingStatus) ? b.resultingStatus : 'Operational',
-    remarks: str(b.remarks, 1000),
+    remarks: completionNotes,
   };
   if (!rec.problem) errors.push('Please describe the problem that was identified.');
   if (!rec.actionsTaken) errors.push('Please describe the actions performed.');
@@ -822,20 +893,25 @@ router.post('/:id/complete', workflowPhotos(), (req, res) => {
   const completedAt = new Date().toISOString();
   db.transaction(() => {
     db.insert('maintenanceRecords', rec);
-    changeStatus(r, 'Completed', req.user, {
+    changeStatus(r, S.COMPLETED, req.user, {
       action: rework ? 'Rework completed' : 'Repair completed',
       details: rec.actionsTaken,
       extra: {
         completedAt,
-        ...(newFlow ? { verificationStatus: C.AWAITING_VERIFICATION } : {}),
+        verificationStatus: C.AWAITING_VERIFICATION || 'Awaiting Verification',
+        // Persisted completion report shown on the detail page and in reports.
+        completionNotes,
+        completionReport: rec.actionsTaken,
       },
     });
-    saveAttachments(req.files.photos, { requestId: r.id, userId: req.user.id, stage: 'completion', note: str(b.photoNote, 1000) });
-    if (newFlow) {
-      const attempt = attempts.complete(r.id, rec.remarks, {
+    saveAttachments(proof, {
+      requestId: r.id, userId: req.user.id, stage: 'completion', note: str(b.photoNote, 1000),
+    });
+    if (isNewFlow(r)) {
+      const attempt = attempts.complete(r.id, completionNotes, {
         userId: req.user.id,
         completedAt,
-        verificationResult: C.AWAITING_VERIFICATION,
+        verificationResult: C.AWAITING_VERIFICATION || 'Awaiting Verification',
         startedAt: r.startedAt,
       });
       activity.log({
@@ -854,57 +930,66 @@ router.post('/:id/complete', workflowPhotos(), (req, res) => {
       }
     }
   });
-  if (newFlow) {
-    notify(adminIds(), {
-      message: `${r.code} is completed and awaiting your verification.`,
-      link: reportLink(r),
-      type: 'warning',
-      exceptUserId: req.user.id,
-      dedupeKey: `verify-request-${r.id}-${r.completedAt || completedAt}`,
-    });
-  }
-  flash(req, 'success', newFlow
-    ? `${r.code} completed. Elapsed repair time: ${formatDuration(attempts.totalElapsedMs(r.id))}. Awaiting verification.`
-    : `${r.code} marked as completed and saved to the maintenance history.`);
+
+  // One notification per recipient (notify dedupes the requester/admin overlap).
+  notify([r.requesterId, ...adminIds()], {
+    message: `${r.code} is completed and awaiting verification. Work performed: ${rec.actionsTaken}`,
+    link: reportLink(r),
+    type: 'success',
+    dedupeKey: `completed-${r.id}-${completedAt}`,
+  });
+  syncAvailability(r.technicianId);
+
+  flash(req, 'success', `${r.code} completed. ${isNewFlow(r) ? `Elapsed repair time: ${formatDuration(attempts.totalElapsedMs(r.id))}. ` : ''}Awaiting verification.`);
   res.redirect(`/requests/${r.id}`);
 });
 
-// ---------- Cancel ----------
+// ---------- Withdraw (maps onto the canonical Rejected status) ----------
 router.post('/:id/cancel', (req, res) => {
   const r = loadRequest(req, res);
   if (!r) return;
+  const from = statusOf(r);
   const isAdmin = req.user.role === 'admin';
-  const isOwnerPending = r.requesterId === req.user.id &&
-    (isNewFlow(r) ? r.status === 'Reported' : ['Reported', 'Pending'].includes(r.status));
-  if (!isAdmin && !isOwnerPending) return forbidden(res, 'You can only cancel your own requests while they are still awaiting review.');
-  if (!C.OPEN_STATUSES.includes(r.status)) {
-    flash(req, 'error', 'This request is already closed.');
+  const isOwnerPending = r.requesterId === req.user.id && from === S.PENDING;
+  if (!isAdmin && !isOwnerPending) {
+    return forbidden(res, 'You can only withdraw your own request while it is still awaiting review.');
+  }
+  if (from !== S.PENDING && from !== S.APPROVED) {
+    flash(req, 'error', `This request is already ${from}.`);
     return res.redirect(`/requests/${r.id}`);
   }
-  const rawReason = str((req.body || {}).reason, 500);
-  const reason = rawReason || (isOwnerPending ? 'Cancelled by requester (reported by mistake or resolved)' : 'Cancelled by administrator');
-  const wasPending = r.status === 'Pending';
-  changeStatus(r, 'Cancelled', req.user, { action: 'Request cancelled', details: reason, extra: { cancelledAt: new Date().toISOString() } });
+  const rawReason = String((req.body || {}).reason || '').trim();
+  if (isAdmin && (rawReason.length < 5 || rawReason.length > 1000)) {
+    flash(req, 'error', 'Please give a reason between 5 and 1000 characters.');
+    return res.redirect(`/requests/${r.id}`);
+  }
+  const reason = str(rawReason, 1000) ||
+    (isOwnerPending ? 'Withdrawn by requester (reported by mistake or resolved)' : 'Withdrawn by administrator');
+  const cancelledAt = new Date().toISOString();
+  changeStatus(r, S.REJECTED, req.user, {
+    action: isAdmin ? 'Request rejected by Admin' : 'Request withdrawn by requester',
+    details: reason,
+    extra: { cancelledAt, rejectedAt: cancelledAt, rejectedBy: req.user.id, rejectionReason: reason },
+  });
 
   // If nothing else is open for this equipment, undo the automatic "Needs Repair" mark.
   const eq = r.equipmentId ? db.find('equipment', r.equipmentId) : null;
   const othersOpen = eq
-    ? db.where('requests', (x) => x.equipmentId === eq.id && x.id !== r.id && C.OPEN_STATUSES.includes(x.status)).length
+    ? db.where('requests', (x) => x.equipmentId === eq.id && x.id !== r.id && OPEN_STATUSES.includes(statusOf(x))).length
     : 0;
-  if (eq && !othersOpen && ['Needs Repair', 'Under Maintenance'].includes(eq.status) && r.type === 'Corrective' && wasPending) {
-    setEquipmentStatus(eq.id, 'Operational', req.user, `${r.code} cancelled`);
+  if (eq && !othersOpen && ['Needs Repair', 'Under Maintenance'].includes(eq.status) && r.type === 'Corrective') {
+    setEquipmentStatus(eq.id, 'Operational', req.user, `${r.code} withdrawn`);
   }
 
-  if (req.user.role !== 'admin') {
-    notify(adminIds(), {
-      message: `${req.user.name} cancelled report ${r.code} (${reason}).`,
-      link: `/requests/${r.id}`,
-      type: 'info',
-      exceptUserId: req.user.id,
-    });
-  }
+  if (isAdmin) notifyRequester(r, `Your repair request ${r.code} was declined by the Administrator. Reason: ${reason}`, 'error');
+  else notify(adminIds(), {
+    message: `${req.user.name} withdrew report ${r.code} (${reason}).`,
+    link: `/requests/${r.id}`,
+    type: 'info',
+    exceptUserId: req.user.id,
+  });
 
-  flash(req, 'success', `${r.code} has been cancelled.`);
+  flash(req, 'success', `${r.code} has been withdrawn.`);
   res.redirect(`/requests/${r.id}`);
 });
 
@@ -924,10 +1009,11 @@ router.post('/:id/attachments', photos(), (req, res) => {
   const stage = b.stage === 'after' ? 'after' : 'before';
   let error = req.uploadError;
   if (!error && (!req.files || !req.files.length)) error = 'Please choose at least one photo.';
-  if (!error && r.status === 'Cancelled') error = 'Cannot add photos to a cancelled request.';
-  if (!error && stage === 'after' && r.status !== 'Completed') error = 'After-repair photos can only be added once the repair has been completed.';
+  const currentStatus = statusOf(r);
+  if (!error && currentStatus === S.REJECTED) error = 'Cannot add photos to a rejected request.';
+  if (!error && stage === 'after' && currentStatus !== S.COMPLETED) error = 'After-repair photos can only be added once the repair has been completed.';
   if (!error && stage === 'after' && !canWorkOn(req.user, r)) error = 'Only the assigned maintenance personnel can add after-repair photos.';
-  if (!error && stage === 'before' && !C.OPEN_STATUSES.includes(r.status)) error = 'Before-repair photos can only be added while the request is open.';
+  if (!error && stage === 'before' && !OPEN_STATUSES.includes(currentStatus)) error = 'Before-repair photos can only be added while the request is open.';
   if (error) {
     removeFiles(req.files);
     if (wantsJson) return res.status(400).json({ ok: false, error });
@@ -968,7 +1054,7 @@ router.post('/:id/attachments/:attId/delete', (req, res) => {
   }
 
   const isAdmin = req.user.role === 'admin';
-  const isOwnerBeforeOpen = String(r.requesterId) === String(req.user.id) && att.stage === 'before' && C.OPEN_STATUSES.includes(r.status);
+  const isOwnerBeforeOpen = String(r.requesterId) === String(req.user.id) && att.stage === 'before' && OPEN_STATUSES.includes(statusOf(r));
   const canDelete = isAdmin || isOwnerBeforeOpen;
   if (!canDelete) {
     if (wantsJson) return res.status(403).json({ ok: false, error: 'You do not have permission to delete this photo.' });
@@ -1072,35 +1158,12 @@ router.post('/:id/materials/:materialId/correct', (req, res) => {
   res.redirect(`/requests/${r.id}#materials`);
 });
 
-router.post('/:id/nearing-completion', workflowPhotos(), (req, res) => {
+// Kept only so old bookmarks do not 404. It never changes status: the primary
+// flow goes In Progress / On Hold -> Completed directly.
+router.post('/:id/nearing-completion', (req, res) => {
   const r = loadRequest(req, res);
   if (!r) return;
-  const b = req.body || {};
-  const note = str(b.remarks, 1000);
-  try {
-    W.checkUpload(req);
-    W.assertNearing(r, req.user);
-    if (!note) W.fail('Progress remarks are required.');
-    if (!((req.files && req.files.photos) || []).length) W.fail('Updated picture proof is required.');
-    db.transaction(() => {
-      changeStatus(r, 'Nearing Completion', req.user, {
-        action: 'Nearing completion',
-        details: note,
-        extra: { nearingAt: new Date().toISOString() },
-      });
-      saveAttachments(req.files.photos, { requestId: r.id, userId: req.user.id, stage: 'nearing', note });
-    });
-    notify(adminIds(), {
-      message: `${r.code} is nearing completion.`,
-      link: reportLink(r),
-      type: 'info',
-      exceptUserId: req.user.id,
-      dedupeKey: `nearing-${r.id}-${r.status}`,
-    });
-    flash(req, 'success', `${r.code} is now Nearing Completion.`);
-  } catch (err) {
-    return workflowError(res, req, err, r);
-  }
+  flash(req, 'info', 'Nearing Completion is no longer part of the workflow. Keep working and submit the completion report when finished.');
   res.redirect(`/requests/${r.id}`);
 });
 
@@ -1149,32 +1212,35 @@ router.post('/:id/rework', requireRole('admin'), (req, res) => {
   const r = loadRequest(req, res);
   if (!r) return;
   const reason = str((req.body || {}).reason, 1000);
+  if (!reason) {
+    flash(req, 'error', 'Please give a reason for returning this repair for rework.');
+    return res.redirect(`/requests/${r.id}#verification`);
+  }
   try {
+    const reworkAt = new Date().toISOString();
     db.transaction(() => {
       W.assertRework(r, req.user, reason);
-      db.update('requests', r.id, {
-        verificationStatus: 'Rework Required',
-        status: 'In Progress',
-        reworkReason: reason,
-        reworkBy: req.user.id,
-        reworkAt: new Date().toISOString(),
-      });
-      attempts.setVerification(r.id, 'Rework Required', { reason, verifiedBy: req.user.id, verifiedAt: new Date().toISOString() });
-      activity.log({
-        requestId: r.id,
-        equipmentId: r.equipmentId,
-        userId: req.user.id,
+      // Verification is a sub-track under Completed; rework sends the repair
+      // back to In Progress and is logged as a real status transition.
+      changeStatus(r, S.IN_PROGRESS, req.user, {
         action: 'Returned for rework',
         details: reason,
-        verificationStatus: 'Rework Required',
+        extra: {
+          verificationStatus: 'Rework Required',
+          reworkReason: reason,
+          reworkBy: req.user.id,
+          reworkAt,
+        },
       });
+      attempts.setVerification(r.id, 'Rework Required', { reason, verifiedBy: req.user.id, verifiedAt: reworkAt });
     });
     notify([r.technicianId].filter(Boolean), {
       message: `${r.code} was returned for rework. Reason: ${reason}`,
       link: reportLink(r),
       type: 'warning',
-      dedupeKey: `rework-${r.id}-${r.completedAt || ''}`,
+      dedupeKey: `rework-${r.id}-${reworkAt}`,
     });
+    syncAvailability(r.technicianId);
     flash(req, 'success', `${r.code} returned for rework.`);
   } catch (err) {
     flash(req, 'error', err.message || 'Rework request failed.');
@@ -1196,22 +1262,19 @@ router.post('/:id/rework/start', workflowPhotos(), (req, res) => {
     const startedAt = new Date().toISOString();
     db.transaction(() => {
       const attempt = attempts.start(r.id, req.user.id, { startedAt });
-      db.update('requests', r.id, {
-        status: 'In Progress',
-        verificationStatus: 'Not Submitted',
-        startedAt,
-        reworkStartedAt: startedAt,
-      });
-      saveAttachments(req.files.photos, { requestId: r.id, userId: req.user.id, stage: 'rework', note, attemptId: attempt.id });
-      activity.log({
-        requestId: r.id,
-        equipmentId: r.equipmentId,
-        userId: req.user.id,
+      changeStatus(r, S.IN_PROGRESS, req.user, {
         action: 'Rework started',
         details: note,
-        toStatus: 'In Progress',
+        extra: {
+          verificationStatus: 'Not Submitted',
+          startedAt,
+          startProofDate: todayISO(),
+          reworkStartedAt: startedAt,
+        },
       });
+      saveAttachments(req.files.photos, { requestId: r.id, userId: req.user.id, stage: 'rework', note, attemptId: attempt.id });
     });
+    syncAvailability(r.technicianId);
     notify(adminIds(), { message: `${r.code} rework has started.`, link: reportLink(r), type: 'info', exceptUserId: req.user.id });
     flash(req, 'success', 'Rework started. A new attempt is being tracked.');
   } catch (err) {

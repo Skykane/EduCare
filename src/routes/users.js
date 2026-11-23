@@ -13,6 +13,10 @@ const router = express.Router();
 router.use(requireRole('admin'));
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isTechnicianActiveTask(r) {
+  const status = typeof C.normalizeStatus === 'function' ? C.normalizeStatus(r.status, r) : r.status;
+  return (C.TECH_ACTIVE_STATUSES || []).includes(status);
+}
 const approvalBackUrl = (req) =>
   req.headers.referer && req.headers.referer.includes('/approvals') ? '/users/approvals' : '/users';
 
@@ -222,7 +226,7 @@ router.post('/:id', (req, res) => {
   const errors = validate(u, password, existing.id);
   if (existing.id === req.user.id && u.role !== 'admin') errors.push('You cannot remove your own administrator role.');
   if (existing.role === 'technician' && u.role !== 'technician') {
-    const active = db.where('requests', (r) => r.technicianId === existing.id && C.TECH_ACTIVE_STATUSES.includes(r.status)).length;
+    const active = db.where('requests', (r) => r.technicianId === existing.id && isTechnicianActiveTask(r)).length;
     if (active) errors.push(`This technician still has ${active} active task(s). Reassign them first.`);
   }
   if (errors.length) return renderForm(res, { ...u, id: existing.id, active: existing.active }, errors, 400);
@@ -249,7 +253,7 @@ router.post('/:id/toggle', (req, res) => {
   activity.log({ userId: req.user.id, action: active ? 'User account activated' : 'User account deactivated', details: u.name });
   let msg = `${u.name} ${active ? 'activated' : 'deactivated'}.`;
   if (!active && u.role === 'technician') {
-    const tasks = db.where('requests', (r) => r.technicianId === u.id && C.TECH_ACTIVE_STATUSES.includes(r.status)).length;
+    const tasks = db.where('requests', (r) => r.technicianId === u.id && isTechnicianActiveTask(r)).length;
     if (tasks) msg += ` Note: they still have ${tasks} active task(s) that should be reassigned.`;
   }
   flash(req, active ? 'success' : 'warning', msg);

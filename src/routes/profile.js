@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
+const C = require('../constants');
 const { flash } = require('../auth');
 const { str, int, toArray, avatarUrl } = require('../helpers');
 const { validatePassword } = require('../services/password');
@@ -13,9 +14,24 @@ const studentDirectory = require('../services/studentDirectory');
 
 const router = express.Router();
 
-// Statuses that mean a request cleared approval and entered the repair workflow.
-// In the new flow, "Pending" means assigned to a technician, not awaiting admin.
-const APPROVED_STATUSES = ['Approved', 'Pending', 'Assigned', 'In Progress', 'On Hold', 'Nearing Completion', 'Completed'];
+const S = {
+  PENDING: (C.STATUS && (C.STATUS.PENDING_APPROVAL || C.STATUS.PENDING)) || 'Pending Approval',
+  APPROVED: (C.STATUS && (C.STATUS.APPROVED_AWAITING_ASSIGNMENT || C.STATUS.AWAITING_ASSIGNMENT || C.STATUS.APPROVED)) || 'Approved – Awaiting Assignment',
+  ASSIGNED: (C.STATUS && C.STATUS.ASSIGNED) || 'Assigned',
+};
+
+function normalizeStatus(r) {
+  if (typeof C.normalizeStatus === 'function') {
+    const normalized = C.normalizeStatus(r.status, r);
+    if (normalized) return normalized;
+  }
+  if (r.status === 'Reported') return S.PENDING;
+  if (r.status === 'Approved') return S.APPROVED;
+  if (r.status === 'Pending') return r.technicianId ? S.ASSIGNED : S.PENDING;
+  if (r.status === 'Nearing Completion') return 'In Progress';
+  if (r.status === 'Cancelled') return 'Rejected';
+  return r.status;
+}
 
 function wantsJson(req) {
   return req.get('x-requested-with') === 'fetch' || String(req.get('accept') || '').includes('application/json');
@@ -84,14 +100,20 @@ function requestActivity(user) {
     scope = 'Requests you submitted';
   }
 
-  const pendingStatuses = user.role === 'technician' ? ['Pending', 'Assigned'] : ['Pending'];
   return {
     scope,
     stats: {
       total: rows.length,
-      pending: rows.filter((r) => pendingStatuses.includes(r.status)).length,
-      approved: rows.filter((r) => APPROVED_STATUSES.includes(r.status)).length,
-      completed: rows.filter((r) => r.status === 'Completed').length,
+      // Admin/requester wait on approval; technicians wait for assigned work.
+      pending: rows.filter((r) => {
+        const status = normalizeStatus(r);
+        return user.role === 'technician' ? status === S.ASSIGNED : status === S.PENDING;
+      }).length,
+      approved: rows.filter((r) => {
+        const status = normalizeStatus(r);
+        return status !== S.PENDING && status !== 'Rejected';
+      }).length,
+      completed: rows.filter((r) => normalizeStatus(r) === 'Completed').length,
     },
   };
 }

@@ -9,6 +9,27 @@ const { enrichRequest } = require('../services/requests');
 const router = express.Router();
 router.use(requireRole('admin'));
 
+const S = {
+  PENDING: (C.STATUS && (C.STATUS.PENDING_APPROVAL || C.STATUS.PENDING)) || 'Pending Approval',
+  APPROVED: (C.STATUS && (C.STATUS.APPROVED_AWAITING_ASSIGNMENT || C.STATUS.AWAITING_ASSIGNMENT || C.STATUS.APPROVED)) || 'Approved – Awaiting Assignment',
+};
+const OPEN_STATUSES = Array.isArray(C.OPEN_STATUSES) && C.OPEN_STATUSES.length
+  ? C.OPEN_STATUSES
+  : [S.PENDING, S.APPROVED, 'Assigned', 'In Progress', 'On Hold'];
+
+function normalizeStatus(r) {
+  if (typeof C.normalizeStatus === 'function') {
+    const normalized = C.normalizeStatus(r.status, r);
+    if (normalized) return normalized;
+  }
+  if (r.status === 'Reported') return S.PENDING;
+  if (r.status === 'Approved') return S.APPROVED;
+  if (r.status === 'Pending') return r.technicianId ? 'Assigned' : S.PENDING;
+  if (r.status === 'Nearing Completion') return 'In Progress';
+  if (r.status === 'Cancelled') return 'Rejected';
+  return r.status;
+}
+
 function readRange(query) {
   return {
     from: isISODate(query.from) ? query.from : '',
@@ -29,7 +50,11 @@ function buildReport(f) {
   const requests = db
     .all('requests')
     .filter((r) => inRange(f, r.createdAt))
-    .map(enrichRequest)
+    .map((r) => {
+      const row = enrichRequest(r);
+      const status = normalizeStatus(r);
+      return { ...row, status, isOpen: OPEN_STATUSES.includes(status) };
+    })
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   const equipment = db.all('equipment').map((e) => ({ ...e, category: db.find('categories', e.categoryId) }));
   const records = db
@@ -72,7 +97,10 @@ function buildReport(f) {
   const workload = db
     .where('users', (u) => u.role === 'technician')
     .map((t) => {
-      const all = db.where('requests', (r) => r.technicianId === t.id).map(enrichRequest);
+      const all = db.where('requests', (r) => r.technicianId === t.id).map((r) => ({
+        ...enrichRequest(r),
+        status: normalizeStatus(r),
+      }));
       const doneInRange = all.filter((r) => r.status === 'Completed' && inRange(f, r.completedAt));
       return {
         tech: t,
@@ -93,7 +121,10 @@ function buildReport(f) {
   const summary = {
     totalEquipment: equipment.length,
     totalRequests: requests.length,
-    pendingRequests: requests.filter((r) => r.status === 'Pending').length,
+    pendingApproval: requests.filter((r) => r.status === S.PENDING).length,
+    awaitingAssignment: requests.filter((r) => r.status === S.APPROVED).length,
+    // Backward-compatible alias for older templates.
+    pendingRequests: requests.filter((r) => r.status === S.PENDING).length,
     completedRequests: requestSummary.byStatus.find((s) => s.label === 'Completed').count,
     completedMaintenance: records.length,
     avgResolutionDays: requestSummary.avgResolutionDays,

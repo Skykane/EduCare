@@ -1,390 +1,302 @@
 <%- include('partials/header') %>
 <%
-  var adminExtraActions = `
-    <a href="/requests/new" class="btn-banner-sub">${icon('plus')} Submit Request</a>
-  `;
+  // Canonical repair statuses (kept literal so views stay correct even before
+  // shared constants are exposed to every render context).
+  var S = {
+    pendingApproval: 'Pending Approval',
+    awaitingAssignment: 'Approved – Awaiting Assignment',
+    assigned: 'Assigned',
+    inProgress: 'In Progress',
+    onHold: 'On Hold',
+    completed: 'Completed',
+    rejected: 'Rejected'
+  };
 
-  // Icon + tone for each stored activity entry.
-  function activityMeta(a) {
-    var s = String(a.action || '').toLowerCase();
-    if (s.indexOf('registered') !== -1 || s.indexOf('account') !== -1) return { icon: 'user-check', tone: 'account' };
-    if (s.indexOf('repair completed') !== -1 || s.indexOf('completed') !== -1) return { icon: 'check-circle', tone: 'repair' };
-    if (s.indexOf('condition') !== -1 || s.indexOf('equipment') !== -1) return { icon: 'monitor', tone: 'condition' };
-    if (s.indexOf('assign') !== -1) return { icon: 'user-check', tone: 'request' };
-    if (s.indexOf('request') !== -1 || s.indexOf('priority') !== -1 || s.indexOf('hold') !== -1) return { icon: 'clipboard', tone: 'request' };
-    if (s.indexOf('maintenance') !== -1 || s.indexOf('preventive') !== -1) return { icon: 'wrench', tone: 'repair' };
-    return { icon: 'history', tone: 'default' };
+  function rows(value) { return Array.isArray(value) ? value : []; }
+  var pendingApprovalRows = rows(typeof pendingApproval !== 'undefined' ? pendingApproval : null);
+  var awaitingRows = rows(typeof awaitingAssignment !== 'undefined' ? awaitingAssignment : null);
+  var activeRows = rows(typeof activeTasks !== 'undefined' ? activeTasks : null);
+  var completedRows = rows(typeof completedRequests !== 'undefined' ? completedRequests : null);
+  var rejectedRows = rows(typeof rejectedRequests !== 'undefined' ? rejectedRequests : null);
+
+  var techs = rows(typeof technicians !== 'undefined' ? technicians : null);
+  if (!techs.length && typeof workload !== 'undefined' && Array.isArray(workload)) {
+    techs = workload.map(function (w) {
+      var t = w.tech || {};
+      return { id: t.id, name: t.name, availability: t.availability, activeCount: w.active || 0 };
+    }).filter(function (t) { return !!t.id; });
   }
+  var availableTechs = techs.filter(function (t) { return t.availability === 'Available'; });
+  var today = typeof todayISO === 'function' ? todayISO() : new Date().toISOString().slice(0, 10);
+
+  function ic(name) { return typeof icon === 'function' ? icon(name) : ''; }
+  function sc(status) { return typeof statusClass === 'function' ? statusClass(status) : 'badge badge-gray'; }
+  function dt(value) { return typeof fmtDateTime === 'function' ? fmtDateTime(value) : String(value || ''); }
+  function dtOnly(value) { return typeof fmtDate === 'function' ? fmtDate(value) : String(value || ''); }
+  function statusUrl(status) { return '/requests?status=' + encodeURIComponent(status); }
+  function requestName(r) {
+    if (!r) return { title: 'Repair request', sub: '' };
+    var eq = r.equipment;
+    var cat = r.category ? r.category.name : '';
+    var sub = eq
+      ? [eq.code, eq.name].filter(Boolean).join(' · ')
+      : [cat, r.location].filter(Boolean).join(' · ');
+    return { title: r.title || (eq ? eq.name : 'Repair request'), sub: sub || 'General repair' };
+  }
+  function workSummary(r) {
+    if (!r) return 'See completion report';
+    return r.workPerformed || r.completionNotes ||
+      (r.record && r.record.actionsTaken) ||
+      (r.maintenanceRecord && r.maintenanceRecord.actionsTaken) ||
+      'See completion report';
+  }
+
+  var adminExtraActions = '<a href="/requests/new" class="btn-banner-sub">' + ic('plus') + ' Submit Request</a>';
+  var cards = [
+    { label: 'Pending Approval', count: pendingApprovalRows.length, tone: 'amber', icon: 'clock', status: S.pendingApproval, note: 'Reports awaiting admin review' },
+    { label: 'Awaiting Assignment', count: awaitingRows.length, tone: 'primary', icon: 'user-check', status: S.awaitingAssignment, note: 'Approved, ready to dispatch' },
+    { label: 'Active Tasks', count: activeRows.length, tone: 'blue', icon: 'wrench', status: '', note: 'Assigned, in progress, or on hold' },
+    { label: 'Completed Requests', count: completedRows.length, tone: 'green', icon: 'check-circle', status: S.completed, note: 'Repairs finished' },
+    { label: 'Rejected Requests', count: rejectedRows.length, tone: 'red', icon: 'x-circle', status: S.rejected, note: 'Reviewed and declined' }
+  ];
 %>
-<div class="admin-ui-page admin-ui-dashboard dash adm-dash">
+<div class="admin-ui-page admin-ui-dashboard dash adm-dash adm-workflow-dash">
   <%- include('partials/header-banner', {
     breadcrumb: 'Home',
     title: 'Dashboard',
-    subtitle: 'Equipment health, dispatch priorities, maintenance due, and recent system activity.',
+    subtitle: 'Repair workflow, dispatch queue, completion reports, and technician availability.',
     extraActions: adminExtraActions
   }) %>
 
-  <!-- 1. Compact summary cards -->
+  <!-- Compact workflow summary -->
   <div class="adm-summary adm-summary-cards">
-    <a class="adm-stat" href="/requests?status=Pending">
-      <span class="adm-stat-ic tone-amber"><%- icon('clock') %></span>
-      <span class="adm-stat-body">
-        <strong class="adm-stat-num"><%= stats.pendingApproval %></strong>
-        <span class="adm-stat-label">Awaiting Approval</span>
-        <span class="adm-stat-note"><%= stats.pendingApproval ? 'New reports need triage' : 'Nothing waiting' %></span>
-      </span>
-    </a>
-    <a class="adm-stat" href="/requests?status=active">
-      <span class="adm-stat-ic tone-primary"><%- icon('wrench') %></span>
-      <span class="adm-stat-body">
-        <strong class="adm-stat-num"><%= stats.inProgress %></strong>
-        <span class="adm-stat-label">Active Work Orders</span>
-        <span class="adm-stat-note">Assigned to technicians</span>
-      </span>
-    </a>
-    <a class="adm-stat" href="/requests?status=Completed&sort=newest">
-      <span class="adm-stat-ic tone-green"><%- icon('check-circle') %></span>
-      <span class="adm-stat-body">
-        <strong class="adm-stat-num"><%= stats.completedMonth %></strong>
-        <span class="adm-stat-label">Completed This Month</span>
-        <span class="adm-stat-note">Repairs closed</span>
-      </span>
-    </a>
-    <a class="adm-stat" href="/schedule">
-      <span class="adm-stat-ic tone-teal"><%- icon('calendar') %></span>
-      <span class="adm-stat-body">
-        <strong class="adm-stat-num"><%= stats.pmDue %></strong>
-        <span class="adm-stat-label">Maintenance Due</span>
-        <span class="adm-stat-note"><%= stats.pmDue ? 'Inspections overdue or due soon' : 'All cycles up to date' %></span>
-      </span>
-    </a>
+    <% cards.forEach(function (c) { %>
+      <a class="adm-stat" href="<%= c.status ? statusUrl(c.status) : '/requests' %>">
+        <span class="adm-stat-ic tone-<%= c.tone %>"><%- ic(c.icon) %></span>
+        <span class="adm-stat-body">
+          <strong class="adm-stat-num"><%= c.count %></strong>
+          <span class="adm-stat-label"><%= c.label %></span>
+          <span class="adm-stat-note"><%= c.note %></span>
+        </span>
+      </a>
+    <% }) %>
   </div>
 
-  <!-- Connected Admin workflow statistics (all derived from records) -->
-  <div class="adm-summary adm-summary-cards workflow-stats" data-revision-region>
-    <a class="adm-stat" href="/requests?status=Reported"><span class="adm-stat-ic tone-amber"><%- icon('clipboard') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.totalReported %></strong><span class="adm-stat-label">Total Reported Issues</span></span></a>
-    <a class="adm-stat" href="/requests?status=Pending"><span class="adm-stat-ic tone-amber"><%- icon('clock') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.pending %></strong><span class="adm-stat-label">Pending Repairs</span></span></a>
-    <a class="adm-stat" href="/requests?status=In%20Progress"><span class="adm-stat-ic tone-primary"><%- icon('wrench') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.inProgress %></strong><span class="adm-stat-label">In Progress Repairs</span></span></a>
-    <a class="adm-stat" href="/requests?status=Nearing%20Completion"><span class="adm-stat-ic tone-teal"><%- icon('wrench') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.nearing %></strong><span class="adm-stat-label">Nearing Completion</span></span></a>
-    <a class="adm-stat" href="/requests?status=Completed"><span class="adm-stat-ic tone-green"><%- icon('check-circle') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.completed %></strong><span class="adm-stat-label">Completed Repairs</span></span></a>
-    <a class="adm-stat" href="/requests?status=Completed"><span class="adm-stat-ic tone-amber"><%- icon('bell') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.awaitingVerification %></strong><span class="adm-stat-label">Awaiting Verification</span></span></a>
-    <a class="adm-stat" href="/history"><span class="adm-stat-ic tone-green"><%- icon('check') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= stats.verified %></strong><span class="adm-stat-label">Verified Repairs</span></span></a>
-    <a class="adm-stat" href="/materials"><span class="adm-stat-ic tone-primary"><%- icon('chart') %></span><span class="adm-stat-body"><strong class="adm-stat-num"><%= formatMoney(stats.materialsExpensesCents) %></strong><span class="adm-stat-label">Total Materials Expenses</span></span></a>
-  </div>
-
-  <% if (verificationQueue && verificationQueue.length) { %>
-  <section class="adm-panel" aria-labelledby="verify-queue-title">
-    <div class="adm-panel-head">
-      <div class="adm-panel-title"><span class="adm-icon-chip tone-amber"><%- icon('check-circle') %></span><h2 id="verify-queue-title">Awaiting Verification</h2><span class="adm-count"><%= verificationQueue.length %></span></div>
-    </div>
-    <div class="adm-panel-body">
-      <% verificationQueue.forEach(function (r) { %>
-        <a class="workflow-row" href="/requests/<%= r.id %>#verification">
-          <strong><%= r.code %></strong><span><%= r.equipment ? r.equipment.name : 'Equipment' %></span>
-          <span class="badge badge-amber"><%= r.verificationStatus %></span><span><%= fmtManila(r.completedAt) %></span>
-        </a>
-      <% }); %>
-    </div>
-  </section>
-  <% } %>
-
-  <!-- 6. Overdue tasks -->
-  <section class="adm-panel adm-over<%= overdueTasks.length ? ' is-alert' : '' %>" aria-labelledby="adm-overdue-title">
+  <!-- 1. Pending Approval -->
+  <section class="adm-panel" id="pending-approval" aria-labelledby="adm-pending-title">
     <div class="adm-panel-head">
       <div class="adm-panel-title">
-        <span class="adm-icon-chip tone-red"><%- icon('alert') %></span>
-        <h2 id="adm-overdue-title">Overdue Tasks</h2>
-        <span class="adm-count"><%= overdueTasks.length %></span>
+        <span class="adm-icon-chip tone-amber"><%- ic('clipboard') %></span>
+        <h2 id="adm-pending-title">Pending Approval</h2>
+        <span class="adm-count"><%= pendingApprovalRows.length %></span>
       </div>
-      <a class="adm-panel-link" href="/requests?overdue=1">Manage Overdue <%- icon('chevron-right') %></a>
+      <a class="adm-panel-link" href="<%= statusUrl(S.pendingApproval) %>">View all <%- ic('chevron-right') %></a>
     </div>
-
-    <div class="adm-over-mobile-summary">
-      <% if (!overdueTasks.length) { %>
-        <p class="adm-empty adm-over-mobile-ok"><%- icon('check-circle') %> No overdue tasks. All repairs are within target dates.</p>
-      <% } else { %>
-        <p class="adm-over-mobile-msg"><strong><%= overdueTasks.length %></strong> overdue task<%= overdueTasks.length === 1 ? '' : 's' %> need attention. Review and manage them to keep repairs on schedule.</p>
-      <% } %>
-    </div>
-
-    <div class="adm-over-desktop-detail">
-      <% if (!overdueTasks.length) { %>
-        <p class="adm-empty"><%- icon('check-circle') %> All repair tasks are within their target dates.</p>
-      <% } else { %>
-        <div class="adm-over-cols" aria-hidden="true">
-          <span>Task &amp; equipment</span>
-          <span>Technician</span>
-          <span>Target</span>
-        </div>
-        <div class="adm-over-list">
-          <% overdueTasks.slice(0, 4).forEach(function (r) { var late = r.targetDate ? Math.max(1, diffDays(r.targetDate, todayISO())) : 0; %>
-            <a class="adm-over-row" href="/requests/<%= r.id %>">
-              <div class="adm-over-main">
-                <div class="adm-over-line">
-                  <span class="mono adm-over-code"><%= r.code %></span>
-                  <strong class="adm-over-title"><%= r.equipment ? r.equipment.name : r.title %></strong>
-                </div>
-                <span class="adm-over-sub"><% if (r.equipment) { %><%= r.equipment.code %> · <%= r.location %><% } else { %><%= [r.location, r.category ? r.category.name : ''].filter(Boolean).join(' · ') || r.title %><% } %></span>
-              </div>
-              <div class="adm-over-tech">
-                <% if (r.technician) { %>
-                  <%- include('partials/avatar', { user: r.technician, name: r.technician.name, size: 'xs', className: 'adm-avatar' }) %>
-                  <span class="ec-identity__name"><%= r.technician.name %></span>
-                <% } else { %>
-                  <span class="muted">Unassigned</span>
-                <% } %>
-              </div>
-              <div class="adm-over-target">
-                <span class="badge badge-red"><%= late %> day<%= late === 1 ? '' : 's' %> late</span>
-                <span class="adm-over-sub">Target <%= r.targetDate ? fmtDate(r.targetDate) : '—' %></span>
-              </div>
-            </a>
-          <% }) %>
-        </div>
-        <% if (overdueTasks.length > 4) { %>
-          <a class="adm-panel-foot" href="/requests?overdue=1">+<%= overdueTasks.length - 4 %> more overdue task<%= overdueTasks.length - 4 === 1 ? '' : 's' %></a>
-        <% } %>
-      <% } %>
-    </div>
+    <% if (!pendingApprovalRows.length) { %>
+      <p class="adm-empty"><%- ic('check-circle') %> No reports are waiting for approval.</p>
+    <% } else { %>
+      <div class="wf-list">
+        <% pendingApprovalRows.forEach(function (r) { var name = requestName(r); %>
+          <div class="workflow-row adm-wf-row">
+            <span class="wf-main">
+              <a class="mono wf-code" href="/requests/<%= r.id %>"><%= r.code %></a>
+              <strong><%= name.title %></strong>
+              <span class="muted"><%= name.sub %></span>
+            </span>
+            <span class="wf-meta">
+              <span class="<%= sc(S.pendingApproval) %>"><%= S.pendingApproval %></span>
+              <span class="muted">From <%= r.requester ? r.requester.name : 'Requester' %> · <%= dt(r.submittedAt || r.reportedAt || r.createdAt) %></span>
+            </span>
+            <span class="wf-action"><a class="btn btn-light btn-sm" href="/requests/<%= r.id %>">Review <%- ic('chevron-right') %></a></span>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
   </section>
 
-  <div class="adm-grid">
-    <!-- 3. Priority dispatch queue -->
-    <section class="adm-panel" aria-labelledby="adm-queue-title">
-      <div class="adm-panel-head">
-        <div class="adm-panel-title">
-          <span class="adm-icon-chip tone-primary"><%- icon('layers') %></span>
-          <h2 id="adm-queue-title">Priority Dispatch Queue</h2>
-        </div>
-        <a class="adm-panel-link" href="/requests?status=Pending">All pending <span class="adm-count"><%= stats.pending %></span></a>
+  <!-- 2. Awaiting Assignment (admin assigns inline) -->
+  <section class="adm-panel" id="awaiting-assignment" aria-labelledby="adm-awaiting-title">
+    <div class="adm-panel-head">
+      <div class="adm-panel-title">
+        <span class="adm-icon-chip tone-primary"><%- ic('user-check') %></span>
+        <h2 id="adm-awaiting-title">Awaiting Assignment</h2>
+        <span class="adm-count"><%= awaitingRows.length %></span>
       </div>
-      <div class="table-wrap adm-table-wrap adm-dispatch-desktop">
-        <table class="stack-table admin-ui-table adm-table">
-          <thead>
-            <tr>
-              <th class="au-left">Request &amp; equipment</th>
-              <th class="au-center">Priority</th>
-              <th class="au-center">Waiting</th>
-              <th class="au-left">Requested by</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% if (!queue.length) { %>
-              <tr><td colspan="4" class="empty full-cell au-center">No pending requests — the dispatch queue is clear.</td></tr>
-            <% } %>
-            <% queue.forEach(function (r) {
-              var waited = Math.max(0, diffDays(dateOnly(r.createdAt), todayISO()));
-              var requesterRole = { admin: 'Administrator', technician: 'Technician', requester: 'Requester' }[r.requester && r.requester.role] || '';
-            %>
-              <tr>
-                <td data-label="Request" class="au-left">
-                  <div class="adm-req-top">
-                    <a class="mono adm-req-code" href="/requests/<%= r.id %>"><%= r.code %></a>
-                    <span class="adm-req-title"><%= r.title %></span>
-                  </div>
-                  <span class="adm-req-sub">
-                    <% if (r.equipment) { %>
-                      <a href="/equipment/<%= r.equipment.id %>"><%= r.equipment.name %></a> · <%= r.equipment.code %> · <%= r.location %>
-                    <% } else { %><%= [r.category ? r.category.name : '', r.location].filter(Boolean).join(' · ') || 'General repair' %><% } %>
-                  </span>
-                </td>
-                <td data-label="Priority" class="au-center">
-                  <span class="<%= statusClass(r.effectivePriority) %>"><%= r.effectivePriority %></span>
-                  <span class="sub"><%= r.priority ? 'Set' : 'Auto' %> · score <%= r.rec.score %></span>
-                </td>
-                <td data-label="Waiting" class="au-center">
-                  <span class="adm-wait"><%= waited === 0 ? 'Today' : waited + ' day' + (waited === 1 ? '' : 's') %></span>
-                  <span class="sub">Submitted <%= fmtDate(r.createdAt) %></span>
-                </td>
-                <td data-label="Requested by" class="au-left">
-                  <span class="adm-requester"><%= r.requester ? r.requester.name : '—' %></span>
-                  <span class="sub"><%= r.requester ? (r.requester.department || requesterRole) : '' %></span>
-                </td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="adm-dispatch-mobile" aria-label="Priority dispatch queue mobile view">
-        <% if (!queue.length) { %>
-          <p class="adm-empty">No pending requests — the dispatch queue is clear.</p>
-        <% } else { %>
-          <div class="adm-dispatch-mobile-list">
-            <% queue.forEach(function (r, idx) {
-              var waited = Math.max(0, diffDays(dateOnly(r.createdAt), todayISO()));
-              var requesterRole = { admin: 'Administrator', technician: 'Technician', requester: 'Requester' }[r.requester && r.requester.role] || '';
-              var reqMeta = r.requester ? (r.requester.department || requesterRole) : '';
-            %>
-              <article class="adm-dispatch-card<%= idx >= 3 ? ' adm-mobile-limit' : '' %>">
-                <div class="adm-dispatch-card-head">
-                  <div class="adm-dispatch-card-id">
-                    <a class="mono adm-req-code" href="/requests/<%= r.id %>"><%= r.code %></a>
-                    <strong class="adm-dispatch-card-title"><%= r.title %></strong>
-                  </div>
-                  <span class="<%= statusClass(r.effectivePriority) %>"><%= r.effectivePriority %></span>
-                </div>
-                <div class="adm-dispatch-card-grid">
-                  <div class="adm-dispatch-kv">
-                    <span class="k">Equipment</span>
-                    <span class="v"><% if (r.equipment) { %><%= r.equipment.name %><% } else { %><%= r.category ? r.category.name : 'General repair' %><% } %></span>
-                  </div>
-                  <div class="adm-dispatch-kv">
-                    <span class="k">Location</span>
-                    <span class="v"><%= r.location || '—' %></span>
-                  </div>
-                  <div class="adm-dispatch-kv">
-                    <span class="k">Score</span>
-                    <span class="v"><%= r.priority ? 'Set' : 'Auto' %> · <%= r.rec.score %></span>
-                  </div>
-                  <div class="adm-dispatch-kv">
-                    <span class="k">Waiting</span>
-                    <span class="v"><%= waited === 0 ? 'Today' : waited + ' day' + (waited === 1 ? '' : 's') %></span>
-                  </div>
-                  <div class="adm-dispatch-kv">
-                    <span class="k">Submitted</span>
-                    <span class="v"><%= fmtDate(r.createdAt) %></span>
-                  </div>
-                  <div class="adm-dispatch-kv">
-                    <span class="k">Requested by</span>
-                    <span class="v"><%= r.requester ? r.requester.name : '—' %><% if (reqMeta) { %> · <%= reqMeta %><% } %></span>
-                  </div>
-                </div>
-                <div class="adm-dispatch-card-actions">
-                  <a class="btn btn-light btn-sm" href="/requests/<%= r.id %>">View Details</a>
-                </div>
-              </article>
-            <% }) %>
-          </div>
-          <% if (queue.length > 3) { %>
-            <a class="adm-panel-foot adm-dispatch-viewall" href="/requests?status=Pending">View All Pending Requests</a>
-          <% } %>
-        <% } %>
-      </div>
-    </section>
-
-    <div class="adm-side">
-      <!-- 2. Equipment status overview -->
-      <section class="adm-panel" aria-labelledby="adm-equipment-title">
-        <div class="adm-panel-head">
-          <div class="adm-panel-title">
-            <span class="adm-icon-chip tone-primary"><%- icon('monitor') %></span>
-            <h2 id="adm-equipment-title">Equipment Status</h2>
-          </div>
-          <a class="adm-panel-link" href="/equipment">All equipment</a>
-        </div>
-        <div class="adm-status-list">
-          <% equipmentByStatus.forEach(function (s) { %>
-            <a class="adm-status-row" href="/equipment?status=<%= encodeURIComponent(s.status) %>">
-              <span class="<%= statusClass(s.status) %>"><%= s.status %></span>
-              <span class="adm-status-count"><%= s.count %></span>
-            </a>
-          <% }) %>
-        </div>
-        <p class="adm-panel-foot"><%= totalEquipment %> equipment item<%= totalEquipment === 1 ? '' : 's' %> tracked on campus</p>
-      </section>
-
-      <!-- 4. Technician availability -->
-      <section class="adm-panel" aria-labelledby="adm-tech-title">
-        <div class="adm-panel-head">
-          <div class="adm-panel-title">
-            <span class="adm-icon-chip tone-primary"><%- icon('users') %></span>
-            <h2 id="adm-tech-title">Technician Availability</h2>
-          </div>
-          <a class="adm-panel-link" href="/technicians">Team</a>
-        </div>
-        <% if (!workload.length) { %>
-          <p class="adm-empty">No active technicians found.</p>
-        <% } else { %>
-          <% var maxWorkload = workload.reduce(function (max, w) { return Math.max(max, w.active); }, 1); %>
-          <div class="adm-tech-list">
-            <% workload.forEach(function (w) { %>
-              <a class="adm-tech-row" href="/technicians/<%= w.tech.id %>">
-                <%- include('partials/avatar', { user: w.tech, name: w.tech.name, size: 'sm', className: 'adm-avatar' }) %>
-                <span class="adm-tech-id">
-                  <span class="adm-tech-name">
-                    <strong><%= w.tech.name %></strong>
-                    <span class="<%= statusClass(w.tech.availability) %>"><%= w.tech.availability || 'Unknown' %></span>
-                  </span>
-                  <span class="adm-tech-meta"><%= w.tech.department || 'Maintenance Unit' %></span>
-                </span>
-                <span class="adm-tech-load" title="<%= w.active %> active assignment<%= w.active === 1 ? '' : 's' %>">
-                  <span class="adm-load-bar"><span style="width:<%= (w.active / maxWorkload * 100).toFixed(0) %>%"></span></span>
-                  <span class="adm-load-num"><%= w.active %></span>
-                </span>
-              </a>
-            <% }) %>
-          </div>
-        <% } %>
-      </section>
+      <a class="adm-panel-link" href="<%= statusUrl(S.awaitingAssignment) %>">View all <%- ic('chevron-right') %></a>
     </div>
-  </div>
-
-  <div class="adm-grid adm-grid-even">
-    <!-- 5. Maintenance schedule -->
-    <section class="adm-panel" aria-labelledby="adm-maint-title">
-      <div class="adm-panel-head">
-        <div class="adm-panel-title">
-          <span class="adm-icon-chip tone-teal"><%- icon('calendar') %></span>
-          <h2 id="adm-maint-title">Maintenance Schedule</h2>
-        </div>
-        <a class="adm-panel-link" href="/schedule">Full schedule</a>
+    <% if (!awaitingRows.length) { %>
+      <p class="adm-empty"><%- ic('check-circle') %> Nothing is waiting for a technician.</p>
+    <% } else { %>
+      <div class="wf-list">
+        <% awaitingRows.forEach(function (r) { var name = requestName(r); %>
+          <div class="workflow-row adm-wf-row">
+            <span class="wf-main">
+              <a class="mono wf-code" href="/requests/<%= r.id %>"><%= r.code %></a>
+              <strong><%= name.title %></strong>
+              <span class="muted"><%= name.sub %> · <%= r.requester ? r.requester.name : 'Requester' %> · <%= dt(r.approvedAt || r.submittedAt || r.createdAt) %></span>
+            </span>
+            <span class="wf-meta">
+              <span class="<%= sc(S.awaitingAssignment) %>"><%= S.awaitingAssignment %></span>
+              <% if (r.effectivePriority) { %><span class="muted"><%= r.effectivePriority %> priority</span><% } %>
+            </span>
+            <span class="wf-action">
+              <% if (availableTechs.length) { %>
+                <form method="post" action="/requests/<%= r.id %>/assign" class="wf-assign-form">
+                  <label class="wf-label" for="assign-tech-<%= r.id %>">Technician</label>
+                  <select data-ec-select="1" id="assign-tech-<%= r.id %>" name="technicianId" required>
+                    <option value="">Choose available technician…</option>
+                    <% availableTechs.forEach(function (t) { %>
+                      <option value="<%= t.id %>"><%= t.name %> · <%= t.activeCount %> active<%= t.activeCount === 1 ? '' : 's' %></option>
+                    <% }) %>
+                  </select>
+                  <label class="wf-label" for="assign-target-<%= r.id %>">Target date</label>
+                  <input type="date" id="assign-target-<%= r.id %>" name="targetDate" min="<%= today %>" value="<%= r.targetDate || '' %>">
+                  <button class="btn btn-primary btn-sm" type="submit"><%- ic('user-check') %> Assign</button>
+                </form>
+              <% } else { %>
+                <span class="muted">No available technicians. <a href="/technicians">Manage team</a></span>
+              <% } %>
+              <a class="btn btn-light btn-sm" href="/requests/<%= r.id %>">Details</a>
+            </span>
+          </div>
+        <% }) %>
       </div>
-      <% if (!maintenanceDue.length) { %>
-        <p class="adm-empty"><%- icon('check-circle') %> No preventive maintenance is due in the coming weeks.</p>
-      <% } else { %>
-        <div class="adm-maint-list">
-          <% maintenanceDue.forEach(function (s, idx) { %>
-            <a class="adm-maint-row<%= idx >= 3 ? ' adm-mobile-limit' : '' %>" href="/equipment/<%= s.equipment.id %>">
-              <span class="adm-maint-ic"><%- icon('wrench') %></span>
-              <span class="adm-maint-main">
-                <strong><%= s.equipment.name %></strong>
-                <span class="adm-maint-sub"><%= s.equipment.code %> · <%= s.equipment.location %><% if (s.intervalLabel) { %> · <%= s.intervalLabel %><% } %></span>
-              </span>
-              <span class="adm-maint-due">
-                <span class="<%= statusClass(s.status) %>"><%= s.status %></span>
-                <span class="adm-maint-sub"><%= fmtDate(s.nextDue) %><% if (s.daysLeft === 0) { %> · today<% } else { %> · in <%= s.daysLeft %> day<%= s.daysLeft === 1 ? '' : 's' %><% } %></span>
-              </span>
-            </a>
-          <% }) %>
-        </div>
-        <% if (maintenanceDue.length > 3) { %>
-          <a class="adm-panel-foot adm-maint-viewall" href="/schedule">View Full Schedule</a>
-        <% } %>
-      <% } %>
-    </section>
+    <% } %>
+  </section>
 
-    <!-- 7. Recent system activity -->
-    <section class="adm-panel" aria-labelledby="adm-activity-title">
-      <div class="adm-panel-head">
-        <div class="adm-panel-title">
-          <span class="adm-icon-chip tone-primary"><%- icon('history') %></span>
-          <h2 id="adm-activity-title">Recent System Activity</h2>
-        </div>
-        <span class="adm-panel-note">Latest <%= activity.length %></span>
+  <!-- 3. Active Tasks -->
+  <section class="adm-panel" id="active-tasks" aria-labelledby="adm-active-title">
+    <div class="adm-panel-head">
+      <div class="adm-panel-title">
+        <span class="adm-icon-chip tone-blue"><%- ic('wrench') %></span>
+        <h2 id="adm-active-title">Active Tasks</h2>
+        <span class="adm-count"><%= activeRows.length %></span>
       </div>
-      <% if (!activity || !activity.length) { %>
-        <p class="adm-empty">No system activity recorded yet.</p>
-      <% } else { %>
-        <ol class="adm-timeline">
-          <% activity.forEach(function (a, idx) { var u = getUser(a.userId); var meta = activityMeta(a); %>
-            <li class="adm-tl-item tone-<%= meta.tone %><%= idx >= 5 ? ' adm-mobile-limit' : '' %>">
-              <span class="adm-tl-dot"><%- icon(meta.icon) %></span>
-              <div class="adm-tl-body">
-                <p class="adm-tl-title">
-                  <%= a.action %><% if (a.fromStatus && a.toStatus) { %> <span class="adm-tl-transition"><%= a.fromStatus %> → <%= a.toStatus %></span><% } %>
-                </p>
-                <% if (a.details) { %><p class="adm-tl-detail" title="<%= a.details %>"><%= a.details %></p><% } %>
-                <span class="adm-tl-meta"><%= u ? u.name : 'System' %> · <%= timeAgo(a.createdAt) %></span>
-              </div>
-            </li>
-          <% }) %>
-        </ol>
-        <% if (activity.length > 5) { %>
-          <a class="adm-panel-foot adm-activity-viewall" href="/history">View All Activities</a>
-        <% } %>
-      <% } %>
-    </section>
-  </div>
+      <a class="adm-panel-link" href="/requests?status=active">View all <%- ic('chevron-right') %></a>
+    </div>
+    <% if (!activeRows.length) { %>
+      <p class="adm-empty"><%- ic('check-circle') %> No repair work is currently active.</p>
+    <% } else { %>
+      <div class="wf-list">
+        <% activeRows.forEach(function (r) { var name = requestName(r); %>
+          <div class="workflow-row adm-wf-row">
+            <span class="wf-main">
+              <a class="mono wf-code" href="/requests/<%= r.id %>"><%= r.code %></a>
+              <strong><%= name.title %></strong>
+              <span class="muted"><%= name.sub %></span>
+            </span>
+            <span class="wf-meta">
+              <span class="<%= sc(r.status) %>"><%= r.status %></span>
+              <span class="muted"><%= r.technician ? r.technician.name : 'Unassigned' %><% if (r.targetDate) { %> · Due <%= dtOnly(r.targetDate) %><% } %></span>
+            </span>
+            <span class="wf-action"><a class="btn btn-light btn-sm" href="/requests/<%= r.id %>">Open <%- ic('chevron-right') %></a></span>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- 4. Completed Requests -->
+  <section class="adm-panel" id="completed-requests" aria-labelledby="adm-completed-title">
+    <div class="adm-panel-head">
+      <div class="adm-panel-title">
+        <span class="adm-icon-chip tone-green"><%- ic('check-circle') %></span>
+        <h2 id="adm-completed-title">Completed Requests</h2>
+        <span class="adm-count"><%= completedRows.length %></span>
+      </div>
+      <a class="adm-panel-link" href="<%= statusUrl(S.completed) %>">View all <%- ic('chevron-right') %></a>
+    </div>
+    <% if (!completedRows.length) { %>
+      <p class="adm-empty"><%- ic('check-circle') %> No completed repairs yet.</p>
+    <% } else { %>
+      <div class="wf-list">
+        <% completedRows.forEach(function (r) { var name = requestName(r); %>
+          <div class="workflow-row adm-wf-row">
+            <span class="wf-main">
+              <a class="mono wf-code" href="/requests/<%= r.id %>"><%= r.code %></a>
+              <strong><%= name.title %></strong>
+              <span class="muted">Completed <%= dt(r.completedAt) %> · <%= workSummary(r) %></span>
+              <span class="wf-links">
+                <a href="/requests/<%= r.id %>#docs"><%- ic('camera') %> Completion photos</a>
+                <a href="/requests/<%= r.id %>#timeline"><%- ic('history') %> Full history</a>
+              </span>
+            </span>
+            <span class="wf-meta">
+              <span class="<%= sc(S.completed) %>"><%= S.completed %></span>
+              <span class="<%= sc(r.verificationStatus || 'Not Submitted') %>"><%= r.verificationStatus || 'Not Submitted' %></span>
+              <span class="muted"><%= r.technician ? r.technician.name : '—' %></span>
+            </span>
+            <span class="wf-action"><a class="btn btn-light btn-sm" href="/requests/<%= r.id %>">Report <%- ic('chevron-right') %></a></span>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- 5. Rejected Requests -->
+  <section class="adm-panel" id="rejected-requests" aria-labelledby="adm-rejected-title">
+    <div class="adm-panel-head">
+      <div class="adm-panel-title">
+        <span class="adm-icon-chip tone-red"><%- ic('x-circle') %></span>
+        <h2 id="adm-rejected-title">Rejected Requests</h2>
+        <span class="adm-count"><%= rejectedRows.length %></span>
+      </div>
+      <a class="adm-panel-link" href="<%= statusUrl(S.rejected) %>">View all <%- ic('chevron-right') %></a>
+    </div>
+    <% if (!rejectedRows.length) { %>
+      <p class="adm-empty"><%- ic('check-circle') %> No rejected requests.</p>
+    <% } else { %>
+      <div class="wf-list">
+        <% rejectedRows.forEach(function (r) { var name = requestName(r); %>
+          <div class="workflow-row adm-wf-row">
+            <span class="wf-main">
+              <a class="mono wf-code" href="/requests/<%= r.id %>"><%= r.code %></a>
+              <strong><%= name.title %></strong>
+              <span class="muted">Reason: <%= r.rejectionReason || 'No reason recorded' %></span>
+            </span>
+            <span class="wf-meta">
+              <span class="<%= sc(S.rejected) %>"><%= S.rejected %></span>
+              <span class="muted"><%= r.rejectedAt ? dt(r.rejectedAt) : '—' %></span>
+            </span>
+            <span class="wf-action"><a class="btn btn-light btn-sm" href="/requests/<%= r.id %>">Details <%- ic('chevron-right') %></a></span>
+          </div>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- Technician availability summary -->
+  <section class="adm-panel" id="technician-availability" aria-labelledby="adm-tech-title">
+    <div class="adm-panel-head">
+      <div class="adm-panel-title">
+        <span class="adm-icon-chip tone-primary"><%- ic('users') %></span>
+        <h2 id="adm-tech-title">Technician Availability</h2>
+        <span class="adm-count"><%= techs.length %></span>
+      </div>
+      <a class="adm-panel-link" href="/technicians">Manage team <%- ic('chevron-right') %></a>
+    </div>
+    <% if (!techs.length) { %>
+      <p class="adm-empty">No active technicians found.</p>
+    <% } else { %>
+      <% var maxLoad = techs.reduce(function (max, t) { return Math.max(max, Number(t.activeCount) || 0); }, 1); %>
+      <div class="adm-tech-list">
+        <% techs.forEach(function (t) { var load = Number(t.activeCount) || 0; %>
+          <a class="adm-tech-row" href="/technicians/<%= t.id %>">
+            <span class="adm-tech-id">
+              <span class="adm-tech-name">
+                <strong><%= t.name %></strong>
+                <span class="<%= sc(t.availability || 'Unknown') %>"><%= t.availability || 'Unknown' %></span>
+              </span>
+              <span class="adm-tech-meta">Active assignments</span>
+            </span>
+            <span class="adm-tech-load" title="<%= load %> active assignment<%= load === 1 ? '' : 's' %>">
+              <span class="adm-load-bar"><span style="width:<%= maxLoad ? (load / maxLoad * 100).toFixed(0) : 0 %>%"></span></span>
+              <span class="adm-load-num"><%= load %></span>
+            </span>
+          </a>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
 </div>
 <%- include('partials/footer') %>

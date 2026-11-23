@@ -14,10 +14,12 @@ function enrichRequest(r) {
       : null;
   const rec = computePriority(r, equipment);
   const location = r.location || (equipment && equipment.location) || '';
+  const status = C.normalizeStatus(r.status, r);
   // First photo sent with the report, shown as the card thumbnail.
   const photo = db.all('attachments').find((a) => a.requestId === r.id && a.stage === 'before') || null;
   return {
     ...r,
+    status,
     photo,
     equipment,
     category,
@@ -26,7 +28,7 @@ function enrichRequest(r) {
     technician: r.technicianId ? db.find('users', r.technicianId) : null,
     rec,
     effectivePriority: r.priority || rec.level,
-    isOpen: C.OPEN_STATUSES.includes(r.status),
+    isOpen: C.OPEN_STATUSES.includes(status),
     overdue: isOverdueRequest(r),
   };
 }

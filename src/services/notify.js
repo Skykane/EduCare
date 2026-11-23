@@ -1,5 +1,7 @@
 // Feature 13: Notifications and Reminders with real email forwarding
 const db = require('../db');
+const C = require('../constants');
+
 let mailer = null;
 function getMailer() {
   if (!mailer) {
@@ -14,6 +16,21 @@ function getMailer() {
 
 function adminIds() {
   return db.where('users', (u) => u.role === 'admin' && u.active).map((u) => u.id);
+}
+
+// Canonical status wording for notifications. Legacy labels are never shown.
+function statusLabel(status, request = null) {
+  const value = C.normalizeStatus(status, request);
+  return value === undefined || value === null || value === '' ? 'Status updated' : String(value);
+}
+
+function statusChangeMessage(code, from, to, actorName, request = null) {
+  const label = code ? `${code} ` : '';
+  const actor = actorName ? ` (by ${actorName})` : '';
+  const fromLabel = from === undefined || from === null || from === ''
+    ? ''
+    : `${statusLabel(from, request)} → `;
+  return `${label}status changed: ${fromLabel}${statusLabel(to, request)}${actor}.`;
 }
 
 // Notification messages include user-entered text (titles, reasons, remarks).
@@ -74,4 +91,4 @@ function unreadCount(userId) {
   return db.where('notifications', (n) => n.userId === userId && !n.read).length;
 }
 
-module.exports = { notify, adminIds, unreadCount };
+module.exports = { notify, adminIds, unreadCount, statusLabel, statusChangeMessage };

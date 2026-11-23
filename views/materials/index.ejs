@@ -15,7 +15,7 @@
         <div><span class="eyebrow">Elapsed Repair Time</span><strong><%= detail.elapsedLabel %></strong></div>
         <div><span class="eyebrow">Repair Status</span><span class="badge badge-blue"><%= detail.request.status %></span></div>
         <div><span class="eyebrow">Verification</span><span class="badge badge-amber"><%= detail.request.verificationStatus || 'Not Submitted' %></span></div>
-        <div><span class="eyebrow">Reported</span><strong><%= fmtManila(detail.request.reportedAt || detail.request.createdAt) %></strong></div>
+        <div><span class="eyebrow">Date Submitted</span><strong><%= fmtManila(detail.request.submittedAt || detail.request.reportedAt || detail.request.createdAt) %></strong></div>
       </div>
     </section>
     <p style="margin:14px 0"><a class="btn btn-sm btn-primary" href="/requests/<%= detail.request.id %>#materials"><%- icon('clipboard') %> View Full Repair</a></p>

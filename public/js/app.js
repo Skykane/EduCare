@@ -245,6 +245,33 @@ document.addEventListener('DOMContentLoaded', function () {
     update();
   });
 
+  // Severity checklist behaves like a single-choice group: ticking one clears
+  // the others, and the always-visible tick is the only thing users manage.
+  document.querySelectorAll('input[name="severity"][type="checkbox"]').forEach(function (box) {
+    var sync = function () {
+      var grid = box.closest('.sev-grid');
+      if (!grid) return;
+      grid.querySelectorAll('.sev').forEach(function (label) {
+        var input = label.querySelector('input[name="severity"]');
+        label.classList.toggle('checked', !!(input && input.checked));
+      });
+    };
+    box.addEventListener('change', function () {
+      var grid = box.closest('.sev-grid');
+      if (!grid) return;
+      if (!box.checked) {
+        // Keep exactly one option selected so the form always has a severity.
+        box.checked = true;
+        return;
+      }
+      grid.querySelectorAll('input[name="severity"][type="checkbox"]').forEach(function (other) {
+        if (other !== box) other.checked = false;
+      });
+      sync();
+    });
+    sync();
+  });
+
   // ---------- Submit Request: 3-step form (Details, Photo, Review) ----------
   var wizard = document.getElementById('report-form');
   if (wizard) setupWizard(wizard);
@@ -1172,6 +1199,9 @@ function setupWizard(form) {
     if (!picker) return;
     picker.addEventListener('change', function () { add(picker.files); picker.value = ''; });
   });
+  // The plain file input is the no-JavaScript fallback, but it should also work
+  // when JS is on (e.g. when the DataTransfer API is unavailable).
+  if (input) input.addEventListener('change', function () { add(input.files); });
   if (clear) clear.addEventListener('click', function () {
     if (files.length && typeof window.confirm === 'function' && !window.confirm('Remove all selected photos?')) return;
     files = [];

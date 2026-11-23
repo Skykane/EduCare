@@ -56,13 +56,12 @@
         </select>
       </div>
     </div>
-    <% if (currentUser && currentUser.role === 'admin') { %>
     <div class="field">
       <span class="label">How serious is the problem?</span>
-      <div class="sev-grid" role="radiogroup" aria-label="Severity">
-        <% Object.keys(sev).forEach(function (k) { var s = sev[k]; var on = Number(values.severity) === Number(k); %>
+      <div class="sev-grid sev-grid-3" role="group" aria-label="Severity">
+        <% [1, 2, 3].forEach(function (k) { var s = sev[k]; var on = Number(values.severity) === Number(k) || (!values.severity && Number(k) === 2); %>
           <label class="sev sev-<%= k %> <%= on ? 'checked' : '' %>">
-            <input type="radio" name="severity" value="<%= k %>" <%= on ? 'checked' : '' %> onchange="document.querySelectorAll('.sev').forEach(function(el){el.classList.remove('checked')}); this.closest('.sev').classList.add('checked')">
+            <input type="checkbox" name="severity" value="<%= k %>" <%= on ? 'checked' : '' %>>
             <span class="sev-tick"><%- icon('check') %></span>
             <span class="sev-ic"><%- icon(s.icon) %></span>
             <strong><%= s.label %></strong>
@@ -71,7 +70,6 @@
         <% }) %>
       </div>
     </div>
-    <% } %>
     <div class="field">
       <label for="description">Additional Details</label>
       <textarea id="description" name="description" maxlength="1000" placeholder="Describe the issue in detail. What happened? When did it start? Any error messages, sounds, or smells?"><%= values.description || '' %></textarea>
@@ -84,9 +82,11 @@
     <div class="photo-step-heading"><div><h2>Step 2: Add Photo</h2><p>Attach a clear photo of the issue (optional). Up to 1 photo, 5 MB.</p></div></div>
     <input type="file" id="photos" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" class="photos-input">
     <div class="js-only">
-      <div class="photo-dropzone dropzone" role="button" tabindex="0" aria-label="Take a photo or choose one from gallery">
+      <div class="photo-dropzone dropzone" role="button" tabindex="0" aria-label="Take a photo or upload one from your device">
         <%- icon('camera') %><strong>Tap to take a photo</strong>
-        <span>or <button type="button" class="photo-gallery-trigger">choose from gallery</button> — you can also<br> drop images here</span>
+        <span>or upload one from your device</span>
+        <button type="button" class="photo-gallery-trigger photo-upload-trigger"><%- icon('upload') %> Upload photo</button>
+        <span class="photo-drop-hint">You can also drop images here</span>
       </div>
       <input type="file" id="pick-camera" accept="image/*" capture="environment" hidden>
       <input type="file" id="pick-gallery" accept="image/jpeg,image/png,image/gif,image/webp" hidden>
@@ -107,9 +107,7 @@
       <li><%- icon('tag') %><span><small>Problem</small><strong data-review="title">—</strong></span><button type="button" class="link-btn" data-go="1">Edit</button></li>
       <li><%- icon('map-pin') %><span><small>Room / Area</small><strong data-review="location">—</strong></span></li>
       <li><%- icon('layers') %><span><small>Category</small><strong data-review="category">—</strong></span></li>
-      <% if (currentUser && currentUser.role === 'admin') { %>
       <li><%- icon('alert') %><span><small>Severity</small><strong data-review="severity">—</strong></span></li>
-      <% } %>
       <li><%- icon('file') %><span><small>Description</small><strong data-review="description" class="pre">—</strong></span></li>
       <li><%- icon('paperclip') %><span><small>Attached Photos</small><span data-review="photos" class="review-photos">No photo attached</span></span><button type="button" class="link-btn" data-go="2">Edit</button></li>
     </ul>

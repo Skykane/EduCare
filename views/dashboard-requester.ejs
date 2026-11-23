@@ -2,6 +2,24 @@
 <div class="dash student-dashboard">
   <!-- Reference Style Header Page Banner -->
   <%
+    var S = {
+      pendingApproval: 'Pending Approval',
+      awaitingAssignment: 'Approved – Awaiting Assignment',
+      assigned: 'Assigned',
+      inProgress: 'In Progress',
+      onHold: 'On Hold',
+      completed: 'Completed',
+      rejected: 'Rejected'
+    };
+    var statusList = [
+      S.pendingApproval, S.awaitingAssignment, S.assigned,
+      S.inProgress, S.onHold, S.completed, S.rejected
+    ];
+    function ic(name) { return typeof icon === 'function' ? icon(name) : ''; }
+    function listOrEmpty(value) { return Array.isArray(value) ? value : []; }
+    function statusUrl(status) { return '/requests?status=' + encodeURIComponent(status); }
+
+    // The icon is emitted through the helper, not a JS template literal.
     var reqExtraActions = `
       <div class="student-help-wrap">
         <button type="button" class="student-help-trigger" id="studentHelpTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="studentHelpPopover" aria-label="How repair requests work">
@@ -33,7 +51,7 @@
               <span class="step-num">3</span>
               <div class="process-step-body">
                 <strong>Technician Assigned</strong>
-                <p class="muted">A technician will be assigned with a target completion date.</p>
+                <p class="muted">Once approved, a technician is assigned to your request.</p>
               </div>
             </div>
             <div class="process-step is-final">
@@ -46,8 +64,17 @@
           </div>
         </div>
       </div>
-      <a href="/requests/new" class="btn-banner-sub">${icon('plus')} Report Issue</a>
     `;
+    reqExtraActions += '<a href="/requests/new" class="btn-banner-sub">' + ic('plus') + ' Report Issue</a>';
+
+    var ownRequests = listOrEmpty(typeof requests !== 'undefined' ? requests : null);
+    if (!ownRequests.length) ownRequests = listOrEmpty(typeof recentRequests !== 'undefined' ? recentRequests : null);
+    var totalCount = (typeof total !== 'undefined' && typeof total === 'number') ? total : ownRequests.length;
+    var statusCounts = {};
+    statusList.forEach(function (s) {
+      statusCounts[s] = ownRequests.filter(function (r) { return r && r.status === s; }).length;
+      if (typeof summary !== 'undefined' && summary && typeof summary[s] === 'number') statusCounts[s] = summary[s];
+    });
   %>
   <%- include('partials/header-banner', {
     breadcrumb: 'Home',
@@ -57,38 +84,75 @@
   }) %>
 
   <!-- Status Summary Metrics -->
-  <div class="istats istats-3 student-summary">
-    <a class="istat amber" href="/requests?status=Pending">
-      <span class="istat-ic"><%- icon('clock') %></span>
+  <div class="istats student-summary">
+    <a class="istat amber" href="<%= statusUrl(S.pendingApproval) %>">
+      <span class="istat-ic"><%- ic('clock') %></span>
       <div class="istat-inline-content">
         <div class="istat-top-line">
-          <span class="istat-num"><%= summary.pending %></span>
-          <span class="istat-label">Assigned / Awaiting Repair</span>
+          <span class="istat-num"><%= statusCounts[S.pendingApproval] %></span>
+          <span class="istat-label">Pending Approval</span>
         </div>
-        <span class="istat-sub">Technician assigned, work not started</span>
+        <span class="istat-sub">Awaiting administrator review</span>
+      </div>
+    </a>
+    <a class="istat amber" href="<%= statusUrl(S.awaitingAssignment) %>">
+      <span class="istat-ic"><%- ic('user-check') %></span>
+      <div class="istat-inline-content">
+        <div class="istat-top-line">
+          <span class="istat-num"><%= statusCounts[S.awaitingAssignment] %></span>
+          <span class="istat-label">Awaiting Assignment</span>
+        </div>
+        <span class="istat-sub">Approved, choosing a technician</span>
       </div>
     </a>
     <a class="istat blue" href="/requests?status=active">
-      <span class="istat-ic"><%- icon('wrench') %></span>
+      <span class="istat-ic"><%- ic('wrench') %></span>
       <div class="istat-inline-content">
         <div class="istat-top-line">
-          <span class="istat-num"><%= summary.inProgress %></span>
-          <span class="istat-label">In Progress / Assigned</span>
+          <span class="istat-num"><%= statusCounts[S.assigned] + statusCounts[S.inProgress] + statusCounts[S.onHold] %></span>
+          <span class="istat-label">Active Work</span>
         </div>
-        <span class="istat-sub">Technician is working on it</span>
+        <span class="istat-sub">Assigned, in progress, or on hold</span>
       </div>
     </a>
-    <a class="istat green" href="/requests?status=Completed">
-      <span class="istat-ic"><%- icon('check-circle') %></span>
+    <a class="istat green" href="<%= statusUrl(S.completed) %>">
+      <span class="istat-ic"><%- ic('check-circle') %></span>
       <div class="istat-inline-content">
         <div class="istat-top-line">
-          <span class="istat-num"><%= summary.completed %></span>
-          <span class="istat-label">Resolved & Completed</span>
+          <span class="istat-num"><%= statusCounts[S.completed] %></span>
+          <span class="istat-label">Completed</span>
         </div>
         <span class="istat-sub">Repairs finished successfully</span>
       </div>
     </a>
+    <a class="istat red" href="<%= statusUrl(S.rejected) %>">
+      <span class="istat-ic"><%- ic('x-circle') %></span>
+      <div class="istat-inline-content">
+        <div class="istat-top-line">
+          <span class="istat-num"><%= statusCounts[S.rejected] %></span>
+          <span class="istat-label">Rejected</span>
+        </div>
+        <span class="istat-sub">Reviewed and declined</span>
+      </div>
+    </a>
   </div>
+
+  <!-- All seven canonical statuses -->
+  <section class="card student-status-overview" aria-labelledby="student-status-heading">
+    <div class="card-head">
+      <div>
+        <h2 id="student-status-heading">Status Overview</h2>
+        <p class="muted">Every report moves through one of these seven statuses.</p>
+      </div>
+    </div>
+    <div class="status-overview-list">
+      <% statusList.forEach(function (s) { %>
+        <a class="tag tag-sm status-overview-item<%= statusCounts[s] ? ' is-active' : '' %>" href="<%= statusUrl(s) %>">
+          <%= s %> <span class="adm-count"><%= statusCounts[s] %></span>
+        </a>
+      <% }) %>
+    </div>
+  </section>
 
   <!-- Main Requester Layout Grid -->
   <div class="grid grid-main student-layout">
@@ -98,12 +162,12 @@
           <h2 id="student-recent-heading">My Recent Requests</h2>
           <p class="muted">Latest repair tickets submitted from your account.</p>
         </div>
-        <% if (total > 0) { %>
-          <a href="/requests" class="btn btn-light btn-sm student-recent-viewall">View All <span class="student-recent-viewall-count">(<%= total %>)</span></a>
+        <% if (totalCount > 0) { %>
+          <a href="/requests" class="btn btn-light btn-sm student-recent-viewall">View All <span class="student-recent-viewall-count">(<%= totalCount %>)</span></a>
         <% } %>
       </div>
 
-      <% if (!recentRequests.length) { %>
+      <% if (!ownRequests.length) { %>
         <div class="empty-state student-empty-state">
           <span class="empty-ic"><%- icon('file') %></span>
           <strong>No requests submitted yet</strong>
@@ -112,7 +176,7 @@
       <% } else { %>
         <div class="student-recent-scroll">
           <div class="student-request-list" role="list">
-            <% recentRequests.forEach(function (r) { %>
+            <% ownRequests.slice(0, 6).forEach(function (r) { %>
               <%
                 var eq = r.equipment;
                 var catName = r.category ? r.category.name : '';
@@ -163,12 +227,22 @@
                   </div>
                   <div class="srcard-detail">
                     <span class="srcard-detail-label"><%- icon('calendar') %> Submitted</span>
-                    <span class="srcard-detail-value"><%= fmtDateTime(r.createdAt) %></span>
+                    <span class="srcard-detail-value"><%= fmtDateTime(r.submittedAt || r.createdAt) %></span>
+                  </div>
+                  <div class="srcard-detail">
+                    <span class="srcard-detail-label"><%- icon('refresh') %> Updated</span>
+                    <span class="srcard-detail-value"><%= fmtDateTime(r.updatedAt || r.submittedAt || r.createdAt) %></span>
                   </div>
                   <div class="srcard-detail">
                     <span class="srcard-detail-label"><%- icon('clock') %> Target Completion</span>
                     <span class="srcard-detail-value"><%= r.targetDate ? fmtDate(r.targetDate) : 'Not set' %></span>
                   </div>
+                  <% if (r.status === S.rejected) { %>
+                    <div class="srcard-detail srcard-rejection">
+                      <span class="srcard-detail-label"><%- icon('x-circle') %> Rejection reason</span>
+                      <span class="srcard-detail-value"><%= r.rejectionReason || 'No reason recorded' %><% if (r.rejectedAt) { %> · <%= fmtDateTime(r.rejectedAt) %><% } %></span>
+                    </div>
+                  <% } %>
                 </div>
               </a>
             <% }) %>

@@ -115,9 +115,31 @@ async function run() {
   const studentAccount = raw.users.find((u) => u.role === 'requester');
 
   // Expected dashboard figures derived from the copied DB, not hard-coded.
-  const pending = raw.requests.filter((r) => r.status === 'Pending').length;
-  const active = raw.requests.filter((r) => ['Assigned', 'In Progress', 'On Hold'].includes(r.status)).length;
-  const completed = raw.requests.filter((r) => r.status === 'Completed').length;
+  // Older sample rows still carry legacy labels, so normalize before counting.
+  function canonicalStatus(r) {
+    switch (r.status) {
+      case 'Reported': return 'Pending Approval';
+      case 'Approved': return 'Approved – Awaiting Assignment';
+      case 'Pending': return r.technicianId ? 'Assigned' : 'Pending Approval';
+      case 'Nearing Completion': return 'In Progress';
+      case 'Cancelled': return 'Rejected';
+      default: return r.status;
+    }
+  }
+  const pending = raw.requests.filter((r) => canonicalStatus(r) === 'Pending Approval').length;
+  const awaiting = raw.requests.filter((r) => canonicalStatus(r) === 'Approved – Awaiting Assignment').length;
+  const active = raw.requests.filter((r) => ['Assigned', 'In Progress', 'On Hold'].includes(canonicalStatus(r))).length;
+  const completed = raw.requests.filter((r) => canonicalStatus(r) === 'Completed').length;
+
+  const studentRequests = studentAccount ? raw.requests.filter((r) => r.requesterId === studentAccount.id) : [];
+  const studentPending = studentRequests.filter((r) => canonicalStatus(r) === 'Pending Approval').length;
+  const studentActive = studentRequests.filter((r) => ['Assigned', 'In Progress', 'On Hold'].includes(canonicalStatus(r))).length;
+  const studentCompleted = studentRequests.filter((r) => canonicalStatus(r) === 'Completed').length;
+
+  const techAccount = raw.users.find((u) => u.email === 'joverttorres1@gmail.com');
+  const techRequests = techAccount ? raw.requests.filter((r) => r.technicianId === techAccount.id) : [];
+  const techAssigned = techRequests.filter((r) => canonicalStatus(r) === 'Assigned').length;
+  const techActive = techRequests.filter((r) => ['In Progress', 'On Hold'].includes(canonicalStatus(r))).length;
 
   try {
     const ready = await waitForServer();
@@ -130,9 +152,10 @@ async function run() {
 
     let page = await text('/');
     check('Admin dashboard renders', page.status === 200);
-    check(`Admin pending count = ${pending}`, stat(page.body, 'Pending Approval', true) === pending, `got ${stat(page.body, 'Pending Approval', true)}`);
-    check(`Admin active work orders = ${active}`, stat(page.body, 'Active Work Orders', true) === active, `got ${stat(page.body, 'Active Work Orders', true)}`);
-    check(`Admin completed this month = ${completed}`, stat(page.body, 'Completed This Month', true) === completed, `got ${stat(page.body, 'Completed This Month', true)}`);
+    check(`Admin pending approval count = ${pending}`, stat(page.body, 'Pending Approval', true) === pending, `got ${stat(page.body, 'Pending Approval', true)}`);
+    check(`Admin awaiting assignment count = ${awaiting}`, stat(page.body, 'Awaiting Assignment', true) === awaiting, `got ${stat(page.body, 'Awaiting Assignment', true)}`);
+    check(`Admin active tasks = ${active}`, stat(page.body, 'Active Tasks', true) === active, `got ${stat(page.body, 'Active Tasks', true)}`);
+    check(`Admin completed requests = ${completed}`, stat(page.body, 'Completed Requests', true) === completed, `got ${stat(page.body, 'Completed Requests', true)}`);
 
     // Equipment inventory + search + filters
     page = await text('/equipment');
@@ -229,8 +252,8 @@ async function run() {
 
     page = await text('/');
     check('Technician dashboard renders after change', page.status === 200);
-    check('Tech assigned count = 0 (requests intentionally unassigned)', stat(page.body, 'New / Assigned') === 0, `got ${stat(page.body, 'New / Assigned')}`);
-    check('Tech in-progress count = 0', stat(page.body, 'In Progress / On Hold') === 0, `got ${stat(page.body, 'In Progress / On Hold')}`);
+    check(`Tech assigned count = ${techAssigned}`, stat(page.body, 'Assigned') === techAssigned, `got ${stat(page.body, 'Assigned')}`);
+    check(`Tech in-progress count = ${techActive}`, stat(page.body, 'In Progress / On Hold') === techActive, `got ${stat(page.body, 'In Progress / On Hold')}`);
 
     for (const url of ['/schedule', '/history', '/requests', '/equipment']) {
       const p = await text(url);
@@ -249,9 +272,9 @@ async function run() {
     check('Directory student login succeeds', res.status === 302, `status ${res.status}`);
     page = await text('/');
     check('Student dashboard renders', page.status === 200);
-    check(`Student pending count = ${pending}`, stat(page.body, 'Pending Approval') === pending, `got ${stat(page.body, 'Pending Approval')}`);
-    check(`Student in-progress count = ${active}`, stat(page.body, 'In Progress / Assigned') === active, `got ${stat(page.body, 'In Progress / Assigned')}`);
-    check(`Student completed count = ${completed}`, stat(page.body, 'Resolved & Completed') === completed, `got ${stat(page.body, 'Resolved & Completed')}`);
+    check(`Student pending count = ${studentPending}`, stat(page.body, 'Pending Approval') === studentPending, `got ${stat(page.body, 'Pending Approval')}`);
+    check(`Student active work count = ${studentActive}`, stat(page.body, 'Active Work') === studentActive, `got ${stat(page.body, 'Active Work')}`);
+    check(`Student completed count = ${studentCompleted}`, stat(page.body, 'Completed') === studentCompleted, `got ${stat(page.body, 'Completed')}`);
 
     page = await text('/requests');
     check('Student sees only their requests', page.status === 200 && reqCodes.every((c) => page.body.includes(c)));

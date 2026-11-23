@@ -59,13 +59,12 @@
     </div>
   </div>
 
-  <% if (currentUser && currentUser.role === 'admin') { %>
   <div class="field">
     <span class="label">How serious is the problem?</span>
-    <div class="sev-grid" role="radiogroup" aria-label="Severity">
-      <% Object.keys(sev).forEach(function (k) { var s = sev[k]; var on = Number(r.severity) === Number(k); %>
+    <div class="sev-grid sev-grid-3" role="group" aria-label="Severity">
+      <% [1, 2, 3].forEach(function (k) { var s = sev[k]; var on = Number(r.severity) === Number(k) || (!r.severity && Number(k) === 2); %>
         <label class="sev sev-<%= k %> <%= on ? 'checked' : '' %>">
-          <input type="radio" name="severity" value="<%= k %>" <%= on ? 'checked' : '' %> onchange="document.querySelectorAll('.sev').forEach(function(el){el.classList.remove('checked')}); this.closest('.sev').classList.add('checked')">
+          <input type="checkbox" name="severity" value="<%= k %>" <%= on ? 'checked' : '' %>>
           <span class="sev-tick"><%- icon('check') %></span>
           <span class="sev-ic"><%- icon(s.icon) %></span>
           <strong><%= s.label %></strong>
@@ -74,7 +73,6 @@
       <% }) %>
     </div>
   </div>
-  <% } %>
 
   <div class="field">
     <label for="description">Detailed Description <span class="req">*</span></label>
