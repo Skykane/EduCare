@@ -136,6 +136,7 @@ router.post('/', (req, res) => {
     passwordHash: bcrypt.hashSync(password, 10),
     active: true,
     approvalStatus: 'approved',
+    mustChangePassword: true,
   });
   activity.log({ userId: req.user.id, action: 'User account created', details: `${row.name} (${C.ROLES[row.role]})` });
   flash(req, 'success', `Account for ${row.name} created.`);
@@ -231,10 +232,15 @@ router.post('/:id', (req, res) => {
   }
   if (errors.length) return renderForm(res, { ...u, id: existing.id, active: existing.active }, errors, 400);
   const patch = { ...u };
+  // Prevent admins from locking themselves out by changing their own approval state.
+  if (existing.id === req.user.id) patch.approvalStatus = existing.approvalStatus;
   // Editing specializations in-app replaces any seeded label metadata so the
   // displayed names always reflect the current category selection.
   if ('specializations' in patch) patch.specializationLabels = [];
-  if (password) patch.passwordHash = bcrypt.hashSync(password, 10);
+  if (password) {
+    patch.passwordHash = bcrypt.hashSync(password, 10);
+    patch.mustChangePassword = true;
+  }
   db.update('users', existing.id, patch);
   activity.log({ userId: req.user.id, action: 'User account updated', details: `${u.name} (${C.ROLES[u.role]})${password ? ', password reset' : ''}` });
   flash(req, 'success', 'Account updated.');

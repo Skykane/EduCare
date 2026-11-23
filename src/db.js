@@ -7,6 +7,31 @@ const path = require('path');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
+const LOCK_FILE = `${DB_FILE}.lock`;
+
+function wait(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+function withDbLock(fn) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  let fd;
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    try {
+      fd = fs.openSync(LOCK_FILE, 'wx');
+      break;
+    } catch (err) {
+      if (err.code !== 'EEXIST' || attempt === 29) throw err;
+      wait(50);
+    }
+  }
+  try {
+    return fn();
+  } finally {
+    fs.closeSync(fd);
+    try { fs.unlinkSync(LOCK_FILE); } catch (e) { /* already gone */ }
+  }
+}
 
 const COLLECTIONS = [
   'users',
@@ -56,19 +81,34 @@ function load() {
 
 function save() {
   if (inTransaction) return; // the outer transaction commits once
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  data.meta.revision = (data.meta.revision || 0) + 1;
-  const json = JSON.stringify(data, null, 2);
-  // Include the pid so two server processes cannot race on the same temp file.
-  const tmp = `${DB_FILE}.${process.pid}.tmp`;
-  try {
-    fs.writeFileSync(tmp, json);
-    fs.renameSync(tmp, DB_FILE);
-  } catch (err) {
-    // Windows can briefly lock files (antivirus, indexer). Fall back to a direct write.
-    fs.writeFileSync(DB_FILE, json);
-    try { fs.unlinkSync(tmp); } catch (e) { /* already gone */ }
-  }
+  withDbLock(() => {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    data.meta.revision = (data.meta.revision || 0) + 1;
+    const json = JSON.stringify(data, null, 2);
+    const tmp = `${DB_FILE}.${process.pid}.${Date.now()}.tmp`;
+    let fd = fs.openSync(tmp, 'wx');
+    try {
+      fs.writeFileSync(fd, json);
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    let renamed = false;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        fs.renameSync(tmp, DB_FILE);
+        renamed = true;
+        break;
+      } catch (err) {
+        if (attempt === 4) {
+          try { fs.unlinkSync(tmp); } catch (e) { /* already gone */ }
+          throw err;
+        }
+        wait(40);
+      }
+    }
+    if (!renamed) throw new Error('Could not commit database write.');
+  });
 }
 
 function ensure() {
@@ -151,5 +191,5 @@ function remove(collection, id) {
 
 module.exports = {
   load, save, reset, all, find, where, insert, update, remove,
-  transaction, revision, DATA_DIR, DB_FILE,
+  transaction, revision, withDbLock, DATA_DIR, DB_FILE,
 };

@@ -34,6 +34,19 @@ const HOURS = 60 * 60 * 1000;
 const REMEMBER_MS = 30 * 24 * HOURS;
 const DEFAULT_MS = 8 * HOURS;
 
+const rateBuckets = new Map();
+function rateLimit(key, limit, windowMs) {
+  const now = Date.now();
+  const bucket = rateBuckets.get(key);
+  if (!bucket || bucket.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + windowMs });
+    return { ok: true };
+  }
+  bucket.count += 1;
+  if (bucket.count > limit) return { ok: false, retryAfter: Math.ceil((bucket.resetAt - now) / 1000) };
+  return { ok: true };
+}
+
 function renderLogin(res, opts = {}, status = 200) {
   res.status(status).render('login', {
     title: 'Log In',
@@ -83,6 +96,17 @@ router.post('/login', (req, res) => {
   const lowerInput = rawInput.toLowerCase();
   const next = safeLocalPath(b.next, '/');
   const remember = b.remember === '1';
+
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || 'unknown';
+  const rl = rateLimit(`login:${String(ip).split(',')[0].trim()}`, 30, 10 * 60 * 1000);
+  if (!rl.ok) {
+    return renderLogin(res, {
+      error: `Too many login attempts. Please wait ${rl.retryAfter} seconds and try again.`,
+      email: rawInput,
+      remember,
+      next,
+    }, 429);
+  }
 
   // Search by email, student ID, or username.
   const user = db.all('users').find(
@@ -191,11 +215,21 @@ router.post('/logout', (req, res) => {
 // grade level and section. It returns only the record matching the submitted
 // Student ID + full name; the full directory is never exposed to students.
 router.post('/api/student-verify', (req, res) => {
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip || 'unknown';
+  const rl = rateLimit(`student-verify:${String(ip).split(',')[0].trim()}`, 20, 10 * 60 * 1000);
+  res.set('Cache-Control', 'no-store');
+  if (!rl.ok) {
+    return res.status(429).json({
+      ok: false,
+      registered: false,
+      message: `Too many verification attempts. Please wait ${rl.retryAfter} seconds.`,
+      student: null,
+    });
+  }
   const b = req.body || {};
   const studentId = str(b.studentId, 50).toUpperCase();
   const name = str(b.fullName || b.name, 120);
   const verification = verifyStudentRegistration(studentId, name);
-  res.set('Cache-Control', 'no-store');
 
   const toPublic = (student) =>
     student

@@ -5,7 +5,8 @@ const db = require('../db');
 const C = require('../constants');
 const { str } = require('../helpers');
 const { saveAttachments } = require('../upload');
-const { syncTechnicianAvailability } = require('./assignment');
+const { activeTaskCount, syncTechnicianAvailability } = require('./assignment');
+const attempts = require('./repairAttempts');
 
 function fail(message) {
   const err = new Error(message);
@@ -74,6 +75,11 @@ function assertTechnicianAvailable(technicianId, { currentTechnicianId = null } 
   }
   if ((tech.availability || 'Available') !== 'Available') {
     fail(`${tech.name} is currently ${tech.availability || 'unavailable'} and cannot take a new assignment.`);
+  }
+  // A stored "Available" flag is not enough: active assignments always win.
+  const active = activeTaskCount(tech.id);
+  if (active > 0) {
+    fail(`${tech.name} already has ${active} active task(s) and cannot take a new assignment.`);
   }
   return tech;
 }
@@ -188,6 +194,9 @@ function assertComplete(r, user, { rework = false } = {}) {
   if (r.verificationStatus === 'Verified') fail('This repair is already verified.');
   if (rework) {
     if (!isRework(r)) fail('There is no rework pending on this repair.');
+    const startedAfterRework = attempts.forRequest(r.id).some((a) =>
+      a.startedAt && (!r.reworkAt || a.startedAt >= r.reworkAt));
+    if (!startedAfterRework) fail('Rework must be started again before it can be completed.');
     return;
   }
   if (![C.STATUS.IN_PROGRESS, C.STATUS.ON_HOLD].includes(statusOf(r))) {

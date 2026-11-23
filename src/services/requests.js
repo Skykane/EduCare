@@ -58,11 +58,9 @@ function canViewRequest(user, r) {
   if (!user || !r) return false;
   if (user.role === 'admin') return true;
   if (r.requesterId === user.id) return true;
-  if (user.role === 'technician') {
-    if (r.technicianId === user.id) return true;
-    // Technicians keep access to tasks they worked on before a reassignment.
-    return db.where('activities', (a) => a.requestId === r.id && a.userId === user.id).length > 0;
-  }
+  // A reassigned technician must lose access to the task and its attachments.
+  // Historical activity remains visible to the requester and current assignee.
+  if (user.role === 'technician') return r.technicianId === user.id;
   return false;
 }
 

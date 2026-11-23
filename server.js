@@ -1,5 +1,7 @@
 // EDUCARE: School Equipment Maintenance and Repair Management System
 const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
 const express = require('express');
 const session = require('express-session');
 
@@ -10,25 +12,65 @@ const { UPLOAD_DIR } = require('./src/upload');
 
 db.load();
 
+function sessionSecret() {
+  if (process.env.SESSION_SECRET) return process.env.SESSION_SECRET;
+  fs.mkdirSync(db.DATA_DIR, { recursive: true });
+  const file = path.join(db.DATA_DIR, 'session-secret');
+  if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8').trim();
+  const secret = crypto.randomBytes(32).toString('hex');
+  fs.writeFileSync(file, secret, { mode: 0o600 });
+  return secret;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+const PRODUCTION = process.env.NODE_ENV === 'production';
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
 app.disable('x-powered-by');
+if (PRODUCTION) app.set('trust proxy', 1);
 
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(
   session({
     name: 'educare.sid',
-    secret: process.env.SESSION_SECRET || 'educare-change-this-secret',
+    secret: sessionSecret(),
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true, sameSite: 'lax', maxAge: 8 * 60 * 60 * 1000 },
+    cookie: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: PRODUCTION,
+      maxAge: 8 * 60 * 60 * 1000,
+    },
   })
 );
 app.use(loadUser);
+
+// Lightweight CSRF defence: same-origin browsers send Origin (or Referer) on
+// form posts. Requests without either header (e.g. local API scripts) are left
+// alone; cross-origin requests are rejected before reaching any route.
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const expectedOrigin = `${req.protocol}://${req.headers.host}`;
+  const origin = req.headers.origin;
+  if (origin) {
+    if (origin !== expectedOrigin) {
+      return res.status(403).type('text/plain').send('Cross-origin request blocked.');
+    }
+    return next();
+  }
+  const referer = req.headers.referer;
+  if (referer) {
+    try {
+      if (new URL(referer).host === req.headers.host) return next();
+    } catch (e) { /* fall through to rejection */ }
+    return res.status(403).type('text/plain').send('Cross-origin request blocked.');
+  }
+  return next();
+});
 
 // Public
 app.use('/', require('./src/routes/auth'));

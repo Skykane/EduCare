@@ -184,6 +184,7 @@ router.get('/', (req, res) => {
   else if (f.sort === 'target') rows.sort((a, b) => (a.targetDate || '9999').localeCompare(b.targetDate || '9999'));
   else sortByPriority(rows);
 
+  const activeTechs = db.where('users', (u) => u.role === 'technician' && u.active);
   res.render('requests/index', {
     title: user.role === 'requester' ? 'My Requests' : user.role === 'technician' ? 'My Tasks' : 'Repair Requests',
     rows,
@@ -194,8 +195,13 @@ router.get('/', (req, res) => {
       ...db.all('equipment').map((e) => e.location).filter(Boolean),
       ...db.all('requests').map((r) => r.location).filter(Boolean),
     ])].sort(),
-    technicians: db.where('users', (u) => u.role === 'technician' && u.active),
+    technicians: activeTechs,
+    availableTechnicians: activeTechs
+      .filter((t) => t.availability === 'Available')
+      .map((t) => ({ ...t, activeCount: activeTaskCount(t.id) })),
+    highWorkloadAt: HIGH_WORKLOAD_AT,
     statuses: REQUEST_STATUSES,
+    today: todayISO(),
   });
 });
 
@@ -459,13 +465,25 @@ router.post('/:id/edit', photos(), (req, res) => {
     });
   }
 
-  // Handle removed photos
+  // Handle removed photos. Requesters may only remove their own before-photos;
+  // admins may remove before-photos as part of an admin edit. All removals are logged.
   const toRemove = toArray(b.removeAttachments).map(int);
   toRemove.forEach((attId) => {
     const att = db.find('attachments', attId);
-    if (att && att.requestId === raw.id) {
-      db.remove('attachments', att.id);
+    if (!att || String(att.requestId) !== String(raw.id) || att.stage !== 'before') return;
+    if (req.user.role !== 'admin' && String(att.userId) !== String(req.user.id)) return;
+    const safeName = path.basename(String(att.filename || ''));
+    if (safeName === att.filename) {
+      try { fs.unlinkSync(path.join(UPLOAD_DIR, safeName)); } catch (_) { /* file may already be missing */ }
     }
+    db.remove('attachments', att.id);
+    activity.log({
+      requestId: raw.id,
+      equipmentId: raw.equipmentId || null,
+      userId: req.user.id,
+      action: 'Before-repair photo removed',
+      details: att.originalName || att.filename,
+    });
   });
 
   // Handle new uploaded photos
@@ -597,10 +615,12 @@ router.post('/:id/approve', requireRole('admin'), workflowPhotos(), (req, res) =
   const r = loadRequest(req, res);
   if (!r) return;
   const from = statusOf(r);
-  if (from !== S.PENDING) {
+  try {
+    W.assertApprove(r, req.user);
+  } catch (err) {
     flash(req, 'error', from === S.APPROVED
       ? `${r.code} is already approved and waiting for assignment.`
-      : `Only a request awaiting approval can be approved (currently ${from}).`);
+      : err.message);
     return res.redirect(`/requests/${r.id}`);
   }
 
@@ -638,12 +658,14 @@ router.post('/:id/approve', requireRole('admin'), workflowPhotos(), (req, res) =
     extra,
   });
 
-  notifyRequester(r, `Your repair request ${r.code} has been approved and is awaiting technician assignment.`, 'success');
+  notifyRequester(r, `Your repair request ${r.code} has been approved and is awaiting technician assignment.`, 'success', {
+    dedupeKey: `approve-${r.id}`,
+  });
   flash(req, 'success', `${r.code} approved. Choose an available technician to continue.`);
   res.redirect(`/requests/${r.id}`);
 });
 
-router.post('/:id/reject', requireRole('admin'), (req, res) => {
+router.post('/:id/reject', requireRole('admin'), formOnly(), (req, res) => {
   const r = loadRequest(req, res);
   if (!r) return;
   const from = statusOf(r);
@@ -658,14 +680,24 @@ router.post('/:id/reject', requireRole('admin'), (req, res) => {
     flash(req, 'error', 'Please provide a rejection reason between 5 and 1000 characters.');
     return res.redirect(`/requests/${r.id}#reject`);
   }
-
+  try {
+    W.assertReject(r, req.user, reason);
+  } catch (err) {
+    flash(req, 'error', err.message);
+    return res.redirect(`/requests/${r.id}`);
+  }
+  const rejectedAt = new Date().toISOString();
+  const oldTechId = r.technicianId;
   changeStatus(r, S.REJECTED, req.user, {
     action: 'Request rejected by Admin',
     details: reason,
     extra: {
-      rejectedAt: new Date().toISOString(),
+      rejectedAt,
       rejectedBy: req.user.id,
       rejectionReason: reason,
+      technicianId: null,
+      assignedAt: null,
+      assignedBy: null,
     },
   });
 
@@ -678,7 +710,18 @@ router.post('/:id/reject', requireRole('admin'), (req, res) => {
   }
 
   // One reason-bearing notification to the requester; no generic status notice.
-  notifyRequester(r, `Your repair request ${r.code} was declined by the Administrator. Reason: ${reason}`, 'error');
+  notifyRequester(r, `Your repair request ${r.code} was declined by the Administrator. Reason: ${reason}`, 'error', {
+    dedupeKey: `reject-${r.id}-${rejectedAt}`,
+  });
+  if (oldTechId) {
+    syncAvailability(oldTechId);
+    notify([oldTechId], {
+      message: `${r.code} was rejected by the Administrator and withdrawn from your tasks. Reason: ${reason}`,
+      link: `/requests/${r.id}`,
+      type: 'warning',
+      dedupeKey: `withdraw-${r.id}-${oldTechId}`,
+    });
+  }
   flash(req, 'success', `${r.code} has been rejected.`);
   res.redirect(`/requests/${r.id}`);
 });
@@ -696,22 +739,27 @@ function assignTechnician(req, res, explicitReassign = false) {
   const errors = [];
   if (req.uploadError) errors.push(req.uploadError);
 
-  if (reassign) {
-    if (from !== S.ASSIGNED || !r.technicianId) errors.push('Only an assigned request can be reassigned.');
-    if (!reason) errors.push('Please give a reason for reassigning this technician.');
-  } else if (!ASSIGNABLE_STATUSES.includes(from) || r.technicianId) {
-    errors.push('Only a request approved and awaiting assignment can be assigned.');
+  try {
+    W.assertAssign(r, req.user, { reassign, reason, technicianId: null });
+  } catch (err) {
+    errors.push(err.message);
   }
 
   const techId = int(b.technicianId);
   const tech = techId ? db.find('users', techId) : null;
   if (!tech || tech.role !== 'technician' || !tech.active) {
     errors.push('Please choose an active technician.');
-  } else if (tech.availability !== 'Available') {
-    errors.push(`${tech.name} is ${tech.availability || 'unavailable'}; only Available technicians can be assigned.`);
-  }
-  if (reassign && tech && r.technicianId && tech.id === r.technicianId) {
-    errors.push('Please choose a different technician.');
+  } else {
+    try {
+      W.assertTechnicianAvailable(tech.id, {
+        currentTechnicianId: reassign ? r.technicianId : null,
+      });
+    } catch (err) {
+      errors.push(err.message);
+    }
+    if (activeTaskCount(tech.id) > 0 && !errors.some((e) => e.includes('active task'))) {
+      errors.push(`${tech.name} already has active task(s) and cannot receive another assignment.`);
+    }
   }
 
   // Target date is optional; an existing date is kept when none is supplied.
@@ -760,20 +808,27 @@ function assignTechnician(req, res, explicitReassign = false) {
     notify([tech.id], {
       message: `${r.code} has been reassigned to you. Reason: ${reason}`,
       link: `/requests/${r.id}`, type: 'warning', exceptUserId: req.user.id,
+      dedupeKey: `assign-${r.id}-${assignedAt}-${tech.id}`,
     });
     if (prevTech && prevTech.id !== tech.id) {
       notify([prevTech.id], {
         message: `${r.code} was reassigned to ${tech.name}. Reason: ${reason}`,
         link: `/requests/${r.id}`, type: 'info', exceptUserId: req.user.id,
+        dedupeKey: `withdraw-${r.id}-${prevTech.id}-${assignedAt}`,
       });
     }
-    notifyRequester(r, `${r.code} has been reassigned to ${tech.name}. Reason: ${reason}`, 'warning');
+    notifyRequester(r, `${r.code} has been reassigned to ${tech.name}. Reason: ${reason}`, 'warning', {
+      dedupeKey: `reassign-${r.id}-${assignedAt}`,
+    });
   } else {
     notify([tech.id], {
       message: `New assignment: ${r.code} – ${r.title}. Target date: ${targetDate ? fmtDate(targetDate) : 'not set'}.`,
       link: `/requests/${r.id}`, type: 'warning', exceptUserId: req.user.id,
+      dedupeKey: `assign-${r.id}-${assignedAt}-${tech.id}`,
     });
-    notifyRequester(r, `${r.code} has been assigned to technician ${tech.name}.`, 'info');
+    notifyRequester(r, `${r.code} has been assigned to technician ${tech.name}.`, 'info', {
+      dedupeKey: `assign-${r.id}-${assignedAt}-requester`,
+    });
   }
 
   flash(req, 'success', reassign ? `Reassigned to ${tech.name}.` : `Assigned to ${tech.name}.`);
@@ -798,17 +853,20 @@ router.post('/:id/status', requireRole('technician'), workflowPhotos(), (req, re
     resume: { from: [S.ON_HOLD], to: S.IN_PROGRESS, label: 'Work resumed' },
   };
   const m = moves[action];
-  if (!m || !m.from.includes(current)) {
-    flash(req, 'error', `This action is not allowed while the request is ${current}.`);
-    return res.redirect(`/requests/${r.id}`);
-  }
   const errors = [];
   if (req.uploadError) errors.push(req.uploadError);
+  if (!m) errors.push('Unknown status action.');
+  if (m) {
+    try {
+      W.assertStatusAction(r, req.user, action, note);
+    } catch (err) {
+      errors.push(err.message);
+    }
+  }
   if (action === 'hold' && !note) errors.push('Please give a reason for putting the task on hold.');
   if (action === 'start' && isNewFlow(r)) {
-    if (!((req.files && req.files.photos) || []).length) errors.push('Picture proof is required to start a repair.');
+    // Remarks are required; a start photo is optional and saved when supplied.
     if (!note) errors.push('Repair remarks are required to start a repair.');
-    if (r.startedAt) errors.push('This repair has already been started.');
   }
   if (errors.length) {
     if (req.files) removeFiles(Object.values(req.files).flat());
@@ -841,7 +899,8 @@ router.post('/:id/status', requireRole('technician'), workflowPhotos(), (req, re
     action === 'hold'
       ? `${r.code} was put on hold. Reason: ${note}`
       : `${r.code} is now ${m.to}.`,
-    action === 'hold' ? 'warning' : 'info');
+    action === 'hold' ? 'warning' : 'info',
+    { dedupeKey: `status-${r.id}-${m.to}-${startedAt}` });
   flash(req, 'success', `${r.code} is now ${m.to}.`);
   res.redirect(`/requests/${r.id}`);
 });
@@ -856,13 +915,13 @@ router.post('/:id/complete', requireRole('technician'), workflowPhotos(), (req, 
   if (req.uploadError) errors.push(req.uploadError);
   const current = statusOf(r);
   const rework = W.isRework(r);
-  // Work must have started. On Hold is allowed; Nearing Completion is not a status.
-  if (![S.IN_PROGRESS, S.ON_HOLD].includes(current) && !(rework && current === S.IN_PROGRESS)) {
-    errors.push('Work must be started before it can be completed.');
+  try {
+    W.assertComplete(r, req.user, { rework });
+  } catch (err) {
+    errors.push(err.message);
   }
-  if (r.verificationStatus === 'Verified') errors.push('A verified repair cannot be completed again.');
+  // Completion photos are optional;remarks and the work performed are required.
   const proof = (req.files && req.files.photos) || [];
-  if (!proof.length) errors.push('Completion picture proof is required.');
   const completionNotes = str(b.remarks, 1000);
   if (!completionNotes) errors.push('Final completion notes are required.');
 
@@ -945,7 +1004,7 @@ router.post('/:id/complete', requireRole('technician'), workflowPhotos(), (req, 
 });
 
 // ---------- Withdraw (maps onto the canonical Rejected status) ----------
-router.post('/:id/cancel', (req, res) => {
+router.post('/:id/cancel', formOnly(), (req, res) => {
   const r = loadRequest(req, res);
   if (!r) return;
   const from = statusOf(r);
@@ -966,10 +1025,19 @@ router.post('/:id/cancel', (req, res) => {
   const reason = str(rawReason, 1000) ||
     (isOwnerPending ? 'Withdrawn by requester (reported by mistake or resolved)' : 'Withdrawn by administrator');
   const cancelledAt = new Date().toISOString();
+  const oldTechId = r.technicianId;
   changeStatus(r, S.REJECTED, req.user, {
     action: isAdmin ? 'Request rejected by Admin' : 'Request withdrawn by requester',
     details: reason,
-    extra: { cancelledAt, rejectedAt: cancelledAt, rejectedBy: req.user.id, rejectionReason: reason },
+    extra: {
+      cancelledAt,
+      rejectedAt: cancelledAt,
+      rejectedBy: req.user.id,
+      rejectionReason: reason,
+      technicianId: null,
+      assignedAt: null,
+      assignedBy: null,
+    },
   });
 
   // If nothing else is open for this equipment, undo the automatic "Needs Repair" mark.
@@ -981,13 +1049,25 @@ router.post('/:id/cancel', (req, res) => {
     setEquipmentStatus(eq.id, 'Operational', req.user, `${r.code} withdrawn`);
   }
 
-  if (isAdmin) notifyRequester(r, `Your repair request ${r.code} was declined by the Administrator. Reason: ${reason}`, 'error');
+  if (isAdmin) notifyRequester(r, `Your repair request ${r.code} was declined by the Administrator. Reason: ${reason}`, 'error', {
+    dedupeKey: `reject-${r.id}-${cancelledAt}`,
+  });
   else notify(adminIds(), {
     message: `${req.user.name} withdrew report ${r.code} (${reason}).`,
     link: `/requests/${r.id}`,
     type: 'info',
     exceptUserId: req.user.id,
+    dedupeKey: `withdraw-request-${r.id}-${cancelledAt}`,
   });
+  if (oldTechId) {
+    syncAvailability(oldTechId);
+    notify([oldTechId], {
+      message: `${r.code} was withdrawn and removed from your tasks. Reason: ${reason}`,
+      link: `/requests/${r.id}`,
+      type: 'warning',
+      dedupeKey: `withdraw-${r.id}-${oldTechId}-${cancelledAt}`,
+    });
+  }
 
   flash(req, 'success', `${r.code} has been withdrawn.`);
   res.redirect(`/requests/${r.id}`);
@@ -1000,7 +1080,11 @@ router.post('/:id/attachments', photos(), (req, res) => {
   if (wantsJson) {
     r = db.find('requests', req.params.id);
     if (!r) { removeFiles(req.files); return res.status(404).json({ ok: false, error: 'Request not found.' }); }
-    if (!canViewRequest(req.user, r)) { removeFiles(req.files); return res.status(403).json({ ok: false, error: 'You do not have permission to add photos to this request.' }); }
+    if (!canViewRequest(req.user, r) ||
+        (req.user.role === 'technician' && Number(r.technicianId) !== Number(req.user.id))) {
+      removeFiles(req.files);
+      return res.status(403).json({ ok: false, error: 'You do not have permission to add photos to this request.' });
+    }
   } else {
     r = loadRequest(req, res);
     if (!r) return removeFiles(req.files);
@@ -1054,15 +1138,24 @@ router.post('/:id/attachments/:attId/delete', (req, res) => {
   }
 
   const isAdmin = req.user.role === 'admin';
-  const isOwnerBeforeOpen = String(r.requesterId) === String(req.user.id) && att.stage === 'before' && OPEN_STATUSES.includes(statusOf(r));
-  const canDelete = isAdmin || isOwnerBeforeOpen;
+  const isOwnerBeforePending = String(r.requesterId) === String(req.user.id) &&
+    String(att.userId) === String(req.user.id) &&
+    att.stage === 'before' &&
+    statusOf(r) === S.PENDING;
+  const canDelete = isAdmin || isOwnerBeforePending;
   if (!canDelete) {
     if (wantsJson) return res.status(403).json({ ok: false, error: 'You do not have permission to delete this photo.' });
     flash(req, 'error', 'You do not have permission to delete this photo.');
     return res.redirect(`/requests/${r.id}#docs`);
   }
 
-  const filePath = path.join(UPLOAD_DIR, att.filename);
+  const safeName = path.basename(String(att.filename || ''));
+  if (safeName !== att.filename) {
+    if (wantsJson) return res.status(400).json({ ok: false, error: 'Invalid attachment filename.' });
+    flash(req, 'error', 'Invalid attachment filename.');
+    return res.redirect(`/requests/${r.id}#docs`);
+  }
+  const filePath = path.join(UPLOAD_DIR, safeName);
   try { fs.unlinkSync(filePath); } catch (_) { /* file may already be missing */ }
   db.remove('attachments', att.id);
   activity.log({

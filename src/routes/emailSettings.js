@@ -16,10 +16,13 @@ router.use(requireRole('admin'));
 
 router.get('/', async (req, res) => {
   const settings = getEmailSettings();
+  const passwordConfigured = !!settings.pass;
+  const safeSettings = { ...settings, pass: '' };
 
   res.render('settings/email', {
     title: 'Email Notifications',
-    settings,
+    settings: safeSettings,
+    passwordConfigured,
   });
 });
 

@@ -724,13 +724,13 @@
         </label>
         <div class="setting-input-wrap">
           <span class="input-ic-left"><%- icon('lock') %></span>
-          <input type="password" id="pass" name="pass" value="<%= settings.pass || '' %>" placeholder="••••••••••••••••" autocomplete="new-password">
+          <input type="password" id="pass" name="pass" value="" placeholder="<%= passwordConfigured ? 'Leave blank to keep saved password' : '••••••••••••••••' %>" autocomplete="new-password">
           <button type="button" class="btn-eye-toggle" onclick="togglePassVisibility('pass', this)" title="Show / hide password" aria-label="Toggle password visibility">
             <%- icon('eye') %>
           </button>
         </div>
         <div class="setting-field-helper">
-          <span>Google App Password without spaces</span>
+          <span><%= passwordConfigured ? 'Password is configured. Enter a new one only to replace it.' : 'Google App Password without spaces' %></span>
           <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">Get App Password &rarr;</a>
         </div>
       </div>

@@ -2,7 +2,7 @@
 const express = require('express');
 const db = require('../db');
 const C = require('../constants');
-const { requireRole, flash } = require('../auth');
+const { requireRole, flash, forbidden } = require('../auth');
 const { str, int, isISODate, todayISO } = require('../helpers');
 const { scheduleFor } = require('../services/preventive');
 const { enrichRequest, nextCode } = require('../services/requests');
@@ -245,10 +245,20 @@ router.post('/:id/photo', requireRole('admin'), singlePhoto('photo'), (req, res)
   res.redirect(`/equipment/${e.id}`);
 });
 
+function canManageEquipment(req, equipmentId) {
+  if (req.user.role === 'admin') return true;
+  return db.where('requests', (r) =>
+    Number(r.equipmentId) === Number(equipmentId) &&
+    Number(r.technicianId) === Number(req.user.id) &&
+    C.TECH_ACTIVE_STATUSES.includes(C.normalizeStatus(r.status, r))
+  ).length > 0;
+}
+
 // Quick condition change (admins and technicians)
 router.post('/:id/status', requireRole('admin', 'technician'), (req, res) => {
   const e = db.find('equipment', req.params.id);
   if (!e) return res.status(404).render('error', { title: 'Not found', message: 'Equipment not found.' });
+  if (!canManageEquipment(req, e.id)) return forbidden(res, 'Technicians can only update equipment they have an active assigned task for.');
   const b = req.body || {};
   const status = str(b.status, 40);
   if (!C.EQUIPMENT_STATUSES.includes(status)) {
@@ -273,6 +283,7 @@ router.post('/:id/status', requireRole('admin', 'technician'), (req, res) => {
 router.post('/:id/maintenance', requireRole('admin', 'technician'), (req, res) => {
   const e = db.find('equipment', req.params.id);
   if (!e) return res.status(404).render('error', { title: 'Not found', message: 'Equipment not found.' });
+  if (!canManageEquipment(req, e.id)) return forbidden(res, 'Technicians can only log maintenance for equipment they have an active assigned task for.');
   const b = req.body || {};
   const rec = {
     equipmentId: e.id,

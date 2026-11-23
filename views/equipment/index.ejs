@@ -162,7 +162,7 @@
         openRequests: r.openRequests || 0
       };
       return acc;
-    }, {})) %></script>
+    }, {})).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026') %></script>
   </div>
   <script>
     window.educareSetEquipmentMap = function (map) { window.EQUIPMENT_MAP = map; };

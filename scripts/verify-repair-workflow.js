@@ -194,14 +194,17 @@ function formData(fields = {}, files = []) {
     });
   }
 
-  async function startWork(client, id, note) {
+  const START_PHOTO = [{ name: 'photos', filename: 'start-proof.png' }];
+  const COMPLETION_PHOTO = [{ name: 'photos', filename: 'completion.png' }];
+
+  async function startWork(client, id, note, files = START_PHOTO) {
     return client.request(`/requests/${id}/status?action=start`, {
       method: 'POST',
-      body: formData({ action: 'start', note }, [{ name: 'photos', filename: 'start-proof.png' }]),
+      body: formData({ action: 'start', note }, files),
     });
   }
 
-  async function completeWork(client, id, fields = {}) {
+  async function completeWork(client, id, fields = {}, files = COMPLETION_PHOTO) {
     return client.request(`/requests/${id}/complete`, {
       method: 'POST',
       body: formData({
@@ -213,7 +216,7 @@ function formData(fields = {}, files = []) {
         remarks: 'Verified boot and charging',
         photoNote: 'final state',
         ...fields,
-      }, [{ name: 'photos', filename: 'completion.png' }]),
+      }, files),
     });
   }
 
@@ -292,6 +295,11 @@ function formData(fields = {}, files = []) {
       hasNotif(ADMIN, /New repair request/));
     assertTransition('Submission is logged with requester actor and target status',
       req1.id, REQUESTER, null, STATUS.PENDING, 'Report submitted');
+    const requesterPendingPage = await requester.request(`/requests/${req1.id}`);
+    const adminPendingPage = await admin.request(`/requests/${req1.id}`);
+    check('Requester can open their pending request details', requesterPendingPage.status === 200);
+    check('Admin can open pending request review and approval controls',
+      adminPendingPage.status === 200 && (await adminPendingPage.text()).includes('Administrator Approval'));
 
     const dup = await requester.request('/requests', {
       method: 'POST',
@@ -349,6 +357,11 @@ function formData(fields = {}, files = []) {
       hasNotif(REQUESTER, /approved and is awaiting technician assignment/));
     assertTransition('Approval is logged with admin actor and canonical transition',
       req1.id, ADMIN, STATUS.PENDING, STATUS.APPROVED, 'Request approved');
+    const adminAwaitingPage = await admin.request(`/requests/${req1.id}`);
+    const requesterAwaitingPage = await requester.request(`/requests/${req1.id}`);
+    check('Admin can open approved request and assignment controls',
+      adminAwaitingPage.status === 200 && (await adminAwaitingPage.text()).includes('Assign Technician'));
+    check('Requester can track approved request awaiting assignment', requesterAwaitingPage.status === 200);
 
     const dupApprove = await approveRequest(req1.id);
     check('A second approval is rejected while awaiting assignment',
@@ -376,6 +389,12 @@ function formData(fields = {}, files = []) {
       findUser(TECH).availability === 'Busy', findUser(TECH).availability);
     assertTransition('Assignment is logged with admin actor and canonical transition',
       req1.id, ADMIN, STATUS.APPROVED, STATUS.ASSIGNED, 'Technician assigned');
+    const assignedTechPage = await tech.request(`/requests/${req1.id}`);
+    const requesterAssignedPage = await requester.request(`/requests/${req1.id}`);
+    check('Assigned technician can open the task and start-work controls',
+      assignedTechPage.status === 200 && (await assignedTechPage.text()).includes('Start Repair'));
+    check('Requester can track the assigned technician', requesterAssignedPage.status === 200 &&
+      (await requesterAssignedPage.text()).includes('Assigned to'));
 
     const dupAssign = await admin.request(`/requests/${req1.id}/assign`, {
       method: 'POST',
@@ -408,6 +427,19 @@ function formData(fields = {}, files = []) {
     assertTransition('Reassign is logged with admin actor and canonical transition',
       req1.id, ADMIN, STATUS.ASSIGNED, STATUS.ASSIGNED, 'Technician reassigned');
 
+    const formerTechDetail = await tech.request(`/requests/${req1.id}`);
+    check('Former technician cannot view a task after reassignment', formerTechDetail.status === 403,
+      `status ${formerTechDetail.status}`);
+    const formerTechPhoto = await tech.request(`/requests/${req1.id}/attachments`, {
+      method: 'POST',
+      headers: { Accept: 'application/json' },
+      body: formData({ stage: 'before' }, [{ name: 'photos', filename: 'unauthorized.png' }]),
+    });
+    check('Former technician cannot upload task attachments after reassignment',
+      formerTechPhoto.status === 403 &&
+      !readDb().attachments.some((a) => a.requestId === req1.id && a.originalName === 'unauthorized.png'),
+      `status ${formerTechPhoto.status}`);
+
     const dupReassign = await admin.request(`/requests/${req1.id}/reassign`, {
       method: 'POST',
       body: formData({ technicianId: String(TECH2), reassignReason: 'Again' }),
@@ -417,28 +449,115 @@ function formData(fields = {}, files = []) {
       activitiesFor(req1.id).filter((a) => a.action === 'Technician reassigned').length === 1,
       `status ${dupReassign.status}, tech ${findReq(req1.id).technicianId}`);
 
-    // ---------- 6. Start requires remarks + proof ----------
-    const badStart = await tech2.request(`/requests/${req1.id}/status?action=start`, {
+    // Active-task guards: busy technician cannot be assigned again or self-set Available.
+    const busySelf = await tech2.request(`/technicians/${TECH2}/availability`, {
       method: 'POST',
-      body: formData({ action: 'start', note: 'started without proof' }),
+      body: formData({ availability: 'Available', back: `/technicians/${TECH2}` }),
     });
-    check('Start without picture proof is rejected',
+    check('Busy technician cannot self-set availability to Available',
+      busySelf.status === 302 && findUser(TECH2).availability === 'Busy',
+      `status ${busySelf.status}, availability ${findUser(TECH2).availability}`);
+
+    const busyTarget = await submitReport(requester, { categoryId: '1', location: 'Computer Laboratory', title: 'Busy-guard request', description: 'Temporary request for assignment guard.' });
+    check('Busy-guard report submitted', busyTarget.status === 302, `status ${busyTarget.status}`);
+    const reqBusy = readDb().requests.find((x) => x.title === 'Busy-guard request');
+    check('Busy-guard request approved',
+      (await approveRequest(reqBusy.id)).status === 302 && findReq(reqBusy.id).status === STATUS.APPROVED);
+    const assignBusy = await admin.request(`/requests/${reqBusy.id}/assign`, {
+      method: 'POST',
+      body: formData({ technicianId: String(TECH2), targetDate }),
+    });
+    check('Assignment to technician with active tasks is rejected',
+      assignBusy.status === 302 && findReq(reqBusy.id).status === STATUS.APPROVED && !findReq(reqBusy.id).technicianId,
+      `status ${assignBusy.status}, state ${findReq(reqBusy.id).status}, tech ${findReq(reqBusy.id).technicianId}`);
+    // Clean up the guard request so it doesn't affect later counts.
+    await admin.request(`/requests/${reqBusy.id}/reject`, {
+      method: 'POST',
+      body: formData({ reason: 'Temporary guard request no longer needed.' }),
+    });
+    check('Busy-guard request cleaned up by rejection',
+      findReq(reqBusy.id).status === STATUS.REJECTED, findReq(reqBusy.id).status);
+
+    // Rejecting an assigned-but-not-started request must unassign and free the technician.
+    const assignRejectTarget = await submitReport(requester, { categoryId: '1', location: 'Computer Laboratory', title: 'Assigned-reject guard', description: 'Temporary request for reject cleanup.' });
+    const reqAR = readDb().requests.find((x) => x.title === 'Assigned-reject guard');
+    await approveRequest(reqAR.id);
+    await admin.request(`/requests/${reqAR.id}/assign`, {
+      method: 'POST',
+      body: formData({ technicianId: String(TECH), targetDate }),
+    });
+    check('Assigned-reject guard is assigned to available technician',
+      findReq(reqAR.id).status === STATUS.ASSIGNED && findReq(reqAR.id).technicianId === TECH,
+      `${findReq(reqAR.id).status} / ${findReq(reqAR.id).technicianId}`);
+    const rejectAssigned = await admin.request(`/requests/${reqAR.id}/reject`, {
+      method: 'POST',
+      body: formData({ reason: 'Rejected before work started for workflow validation.' }),
+    });
+    db = readDb();
+    const rejectedAssigned = findReq(reqAR.id);
+    check('Rejecting assigned request redirects', rejectAssigned.status === 302, `status ${rejectAssigned.status}`);
+    check('Rejecting assigned request clears assignment and sets Rejected',
+      rejectedAssigned.status === STATUS.REJECTED && !rejectedAssigned.technicianId &&
+      !rejectedAssigned.assignedAt && !rejectedAssigned.assignedBy,
+      `${rejectedAssigned.status} / ${rejectedAssigned.technicianId}`);
+    check('Rejecting assigned request restores technician availability',
+      findUser(TECH).availability === 'Available', findUser(TECH).availability);
+    check('Withdrawn technician receives notification',
+      hasNotif(TECH, new RegExp(`${reqAR.code}.*withdrawn|${reqAR.code}.*rejected`, 'i')) ||
+      db.notifications.some((n) => n.userId === TECH && String(n.message).includes(reqAR.code) && /withdrawn|rejected/i.test(n.message)));
+
+    // ---------- 6. Start requires remarks; photo proof is optional ----------
+    const badStart = await startWork(tech2, req1.id, '', []);
+    check('Start without remarks is rejected',
       badStart.status === 302 && findReq(req1.id).status === STATUS.ASSIGNED,
       `status ${badStart.status}, state ${findReq(req1.id).status}`);
     check('No repair attempt created by rejected start', readDb().repairAttempts.length === 0);
 
-    const start = await startWork(tech2, req1.id, 'Inspected power circuit');
-    check('Repair start redirects', start.status === 302, `status ${start.status}`);
+    const start = await startWork(tech2, req1.id, 'Inspected power circuit', []);
+    check('Repair start without photo redirects', start.status === 302, `status ${start.status}`);
     db = readDb();
     check('Repair start changes status to In Progress',
       findReq(req1.id).status === STATUS.IN_PROGRESS, findReq(req1.id).status);
+    const inProgressTechPage = await tech2.request(`/requests/${req1.id}`);
+    check('Assigned technician can open in-progress work and completion controls',
+      inProgressTechPage.status === 200 && (await inProgressTechPage.text()).includes('Complete Repair'));
     check('Repair start creates a tracked attempt for the assigned technician',
       db.repairAttempts.length === 1 && !!db.repairAttempts[0].startedAt &&
       db.repairAttempts[0].startedBy === TECH2 && db.repairAttempts[0].requestId === req1.id);
-    check('Start proof is saved', db.attachments.some((a) => a.requestId === req1.id && a.stage === 'start'));
+    check('No start attachment is created when no photo is provided',
+      !db.attachments.some((a) => a.requestId === req1.id && a.stage === 'start'));
     check('Busy availability persists during active work', findUser(TECH2).availability === 'Busy');
     assertTransition('Start is logged with technician actor and canonical transition',
       req1.id, TECH2, STATUS.ASSIGNED, STATUS.IN_PROGRESS, 'Work started');
+
+    // Equipment scope: unrelated technician cannot change condition/maintenance.
+    let scopeEq = readDb().equipment[0];
+    if (!scopeEq) {
+      const createEq = await admin.request('/equipment', {
+        method: 'POST',
+        body: formData({ code: 'EQ-SCOPE', name: 'Scope Test Equipment', categoryId: '1', department: 'ICT', location: 'Computer Laboratory', status: 'Operational', importance: '3', maintenanceIntervalDays: '180' }),
+      });
+      scopeEq = readDb().equipment.find((e) => e.code === 'EQ-SCOPE') || readDb().equipment[0];
+    }
+    if (scopeEq) {
+      const eqStatus = await tech.request(`/equipment/${scopeEq.id}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ status: 'Operational', note: 'should not be allowed' }),
+      });
+      check('Unrelated technician cannot change equipment condition',
+        eqStatus.status === 403, `status ${eqStatus.status}`);
+      const eqMaint = await tech.request(`/equipment/${scopeEq.id}/maintenance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ type: 'Preventive', problem: 'x', actionsTaken: 'y', serviceDate: new Date().toISOString().slice(0, 10), resultingStatus: 'Operational' }),
+      });
+      check('Unrelated technician cannot log equipment maintenance',
+        eqMaint.status === 403, `status ${eqMaint.status}`);
+    } else {
+      check('Unrelated technician cannot change equipment condition', false, 'no equipment available in test DB');
+      check('Unrelated technician cannot log equipment maintenance', false, 'no equipment available in test DB');
+    }
 
     // ---------- 7. Materials with exact money math and per-item proof ----------
     const items = [
@@ -506,20 +625,9 @@ function formData(fields = {}, files = []) {
     assertTransition('Resume is logged with technician actor and canonical transition',
       req1.id, TECH2, STATUS.ON_HOLD, STATUS.IN_PROGRESS, 'Work resumed');
 
-    // ---------- 9. Completion ----------
-    const badComplete = await tech2.request(`/requests/${req1.id}/complete`, {
-      method: 'POST',
-      body: formData({
-        problem: 'No power', actionsTaken: 'Replaced fuse', remarks: 'done',
-        serviceDate: new Date().toISOString().slice(0, 10),
-      }),
-    });
-    check('Completion without final proof is rejected',
-      badComplete.status === 302 && findReq(req1.id).status === STATUS.IN_PROGRESS,
-      `status ${badComplete.status}, state ${findReq(req1.id).status}`);
-
-    const complete = await completeWork(tech2, req1.id);
-    check('Completion redirects', complete.status === 302,
+    // ---------- 9. Completion (photos are optional) ----------
+    const complete = await completeWork(tech2, req1.id, {}, []);
+    check('Completion without final photo redirects', complete.status === 302,
       `status ${complete.status} :: ${await body(complete)}`);
     db = readDb();
     const done = findReq(req1.id);
@@ -530,7 +638,8 @@ function formData(fields = {}, files = []) {
       !!done.completedAt && done.completionNotes === 'Verified boot and charging' &&
       db.maintenanceRecords.some((m) => m.requestId === req1.id &&
         m.actionsTaken === 'Replaced fuse and re-soldered connector'));
-    check('Completion proof is saved', db.attachments.some((a) => a.requestId === req1.id && a.stage === 'completion'));
+    check('No completion attachment is created when no photo is provided',
+      !db.attachments.some((a) => a.requestId === req1.id && a.stage === 'completion'));
     const attempt1 = db.repairAttempts.find((a) => a.requestId === req1.id);
     check('Attempt completion and elapsed time are stored',
       !!attempt1.completedAt && new Date(attempt1.completedAt) >= new Date(attempt1.startedAt));
@@ -590,6 +699,9 @@ function formData(fields = {}, files = []) {
       findUser(TECH).availability === 'Busy');
     check('Second repair starts', (await startWork(tech, req2.id, 'Clearing jam')).status === 302 &&
       findReq(req2.id).status === STATUS.IN_PROGRESS);
+    db = readDb();
+    check('Start photo is saved when provided',
+      db.attachments.some((a) => a.requestId === req2.id && a.stage === 'start'));
     check('Second repair records materials',
       (await tech.request(`/requests/${req2.id}/materials`, {
         method: 'POST',
@@ -610,6 +722,9 @@ function formData(fields = {}, files = []) {
     check('Completion from On Hold is allowed (no Nearing Completion stage)',
       completeFromHold.status === 302 && findReq(req2.id).status === STATUS.COMPLETED,
       `${completeFromHold.status} / ${findReq(req2.id).status}`);
+    db = readDb();
+    check('Completion photo is saved when provided',
+      db.attachments.some((a) => a.requestId === req2.id && a.stage === 'completion'));
     assertTransition('On Hold completion is logged as a canonical transition',
       req2.id, TECH, STATUS.ON_HOLD, STATUS.COMPLETED, 'Repair completed');
     check('Second repair is awaiting verification before any rework',
@@ -712,6 +827,42 @@ function formData(fields = {}, files = []) {
       (await approveRequest(req3.id)).status === 302 &&
       findReq(req3.id).status === STATUS.APPROVED && findReq(req3.id).technicianId == null);
 
+    // Before-photo delete is only allowed while Pending and by uploader.
+    const req3Att = readDb().attachments.find((a) => a.requestId === req3.id && a.stage === 'before');
+    if (req3Att) {
+      const delAfterApprove = await requester.request(`/requests/${req3.id}/attachments/${req3Att.id}/delete`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
+      check('Requester cannot delete before-photo after approval',
+        delAfterApprove.status === 403 && readDb().attachments.some((a) => a.id === req3Att.id),
+        `status ${delAfterApprove.status}`);
+    } else {
+      check('Requester cannot delete before-photo after approval', false, 'missing before-photo attachment');
+    }
+
+    const submitDel = await submitReport(requester, {
+      categoryId: '3', location: 'Science Laboratory', title: 'Pending delete guard',
+      description: 'Temp request for attachment delete rule.',
+    }, [{ name: 'photos', filename: 'delete-me.png' }]);
+    const reqDel = readDb().requests.find((r) => r.title === 'Pending delete guard');
+    const delAtt = reqDel && readDb().attachments.find((a) => a.requestId === reqDel.id && a.stage === 'before');
+    if (reqDel && delAtt) {
+      const delOwnPending = await requester.request(`/requests/${reqDel.id}/attachments/${delAtt.id}/delete`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+      });
+      check('Requester can delete own before-photo while Pending',
+        delOwnPending.status === 200 && !readDb().attachments.some((a) => a.id === delAtt.id),
+        `status ${delOwnPending.status}`);
+      await requester.request(`/requests/${reqDel.id}/cancel`, {
+        method: 'POST',
+        body: formData({ reason: 'Temporary delete-guard request withdrawn.' }),
+      });
+    } else {
+      check('Requester can delete own before-photo while Pending', false, 'missing pending-delete guard request/attachment');
+    }
+
     const missingReason = await admin.request(`/requests/${req3.id}/reject`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -750,6 +901,15 @@ function formData(fields = {}, files = []) {
     const helpers = require('../src/helpers');
     const icons = require('../src/icons');
     const money = require('../src/services/money');
+    const finalDb = readDb();
+    check('All requests are on workflowVersion 2',
+      (finalDb.requests || []).every((r) => r.workflowVersion === 2),
+      JSON.stringify([...new Set((finalDb.requests || []).map((r) => r.workflowVersion))]));
+    check('Technicians availability consistent with active assignments',
+      (finalDb.users || []).filter((u) => u.role === 'technician').every((u) => {
+        const active = (finalDb.requests || []).filter((r) => Number(r.technicianId) === Number(u.id) && C.TECH_ACTIVE_STATUSES.includes(C.normalizeStatus(r.status, r))).length;
+        return active > 0 ? u.availability === 'Busy' : u.availability === 'Available' || u.availability === 'On Leave';
+      }));
     check('Asia/Manila display converts UTC dates',
       /Nov 24, 2026/.test(helpers.fmtManila('2026-11-23T16:30:00.000Z')),
       helpers.fmtManila('2026-11-23T16:30:00.000Z'));

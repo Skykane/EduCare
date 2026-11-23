@@ -17,6 +17,7 @@ const ALLOWED = {
   'image/webp': '.webp',
 };
 const MAX_FILES = 6;
+const MAX_TOTAL_FILES = 20;
 
 // Profile pictures have stricter rules than repair photos: JPG/JPEG/PNG/WEBP
 // only, one file, and the bytes must actually match the declared image type.
@@ -33,7 +34,7 @@ const upload = multer({
     destination: UPLOAD_DIR,
     filename: (req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ALLOWED[file.mimetype]}`),
   }),
-  limits: { fileSize: 5 * 1024 * 1024, files: MAX_FILES },
+  limits: { fileSize: 5 * 1024 * 1024, files: MAX_TOTAL_FILES },
   fileFilter: (req, file, cb) =>
     ALLOWED[file.mimetype] ? cb(null, true) : cb(new Error('Only JPG, PNG, GIF, or WEBP images are allowed.')),
 });
@@ -68,7 +69,7 @@ function photos(field = 'photos', maxFiles = MAX_FILES) {
             fs.unlink(f.path, () => {});
           }
         }
-        if (valid.length !== req.files.length && !valid.length) {
+        if (valid.length !== req.files.length) {
           req.uploadError = 'One or more files are not valid JPG, PNG, GIF, or WEBP images.';
         }
         req.files = valid;
@@ -143,6 +144,19 @@ function singlePhoto(field = 'photo') {
         req.file = null;
         if (err.code === 'LIMIT_FILE_SIZE') req.uploadError = 'Photo must be 5 MB or smaller.';
         else req.uploadError = err.message;
+        req.body = req.body || {};
+        return next();
+      }
+      if (req.file) {
+        try {
+          if (!hasValidImageSignature(fs.readFileSync(req.file.path), req.file.mimetype)) {
+            throw new Error('The selected file is not a valid JPG, PNG, GIF, or WEBP image.');
+          }
+        } catch (e) {
+          fs.unlink(req.file.path, () => {});
+          req.file = null;
+          req.uploadError = e.message || 'The selected file could not be read as an image.';
+        }
       }
       req.body = req.body || {};
       next();
@@ -223,11 +237,27 @@ function avatarPhoto(field = 'avatar') {
   };
 }
 
+// Parse multipart/form-data text fields when no files are expected. This keeps
+// req.body populated for routes that accept both urlencoded and multipart forms.
+function formOnly() {
+  const middleware = multer().none();
+  return (req, res, next) => {
+    middleware(req, res, (err) => {
+      if (err) {
+        req.uploadError = err.message || 'Invalid form submission.';
+      }
+      req.body = req.body || {};
+      next();
+    });
+  };
+}
+
 module.exports = {
   photos,
   workflowPhotos,
   singlePhoto,
   avatarPhoto,
+  formOnly,
   saveAttachments,
   removeFiles,
   UPLOAD_DIR,

@@ -80,14 +80,27 @@ router.post('/:id/availability', (req, res) => {
     flash(req, 'error', 'Invalid availability.');
     return res.redirect(back);
   }
+  const active = activeTaskCount(t.id);
+  if (availability === 'Available' && active > 0) {
+    flash(req, 'error', `${t.name} still has ${active} active task(s) and cannot be marked Available.`);
+    return res.redirect(back);
+  }
   if (availability !== t.availability) {
     db.update('users', t.id, { availability });
+    // Reconcile with active assignments. "On Leave" is a manual override, but
+    // workflow changes will re-sync based on active tasks.
+    if (availability !== 'On Leave') syncTechnicianAvailability(t.id);
     activity.log({ userId: req.user.id, action: 'Availability changed', details: `${t.name}: ${t.availability || '—'} → ${availability}` });
     if (req.user.id === t.id) {
       notify(adminIds(), { message: `${t.name} is now ${availability}.`, link: `/technicians/${t.id}`, exceptUserId: req.user.id });
+    } else {
+      notify([t.id], { message: `Your availability was set to ${availability} by ${req.user.name}.`, link: `/technicians/${t.id}`, exceptUserId: req.user.id });
     }
+  } else if (availability !== 'On Leave') {
+    syncTechnicianAvailability(t.id);
   }
-  flash(req, 'success', `Availability set to ${availability}.`);
+  const finalTech = db.find('users', t.id) || t;
+  flash(req, 'success', `Availability set to ${finalTech.availability || availability}.`);
   res.redirect(back);
 });
 
