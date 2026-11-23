@@ -70,7 +70,7 @@
 }
 
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; overscroll-behavior-x: none; touch-action: pan-y; max-width: 100%; overflow-x: clip; }
+html, body { margin: 0; padding: 0; overscroll-behavior-x: none; touch-action: pan-x pan-y; max-width: 100%; overflow-x: clip; }
 body {
   font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
   font-size: 14px;
@@ -368,8 +368,28 @@ h1 .mono { font-size: inherit; color: var(--primary-dark); }
   flex: 0 0 16px;
 }
 
-.section-tabs { display: flex; gap: 6px; margin-bottom: 18px; overflow-x: auto; padding: 4px; background: #eaedf3; border-radius: 14px; width: fit-content; max-width: 100%; }
-.section-tabs a { padding: 8px 16px; color: var(--muted); font-weight: 700; white-space: nowrap; border-radius: 10px; }
+.section-tabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+  padding: 4px;
+  background: #eaedf3;
+  border-radius: 14px;
+  width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  /* Native momentum scrolling on iOS/Android; no scrollbar, no page chaining. */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.section-tabs::-webkit-scrollbar { display: none; }
+.section-tabs a { padding: 8px 16px; color: var(--muted); font-weight: 700; white-space: nowrap; flex: 0 0 auto; border-radius: 10px; touch-action: pan-x pan-y; }
 .section-tabs a:hover { color: var(--text); text-decoration: none; }
 .section-tabs a.active { color: var(--primary); background: #fff; box-shadow: var(--shadow); }
 @media print { .section-tabs { display: none; } }

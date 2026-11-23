@@ -17,10 +17,17 @@
     align-items: center !important;
     justify-content: flex-start !important;
     overflow-x: auto !important;
+    /* Swipe/scroll behaviour: keep gestures inside this strip only. */
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior-x: contain !important;
+    touch-action: pan-x pan-y !important;
+    scrollbar-width: none !important;
+    -ms-overflow-style: none !important;
     background: var(--gray-soft) !important;
     border: 1px solid var(--border) !important;
     border-radius: 10px !important;
   }
+  .app .gs-page .section-tabs::-webkit-scrollbar { display: none !important; }
   .app .gs-page .section-tabs a {
     flex: 0 0 auto;
     padding: 7px 14px !important;
@@ -30,6 +37,7 @@
     font-weight: 700 !important;
     text-align: center !important;
     white-space: nowrap !important;
+    touch-action: pan-x pan-y !important;
     background: transparent !important;
     color: var(--muted) !important;
   }

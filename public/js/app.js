@@ -1268,11 +1268,16 @@ function setupWizard(form) {
 
 }
 
-// Prevent horizontal swipe/trackpad gestures from triggering browser back/forward navigation.
+// Prevent horizontal swipe/trackpad gestures from triggering browser back/forward navigation,
+// while allowing native horizontal scrolling inside explicit scrollers such as section tabs.
 (function () {
+  function isHorizontalScroller(target) {
+    return !!(target && target.closest && target.closest('.section-tabs, [data-ec-horizontal-scroll]'));
+  }
+
   try {
     window.addEventListener('wheel', function (e) {
-      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) && !isHorizontalScroller(e.target)) {
         e.preventDefault();
       }
     }, { passive: false });
@@ -1282,16 +1287,25 @@ function setupWizard(form) {
     document.addEventListener('touchstart', function (e) {
       if (e.touches && e.touches.length) {
         window.__educareTouchStartX = e.touches[0].clientX;
+        window.__educareTouchStartY = e.touches[0].clientY;
+        window.__educareTouchInHorizontalScroller = isHorizontalScroller(e.target);
       }
     }, { passive: true });
     document.addEventListener('touchmove', function (e) {
-      if (e.touches && e.touches.length && typeof window.__educareTouchStartX === 'number') {
-        var dx = e.touches[0].clientX - window.__educareTouchStartX;
-        if (Math.abs(dx) > 10) {
-          e.preventDefault();
-        }
+      if (!e.touches || !e.touches.length || window.__educareTouchInHorizontalScroller) return;
+      if (typeof window.__educareTouchStartX !== 'number' || typeof window.__educareTouchStartY !== 'number') return;
+      var dx = e.touches[0].clientX - window.__educareTouchStartX;
+      var dy = e.touches[0].clientY - window.__educareTouchStartY;
+      // Only block gestures that are clearly horizontal; vertical page scrolling still works.
+      if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) {
+        e.preventDefault();
       }
     }, { passive: false });
+    document.addEventListener('touchend', function () {
+      window.__educareTouchStartX = null;
+      window.__educareTouchStartY = null;
+      window.__educareTouchInHorizontalScroller = false;
+    }, { passive: true });
   } catch (err) {}
 
   // Keep the current page stable so back/swipe navigation does not leave the page.
@@ -1302,6 +1316,53 @@ function setupWizard(form) {
       history.pushState({ educare: true }, document.title, location.href);
     });
   } catch (err) {}
+})();
+
+// Keep the active section tab fully visible inside its horizontal scroller.
+// This runs on every page load because section tabs are server-rendered links.
+(function () {
+  function revealActiveTab(nav) {
+    var active = nav.querySelector('a.active, a[aria-current="page"], a[aria-current="true"]');
+    if (!active || nav.scrollWidth <= nav.clientWidth) return;
+
+    var navRect = nav.getBoundingClientRect();
+    var itemRect = active.getBoundingClientRect();
+    var style = window.getComputedStyle(nav);
+    var padLeft = parseFloat(style.paddingLeft) || 0;
+    var padRight = parseFloat(style.paddingRight) || 0;
+    var leftLimit = navRect.left + padLeft;
+    var rightLimit = navRect.right - padRight;
+    var current = nav.scrollLeft;
+    var target = current;
+
+    if (itemRect.left < leftLimit) {
+      target = current + (itemRect.left - leftLimit) - 2;
+    } else if (itemRect.right > rightLimit) {
+      target = current + (itemRect.right - rightLimit) + 2;
+    }
+
+    var max = Math.max(0, nav.scrollWidth - nav.clientWidth);
+    target = Math.max(0, Math.min(target, max));
+    if (Math.abs(target - current) < 1) return;
+
+    try { nav.scrollTo({ left: target, behavior: 'smooth' }); }
+    catch (err) { nav.scrollLeft = target; }
+  }
+
+  function revealActiveTabs() {
+    var navs = document.querySelectorAll('.section-tabs');
+    for (var i = 0; i < navs.length; i++) revealActiveTab(navs[i]);
+  }
+
+  function scheduleReveal() {
+    if (window.requestAnimationFrame) window.requestAnimationFrame(revealActiveTabs);
+    else revealActiveTabs();
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', scheduleReveal);
+  else scheduleReveal();
+  window.addEventListener('load', scheduleReveal);
+  window.addEventListener('resize', scheduleReveal);
 })();
 
 // Reusable EduCare confirmation/alert modal
