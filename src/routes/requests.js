@@ -17,7 +17,7 @@ const syncAvailability = (technicianId) => {
 };
 const activity = require('../services/activity');
 const { notify, adminIds } = require('../services/notify');
-const { photos, workflowPhotos, saveAttachments, removeFiles, UPLOAD_DIR } = require('../upload');
+const { photos, workflowPhotos, formOnly, saveAttachments, removeFiles, UPLOAD_DIR } = require('../upload');
 const W = require('../services/workflow');
 const attempts = require('../services/repairAttempts');
 const materials = require('../services/materials');
