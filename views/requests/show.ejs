@@ -420,7 +420,8 @@
         </div>
         <% var canAddBefore = openStatuses.indexOf(r.status) !== -1; %>
         <% var canAddAfter = isCompleted && canTechnicianWork; %>
-        <% if (canAddBefore || canAddAfter) { %>
+        <% var showUploadForm = canAddAfter || (canAddBefore && !(role === 'admin' && (isPendingApproval || isAwaitingAssignment))); %>
+        <% if (showUploadForm) { %>
         <form method="post" action="/requests/<%= r.id %>/attachments" enctype="multipart/form-data" class="rd-upload-form" id="rdUploadForm" data-request-id="<%= r.id %>" novalidate>
           <div class="rd-upload-top">
             <div class="field rd-upload-type">
