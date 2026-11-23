@@ -13,6 +13,8 @@ const router = express.Router();
 router.use(requireRole('admin'));
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const approvalBackUrl = (req) =>
+  req.headers.referer && req.headers.referer.includes('/approvals') ? '/users/approvals' : '/users';
 
 function parseUser(b) {
   const role = Object.keys(C.ROLES).includes(b.role) ? b.role : 'requester';
@@ -25,6 +27,7 @@ function parseUser(b) {
     email: str(b.email, 200).toLowerCase(),
     role,
     department: str(b.department, 150),
+    accountKind: role === 'requester' ? (studentId ? 'student' : 'teacher') : null,
     studentId: role === 'requester' ? studentId : null,
     address: str(b.address, 250) || '',
     phone: cleanPhone.slice(0, 11),
@@ -45,7 +48,7 @@ function validate(u, password, id = null) {
   if (u.role === 'requester' && u.studentId) {
     const verification = verifyStudentRegistration(u.studentId);
     if (!verification.allowed) {
-      errors.push(verification.reason || 'Access Denied: Student ID is not in the school student database.');
+      errors.push(verification.reason || 'Access Denied: Member ID is not in the institution records.');
     } else if (db.all('users').some((x) => x.studentId && x.studentId.toUpperCase() === u.studentId && x.id !== id)) {
       errors.push('That Student ID is already linked to another account.');
     }
@@ -139,6 +142,10 @@ router.post('/', (req, res) => {
 router.post('/:id/approve', (req, res) => {
   const u = db.find('users', req.params.id);
   if (!u) return res.status(404).render('error', { title: 'Not found', message: 'User not found.' });
+  if (u.approvalStatus !== 'pending') {
+    flash(req, 'error', 'Only pending registrations can be approved.');
+    return res.redirect(approvalBackUrl(req));
+  }
 
   db.update('users', u.id, {
     approvalStatus: 'approved',
@@ -158,8 +165,7 @@ router.post('/:id/approve', (req, res) => {
   });
 
   flash(req, 'success', `Account for ${u.name} (${C.ROLES[u.role]}) has been approved and activated. An email notification was sent.`);
-  const redirectTarget = req.headers.referer && req.headers.referer.includes('/approvals') ? '/users/approvals' : '/users';
-  res.redirect(redirectTarget);
+  res.redirect(approvalBackUrl(req));
 });
 
 // Reject a pending user account
@@ -170,6 +176,15 @@ router.post('/:id/reject', (req, res) => {
     flash(req, 'error', 'You cannot reject your own account.');
     return res.redirect('/users');
   }
+  if (u.approvalStatus !== 'pending') {
+    flash(req, 'error', 'Only pending registrations can be rejected.');
+    return res.redirect(approvalBackUrl(req));
+  }
+  const reason = str((req.body || {}).reason, 500);
+  if (!reason) {
+    flash(req, 'error', 'Please provide a reason for rejecting this registration.');
+    return res.redirect(approvalBackUrl(req));
+  }
 
   db.update('users', u.id, {
     approvalStatus: 'rejected',
@@ -179,7 +194,7 @@ router.post('/:id/reject', (req, res) => {
   activity.log({
     userId: req.user.id,
     action: 'User account rejected',
-    details: `${u.name} (${C.ROLES[u.role]} - ${u.email}) registration rejected by ${req.user.name}`
+    details: `${u.name} (${C.ROLES[u.role]} - ${u.email}) registration rejected by ${req.user.name} · Reason: ${reason}`
   });
 
   // Feature: Send email notification upon rejection
@@ -189,8 +204,7 @@ router.post('/:id/reject', (req, res) => {
   });
 
   flash(req, 'warning', `Account registration for ${u.name} has been rejected.`);
-  const redirectTarget = req.headers.referer && req.headers.referer.includes('/approvals') ? '/users/approvals' : '/users';
-  res.redirect(redirectTarget);
+  res.redirect(approvalBackUrl(req));
 });
 
 router.get('/:id/edit', (req, res) => {
@@ -213,6 +227,9 @@ router.post('/:id', (req, res) => {
   }
   if (errors.length) return renderForm(res, { ...u, id: existing.id, active: existing.active }, errors, 400);
   const patch = { ...u };
+  // Editing specializations in-app replaces any seeded label metadata so the
+  // displayed names always reflect the current category selection.
+  if ('specializations' in patch) patch.specializationLabels = [];
   if (password) patch.passwordHash = bcrypt.hashSync(password, 10);
   db.update('users', existing.id, patch);
   activity.log({ userId: req.user.id, action: 'User account updated', details: `${u.name} (${C.ROLES[u.role]})${password ? ', password reset' : ''}` });

@@ -75,6 +75,11 @@ const STATUS_ICON = {
   Completed: 'check-circle',
   Cancelled: 'x-circle',
   Rejected: 'x-circle',
+  // Equipment condition icons used by the Categories status summary.
+  Operational: 'check-circle',
+  'Needs Repair': 'alert-circle',
+  'Under Maintenance': 'wrench',
+  'Out of Service': 'x-circle',
 };
 function statusIcon(status) {
   return STATUS_ICON[status] || 'alert-circle';

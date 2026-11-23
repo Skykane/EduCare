@@ -16,7 +16,11 @@ function techSummary(t) {
   const durations = completed.filter((r) => r.assignedAt && r.completedAt).map((r) => (new Date(r.completedAt) - new Date(r.assignedAt)) / 86400000);
   return {
     tech: t,
-    specializations: (t.specializations || []).map((id) => db.find('categories', id)).filter(Boolean),
+    // Seeded demo technicians carry exact specialization labels. Use those when
+    // present; otherwise fall back to names derived from the selected categories.
+    specializations: (t.specializationLabels && t.specializationLabels.length)
+      ? t.specializationLabels.map((name) => ({ name }))
+      : (t.specializations || []).map((id) => db.find('categories', id)).filter(Boolean),
     active: tasks.filter((r) => C.TECH_ACTIVE_STATUSES.includes(r.status)),
     overdue: tasks.filter((r) => r.overdue).length,
     completedCount: completed.length,

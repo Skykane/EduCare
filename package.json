@@ -7,7 +7,12 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "seed": "node src/seed.js --reset",
+    "verify:grade-sections": "node scripts/verify-grade-sections.js",
+    "verify:directory": "node scripts/verify-2026-directory.js",
+    "seed:directory": "node scripts/seed-2026-directory.js",
+    "migrate:repair-workflow": "node scripts/migrate-repair-workflow.js",
+    "verify:repair-workflow": "node scripts/verify-repair-workflow.js",
+    "verify:categories": "node scripts/verify-categories.js",
     "apk": "android\\gradlew.bat -p android assembleDebug"
   },
   "engines": {

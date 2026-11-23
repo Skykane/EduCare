@@ -1,0 +1,416 @@
+/* =====================================================================
+   Equipment Categories module
+   Scoped to the Categories page so no other Admin module is affected.
+   Loaded after tables.css, so table overrides stay intentional.
+   ===================================================================== */
+
+/* ---------- Page containment and left alignment ---------- */
+.categories-page,
+.categories-page .app,
+.categories-page .main,
+.categories-page .content,
+.categories-page .content > * {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+.categories-page .app,
+.categories-page .content,
+.categories-page .content > * {
+  width: 100%;
+}
+
+/* Override the global centered-content rule for this data-entry page only. */
+.categories-page .app .content,
+.categories-page .app .content .card,
+.categories-page .app .dash-header-banner,
+.categories-page .dash-banner-text,
+.categories-page .add-category-head,
+.categories-page .categories-table-head,
+.categories-page .locations-link-card {
+  text-align: left !important;
+}
+.categories-page .app .add-category-form .field,
+.categories-page .app .category-edit-form .field {
+  min-width: 0;
+  text-align: left !important;
+}
+.categories-page .app .add-category-form label,
+.categories-page .app .category-edit-form label {
+  text-align: left !important;
+}
+/* Match the global input selector's specificity so left alignment wins. */
+.categories-page .app .add-category-form input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']),
+.categories-page .app .category-edit-form input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']),
+.categories-page .app input::placeholder,
+.categories-page .app textarea::placeholder {
+  text-align: left !important;
+}
+.categories-page .category-identity,
+.categories-page .category-link,
+.categories-page .category-description,
+.categories-page .app table.categories-table thead th:first-child,
+.categories-page .app table.categories-table tbody tr td:first-child,
+.categories-page .app table.categories-table td.col-left,
+.categories-page .app table.categories-table tbody td.col-left {
+  text-align: left !important;
+}
+.categories-page .app table.categories-table th.col-center:not(:first-child),
+.categories-page .app table.categories-table td.col-center:not(:first-child),
+.categories-page .app table.categories-table tbody td.col-center:not(:first-child) {
+  text-align: center !important;
+}
+
+/* Header and tab layout are provided by the shared
+   equipment-management-header.css stylesheet. */
+
+/* ---------- Status summary ---------- */
+.categories-page .category-status-stats {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.categories-page .category-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 72px;
+  padding: 8px 6px;
+  text-align: center;
+  border-radius: 10px;
+}
+.categories-page .category-stat .value { margin-top: 0; }
+.categories-page .category-stat-icon {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  flex: 0 0 auto;
+}
+.categories-page .category-stat-icon .ic { width: 14px; height: 14px; }
+.categories-page .category-stat.green .category-stat-icon { color: var(--green); }
+.categories-page .category-stat.green .category-stat-value { color: var(--green); }
+.categories-page .category-stat.amber .category-stat-icon { color: var(--amber); }
+.categories-page .category-stat.amber .category-stat-value { color: var(--amber); }
+.categories-page .category-stat.blue .category-stat-icon { color: var(--blue); }
+.categories-page .category-stat.blue .category-stat-value { color: var(--blue); }
+.categories-page .category-stat.red .category-stat-icon { color: var(--red); }
+.categories-page .category-stat.red .category-stat-value { color: var(--red); }
+.categories-page .category-stat-label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  line-height: 1.2;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+.categories-page .category-stat-value {
+  display: block;
+  font-size: 21px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Add category form ---------- */
+.categories-page .add-category-card {
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.categories-page .add-category-head {
+  display: block;
+  margin-bottom: 10px;
+}
+.categories-page .add-category-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+.categories-page .add-category-subtitle {
+  margin-top: 2px;
+  font-size: 11.5px;
+}
+.categories-page .add-category-form {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.15fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+.categories-page .add-category-form .field > input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+.categories-page .add-category-form label {
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+.categories-page .add-category-form input,
+.categories-page .add-category-submit {
+  height: 38px;
+  border-radius: 8px;
+  font-size: 12.5px;
+}
+.categories-page .add-category-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+.categories-page .add-category-submit .ic { width: 14px; height: 14px; }
+
+/* ---------- Categories table ---------- */
+.categories-page .categories-table-card {
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+.categories-page .categories-table-head {
+  display: block;
+  padding: 10px 14px;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+.categories-page .categories-table-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+.categories-page .categories-table-head p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.categories-page .categories-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.categories-page table.categories-table {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.categories-page .cat-col-category { width: 29%; }
+.categories-page .cat-col-operational { width: 9%; }
+.categories-page .cat-col-repair { width: 9%; }
+.categories-page .cat-col-maintenance { width: 11%; }
+.categories-page .cat-col-out { width: 10%; }
+.categories-page .cat-col-total { width: 7%; }
+.categories-page .cat-col-actions { width: 25%; }
+.categories-page table.categories-table th,
+.categories-page table.categories-table td {
+  padding: 8px 10px;
+}
+.categories-page table.categories-table thead th {
+  height: auto;
+  min-height: 38px;
+  font-size: 10px;
+  white-space: normal;
+}
+.categories-page table.categories-table td {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+.categories-page .category-identity { display: block; white-space: normal; min-width: 0; }
+.categories-page .category-link {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--primary);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.categories-page .category-link:hover { text-decoration: underline; }
+.categories-page .category-description {
+  display: block;
+  max-width: 100%;
+  margin-top: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.categories-page .category-description.is-empty { opacity: 0.75; font-style: italic; }
+.categories-page .category-count {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.categories-page .category-count.green { color: var(--green); }
+.categories-page .category-count.amber { color: var(--amber); }
+.categories-page .category-count.blue { color: var(--blue); }
+.categories-page .category-count.red { color: var(--red); }
+.categories-page .category-zero { color: var(--muted); opacity: 0.55; }
+.categories-page .category-total {
+  font-size: 12.5px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.categories-page .category-actions-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  max-width: 100%;
+  flex-wrap: nowrap;
+}
+.categories-page .app table.categories-table .category-actions-cell .inline-form {
+  display: inline-flex;
+  flex: 0 0 auto;
+  margin: 0 !important;
+}
+.categories-page .category-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+.categories-page .category-action-btn .ic { width: 12px; height: 12px; }
+.categories-page .category-delete { color: var(--red); }
+
+/* ---------- Inline edit form ---------- */
+.categories-page .category-edit-cell {
+  padding: 10px 12px !important;
+  background: var(--tbl-hover, var(--surface-subtle, var(--bg))) !important;
+}
+.categories-page .category-edit-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(240px, 1.3fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+.categories-page .category-edit-form .field { min-width: 0; margin: 0; }
+.categories-page .category-edit-form label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.categories-page .category-edit-form input {
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  box-sizing: border-box;
+}
+.categories-page .category-edit-actions { display: flex; gap: 5px; }
+.categories-page .category-edit-actions .btn { height: 36px; }
+
+/* ---------- Locations cross-link ---------- */
+.categories-page .locations-link-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  margin: 0;
+}
+.categories-page .locations-link-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.categories-page .locations-link-icon {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: rgba(140, 23, 36, 0.08);
+  color: var(--primary);
+  flex: 0 0 auto;
+}
+.categories-page .locations-link-icon .ic { width: 16px; height: 16px; }
+.categories-page .locations-link-card h3 { margin: 0; font-size: 13.5px; font-weight: 700; }
+.categories-page .locations-link-card p { margin: 2px 0 0; font-size: 11.5px; color: var(--muted); }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .categories-page .category-status-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 980px) {
+  .categories-page .add-category-form {
+    grid-template-columns: minmax(160px, 1fr) minmax(200px, 1.2fr) auto;
+    gap: 8px;
+  }
+  .categories-page .add-category-submit { padding: 0 12px; }
+}
+
+@media (max-width: 820px) {
+  .categories-page .add-category-form,
+  .categories-page .category-edit-form { grid-template-columns: 1fr; }
+  .categories-page .add-category-submit,
+  .categories-page .category-edit-actions .btn { width: 100%; }
+  .categories-page .category-edit-actions { width: 100%; }
+}
+
+@media (max-width: 760px) {
+  .categories-page .category-stat { min-height: 68px; }
+  .categories-page .category-stat-value { font-size: 19px; }
+  .categories-page .categories-table-head { padding: 10px 12px; }
+  .categories-page .category-description { white-space: normal; }
+  .categories-page .app table.categories-table tbody td.category-edit-cell {
+    display: block;
+    width: 100%;
+    text-align: left !important;
+  }
+  .categories-page .category-actions-cell { justify-content: flex-start; }
+  .categories-page .category-actions-inner {
+    display: flex;
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .categories-page .category-actions-inner > .btn,
+  .categories-page .category-actions-inner .inline-form {
+    flex: 0 1 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  .categories-page .category-status-stats { grid-template-columns: 1fr; }
+  .categories-page .category-stat { min-height: 62px; }
+}
+
+[data-theme="dark"] .categories-page .locations-link-icon {
+  background: rgba(248, 113, 113, 0.12);
+  color: #f87171;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .categories-page .category-stat,
+  .categories-page .category-link { transition: none; }
+}

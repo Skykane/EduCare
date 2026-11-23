@@ -2,11 +2,7 @@
 <% var t = s.tech; %>
 <div class="page-head">
   <div style="display:flex;gap:12px;align-items:center">
-    <% if (t.avatar) { %>
-      <span class="avatar avatar-has-img" style="width:52px;height:52px"><img src="/uploads/<%= t.avatar %>" alt="" class="avatar-img"></span>
-    <% } else { %>
-      <span class="avatar" style="width:52px;height:52px;font-size:18px"><%= initials(t.name) %></span>
-    <% } %>
+    <%- include('../partials/avatar', { user: t, name: t.name, size: 'lg' }) %>
     <div>
       <h1 style="margin:0"><%= t.name %></h1>
       <p><%= t.email %><%= t.phone ? ' · ' + t.phone : '' %> · <%= t.department || 'Technician' %></p>
@@ -16,7 +12,7 @@
     <% if (currentUser.role === 'admin') { %><a class="btn btn-light" href="/users/<%= t.id %>/edit">Edit profile</a><% } %>
     <% if (t.active) { %>
     <form method="post" action="/technicians/<%= t.id %>/availability" class="actions">
-      <select name="availability" aria-label="Availability" style="width:auto">
+      <select data-ec-select="1" name="availability" aria-label="Availability" style="width:auto">
         <% C.AVAILABILITY.forEach(function (a) { %><option <%= t.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
       </select>
       <button class="btn btn-light" type="submit">Set availability</button>
@@ -37,7 +33,7 @@
   <div class="card-head">
     <h2>Specializations</h2>
     <% if (currentUser.id === t.id) { %>
-      <a class="btn btn-sm btn-light" href="/profile"><%- icon('wrench') %> Edit Specializations</a>
+      <a class="btn btn-sm btn-light" href="/profile/edit"><%- icon('wrench') %> Edit Specializations</a>
     <% } else if (currentUser.role === 'admin') { %>
       <a class="btn btn-sm btn-light" href="/users/<%= t.id %>/edit"><%- icon('wrench') %> Edit Specializations</a>
     <% } %>

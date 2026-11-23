@@ -16,6 +16,18 @@ function adminIds() {
   return db.where('users', (u) => u.role === 'admin' && u.active).map((u) => u.id);
 }
 
+// Notification messages include user-entered text (titles, reasons, remarks).
+// Escape it before embedding in HTML email bodies.
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[ch]);
+}
+
 /**
  * Send one notification to each user in `userIds`.
  * Also sends an email notification to user's registered email address.
@@ -41,7 +53,7 @@ function notify(userIds, { message, link = null, type = 'info', dedupeKey = null
           headline: 'New Notification',
           recipientName: recipient.name,
           badge: { text: type ? type.toUpperCase() : 'INFO', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' },
-          bodyHtml: `<p style="font-size:15px;color:#1e293b;">${message}</p>`,
+          bodyHtml: `<p style="font-size:15px;color:#1e293b;">${escapeHtml(message)}</p>`,
           actionUrl: fullLink,
           actionText: 'View in EduCare',
         });

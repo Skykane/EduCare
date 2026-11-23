@@ -1,8 +1,51 @@
 <%- include('partials/header') %>
-<div class="dash">
+<div class="dash student-dashboard">
   <!-- Reference Style Header Page Banner -->
   <%
     var reqExtraActions = `
+      <div class="student-help-wrap">
+        <button type="button" class="student-help-trigger" id="studentHelpTrigger" aria-haspopup="dialog" aria-expanded="false" aria-controls="studentHelpPopover" aria-label="How repair requests work">
+          <span aria-hidden="true">?</span>
+        </button>
+        <div class="student-help-popover" id="studentHelpPopover" role="dialog" aria-modal="false" aria-labelledby="studentHelpTitle" aria-hidden="true">
+          <div class="student-help-popover__head">
+            <div>
+              <h2 id="studentHelpTitle">How Repair Requests Work</h2>
+              <p class="student-help-popover__sub">4 Easy Steps</p>
+            </div>
+          </div>
+          <div class="process-steps student-help-steps">
+            <div class="process-step">
+              <span class="step-num">1</span>
+              <div class="process-step-body">
+                <strong>Submit Request</strong>
+                <p class="muted">Choose the location, take a photo, and describe the problem.</p>
+              </div>
+            </div>
+            <div class="process-step">
+              <span class="step-num">2</span>
+              <div class="process-step-body">
+                <strong>Admin Approval &amp; Triage</strong>
+                <p class="muted">Administrator reviews and approves your report, validating the issue and setting priority.</p>
+              </div>
+            </div>
+            <div class="process-step">
+              <span class="step-num">3</span>
+              <div class="process-step-body">
+                <strong>Technician Assigned</strong>
+                <p class="muted">A technician will be assigned with a target completion date.</p>
+              </div>
+            </div>
+            <div class="process-step is-final">
+              <span class="step-num">4</span>
+              <div class="process-step-body">
+                <strong>Resolved &amp; Notification</strong>
+                <p class="muted">You receive an in-app alert once the repair is completed.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
       <a href="/requests/new" class="btn-banner-sub">${icon('plus')} Report Issue</a>
     `;
   %>
@@ -13,26 +56,16 @@
     extraActions: reqExtraActions
   }) %>
 
-  <!-- Primary Action Banner -->
-  <a class="cta" href="/requests/new" style="margin-top:16px;">
-    <span class="cta-ic"><%- icon('camera') %></span>
-    <span class="cta-text">
-      <strong>Report a Broken or Malfunctioning Item</strong>
-      <small>Take or upload a photo, describe what happened, and a technician will be assigned to help you.</small>
-    </span>
-    <span class="cta-go"><%- icon('chevron-right') %></span>
-  </a>
-
   <!-- Status Summary Metrics -->
-  <div class="istats istats-3" style="margin-top:14px;">
+  <div class="istats istats-3 student-summary">
     <a class="istat amber" href="/requests?status=Pending">
       <span class="istat-ic"><%- icon('clock') %></span>
       <div class="istat-inline-content">
         <div class="istat-top-line">
           <span class="istat-num"><%= summary.pending %></span>
-          <span class="istat-label">Pending Approval</span>
+          <span class="istat-label">Assigned / Awaiting Repair</span>
         </div>
-        <span class="istat-sub">Awaiting Admin review</span>
+        <span class="istat-sub">Technician assigned, work not started</span>
       </div>
     </a>
     <a class="istat blue" href="/requests?status=active">
@@ -58,107 +91,191 @@
   </div>
 
   <!-- Main Requester Layout Grid -->
-  <div class="grid grid-main" style="margin-top:14px;">
-    <div>
-      <div class="card">
-        <div class="card-head">
-          <div>
-            <h2>My Recent Requests</h2>
-            <p class="muted" style="margin:2px 0 0;font-size:12.5px;">Latest repair tickets submitted from your account.</p>
-          </div>
-          <% if (total > 0) { %>
-            <a href="/requests" class="btn btn-light btn-sm">View All (<%= total %>)</a>
-          <% } %>
+  <div class="grid grid-main student-layout">
+    <section class="card student-recent-card" aria-labelledby="student-recent-heading">
+      <div class="card-head student-recent-head">
+        <div class="student-recent-head-copy">
+          <h2 id="student-recent-heading">My Recent Requests</h2>
+          <p class="muted">Latest repair tickets submitted from your account.</p>
         </div>
-
-        <% if (!recentRequests.length) { %>
-          <div class="empty-state" style="padding:40px 16px;">
-            <span class="empty-ic"><%- icon('file') %></span>
-            <strong>No requests submitted yet</strong>
-            <small>If an aircon, projector, computer, or classroom equipment is not working, click below to submit a request.</small>
-            <a href="/requests/new" class="btn btn-primary btn-sm" style="margin-top:14px;"><%- icon('plus') %> Report Your First Issue</a>
-          </div>
-        <% } else { %>
-          <div class="rlist rlist-1" style="margin-top:12px;">
-            <% recentRequests.forEach(function (r) { %>
-              <%- include('partials/report-card', { r: r, showTech: true, showRequester: false, showPriority: true }) %>
-            <% }) %>
-          </div>
+        <% if (total > 0) { %>
+          <a href="/requests" class="btn btn-light btn-sm student-recent-viewall">View All <span class="student-recent-viewall-count">(<%= total %>)</span></a>
         <% } %>
       </div>
-    </div>
 
-    <div>
-      <!-- How It Works Card -->
-      <div class="card">
-        <div class="card-head">
-          <h2>How Repair Requests Work</h2>
-          <span class="sub muted">4 Easy Steps</span>
+      <% if (!recentRequests.length) { %>
+        <div class="empty-state student-empty-state">
+          <span class="empty-ic"><%- icon('file') %></span>
+          <strong>No requests submitted yet</strong>
+          <small>When classroom or laboratory equipment needs attention, use the Report Issue button in the dashboard header to submit a request.</small>
         </div>
-        <div class="process-steps" style="display:flex;flex-direction:column;gap:12px;margin-top:8px;">
-          <div class="process-step" style="display:flex;gap:12px;align-items:flex-start;">
-            <span class="step-num" style="width:28px;height:28px;border-radius:50%;background:var(--primary-soft);color:var(--primary);font-weight:700;display:grid;place-items:center;flex-shrink:0;font-size:13px;">1</span>
-            <div>
-              <strong style="font-size:13.5px;">Submit Request</strong>
-              <p class="muted" style="margin:2px 0 0;font-size:12px;">Select equipment, take a photo, and describe the problem.</p>
-            </div>
-          </div>
-          <div class="process-step" style="display:flex;gap:12px;align-items:flex-start;">
-            <span class="step-num" style="width:28px;height:28px;border-radius:50%;background:var(--primary-soft);color:var(--primary);font-weight:700;display:grid;place-items:center;flex-shrink:0;font-size:13px;">2</span>
-            <div>
-              <strong style="font-size:13.5px;">Admin Approval & Triage</strong>
-              <p class="muted" style="margin:2px 0 0;font-size:12px;">Administrator reviews and approves your report, validating the issue and setting priority.</p>
-            </div>
-          </div>
-          <div class="process-step" style="display:flex;gap:12px;align-items:flex-start;">
-            <span class="step-num" style="width:28px;height:28px;border-radius:50%;background:var(--primary-soft);color:var(--primary);font-weight:700;display:grid;place-items:center;flex-shrink:0;font-size:13px;">3</span>
-            <div>
-              <strong style="font-size:13.5px;">Technician Assigned</strong>
-              <p class="muted" style="margin:2px 0 0;font-size:12px;">A technician will be assigned with a target completion date.</p>
-            </div>
-          </div>
-          <div class="process-step" style="display:flex;gap:12px;align-items:flex-start;">
-            <span class="step-num" style="width:28px;height:28px;border-radius:50%;background:#eaf8ef;color:#16a34a;font-weight:700;display:grid;place-items:center;flex-shrink:0;font-size:13px;">4</span>
-            <div>
-              <strong style="font-size:13.5px;">Resolved & Notification</strong>
-              <p class="muted" style="margin:2px 0 0;font-size:12px;">You receive an in-app alert once the repair is completed.</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <% } else { %>
+        <div class="student-recent-scroll">
+          <div class="student-request-list" role="list">
+            <% recentRequests.forEach(function (r) { %>
+              <%
+                var eq = r.equipment;
+                var catName = r.category ? r.category.name : '';
+                var locText = r.location || (eq && eq.location) || '';
+                var metaLine = [locText, catName].filter(Boolean).join(' · ');
+                var priorityLevel = r.effectivePriority || r.priority || (r.rec ? r.rec.level : '');
+              %>
+              <a class="srcard<%= r.overdue ? ' is-overdue' : '' %>" href="/requests/<%= r.id %>" role="listitem" aria-label="View request <%= r.code %>">
+                <div class="srcard-top">
+                  <span class="srcard-id"><%= r.code %></span>
+                  <span class="chip chip-<%= statusColor(r.status) %> srcard-status"><%- icon(statusIcon(r.status)) %><%= r.status %></span>
+                </div>
 
-      <!-- Department & Contact Card -->
-      <div class="card">
-        <div class="card-head">
-          <h2>My Profile Details</h2>
-          <a href="/profile" class="btn btn-light btn-sm"><%- icon('settings') %> Edit Profile</a>
-        </div>
-        <dl class="dl" style="grid-template-columns:105px 1fr;margin-top:6px;font-size:13px;">
-          <% if (currentUser.studentId) { %><dt>Student ID</dt><dd class="mono"><strong><%= currentUser.studentId %></strong></dd><% } %>
-          <dt>Name</dt><dd><strong><%= currentUser.name %></strong></dd>
-          <dt>Email</dt><dd class="mono"><%= currentUser.email %></dd>
-          <% if (typeof studentInfo !== 'undefined' && studentInfo) { %>
-            <dt>Grade & Section</dt><dd><%= studentInfo.gradeLevel %> · <%= studentInfo.section %></dd>
-            <dt>School Year</dt><dd><%= studentInfo.schoolYear || '2024-2025' %></dd>
-          <% } else { %>
-            <dt>Department</dt><dd><%= currentUser.department || 'Not specified' %></dd>
-          <% } %>
-          <dt>Phone</dt><dd><%= currentUser.phone || 'Not specified' %></dd>
-          <dt>Address</dt><dd><%= currentUser.address || (typeof studentInfo !== 'undefined' && studentInfo && studentInfo.address) || 'Not specified' %></dd>
-        </dl>
-      </div>
+                <div class="srcard-main">
+                  <span class="srcard-thumb" aria-hidden="true">
+                    <% if (r.photo) { %>
+                      <img src="/uploads/<%= r.photo.filename %>" alt="" loading="lazy">
+                    <% } else { %>
+                      <span class="srcard-thumb-ph"><%- icon(categoryIcon(catName)) %></span>
+                    <% } %>
+                  </span>
 
+                  <div class="srcard-content">
+                    <div class="srcard-title-row">
+                      <h3 class="srcard-title"><%= eq ? eq.name : (catName || r.title) %></h3>
+                    </div>
+                    <p class="srcard-meta-line"><%= metaLine || 'Location details unavailable' %></p>
+                    <div class="srcard-badges">
+                      <% if (priorityLevel) { %>
+                        <span class="chip chip-<%= statusColor(priorityLevel) %> soft srcard-priority"><%= priorityLevel %> Priority</span>
+                      <% } %>
+                      <% if (r.overdue) { %>
+                        <span class="chip chip-red soft srcard-overdue">Overdue</span>
+                      <% } %>
+                      <% if (r.editable) { %>
+                        <span class="chip chip-gray soft srcard-editable"><%- icon('edit') %> Editable</span>
+                      <% } %>
+                    </div>
+                  </div>
+
+                  <span class="srcard-arrow" aria-hidden="true"><%- icon('chevron-right') %></span>
+                </div>
+
+                <div class="srcard-details" aria-label="Request details">
+                  <div class="srcard-detail">
+                    <span class="srcard-detail-label"><%- icon('wrench') %> Technician</span>
+                    <span class="srcard-detail-value"><%= r.technician ? r.technician.name : 'Not assigned' %></span>
+                  </div>
+                  <div class="srcard-detail">
+                    <span class="srcard-detail-label"><%- icon('calendar') %> Submitted</span>
+                    <span class="srcard-detail-value"><%= fmtDateTime(r.createdAt) %></span>
+                  </div>
+                  <div class="srcard-detail">
+                    <span class="srcard-detail-label"><%- icon('clock') %> Target Completion</span>
+                    <span class="srcard-detail-value"><%= r.targetDate ? fmtDate(r.targetDate) : 'Not set' %></span>
+                  </div>
+                </div>
+              </a>
+            <% }) %>
+          </div>
+        </div>
+      <% } %>
+    </section>
+
+    <div class="student-side">
       <!-- Campus Emergency Support -->
-      <div class="card" style="border-left:4px solid var(--primary);">
-        <h3 style="margin:0 0 6px;font-size:14.5px;display:flex;align-items:center;gap:6px;">
-          <%- icon('alert') %> Urgent Facilities Assistance
-        </h3>
-        <p class="muted" style="font-size:12.5px;margin:0 0 8px;">
+      <section class="card student-emergency-card" aria-label="Urgent facilities assistance">
+        <h3><%- icon('alert') %> Urgent Facilities Assistance</h3>
+        <p class="muted">
           For physical emergencies like electrical sparks, major water leaks, or immediate hazards, please contact the Facilities Management Office directly.
         </p>
-        <span class="tag tag-sm" style="font-weight:600;"><%- icon('phone') %> Campus FMO Hotline: Loc. 101 / 102</span>
-      </div>
+        <span class="tag tag-sm"><%- icon('phone') %> Campus FMO Hotline: Loc. 101 / 102</span>
+      </section>
     </div>
   </div>
 </div>
+<script>
+  (function () {
+    var trigger = document.getElementById('studentHelpTrigger');
+    var popover = document.getElementById('studentHelpPopover');
+    if (!trigger || !popover) return;
+
+    var popoverHome = popover.parentNode;
+    var popoverNext = popover.nextSibling;
+
+    function restorePopover() {
+      if (popover.parentNode === document.body) {
+        if (popoverNext && popoverNext.parentNode === popoverHome) {
+          popoverHome.insertBefore(popover, popoverNext);
+        } else {
+          popoverHome.appendChild(popover);
+        }
+      }
+    }
+
+    function positionPopover() {
+      var triggerRect = trigger.getBoundingClientRect();
+      var gap = 10;
+      var viewportPad = 12;
+      var popoverWidth = Math.min(360, window.innerWidth - viewportPad * 2);
+
+      popover.style.width = popoverWidth + 'px';
+      popover.style.left = '0px';
+      popover.style.top = '0px';
+
+      var popoverRect = popover.getBoundingClientRect();
+      var popoverHeight = popoverRect.height;
+      var left = triggerRect.right - popoverWidth;
+      left = Math.max(viewportPad, Math.min(left, window.innerWidth - popoverWidth - viewportPad));
+
+      var top = triggerRect.bottom + gap;
+      if (top + popoverHeight > window.innerHeight - viewportPad) {
+        var aboveTop = triggerRect.top - popoverHeight - gap;
+        if (aboveTop >= viewportPad) {
+          top = aboveTop;
+        } else {
+          top = Math.max(viewportPad, window.innerHeight - popoverHeight - viewportPad);
+        }
+      }
+
+      popover.style.left = left + 'px';
+      popover.style.top = top + 'px';
+    }
+
+    function openHelp() {
+      if (popover.parentNode !== document.body) {
+        document.body.appendChild(popover);
+      }
+      popover.classList.add('is-open');
+      popover.setAttribute('aria-hidden', 'false');
+      trigger.setAttribute('aria-expanded', 'true');
+      positionPopover();
+      window.addEventListener('resize', positionPopover);
+      window.addEventListener('scroll', positionPopover, true);
+    }
+
+    function closeHelp() {
+      popover.classList.remove('is-open');
+      popover.setAttribute('aria-hidden', 'true');
+      trigger.setAttribute('aria-expanded', 'false');
+      window.removeEventListener('resize', positionPopover);
+      window.removeEventListener('scroll', positionPopover, true);
+      restorePopover();
+    }
+
+    trigger.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (popover.classList.contains('is-open')) closeHelp();
+      else openHelp();
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!popover.classList.contains('is-open')) return;
+      if (popover.contains(e.target) || trigger.contains(e.target)) return;
+      closeHelp();
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && popover.classList.contains('is-open')) {
+        closeHelp();
+        trigger.focus();
+      }
+    });
+  })();
+</script>
 <%- include('partials/footer') %>

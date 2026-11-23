@@ -1,405 +1,862 @@
 <%- include('../partials/header') %>
 <% var role = currentUser.role; var b = r.rec.breakdown; %>
-<div class="page-head">
-  <div>
-    <h1><span class="mono"><%= r.code %></span> · <%= r.title %></h1>
-    <p>
-      <span class="<%= statusClass(r.status) %>"><%= r.status %></span>
-      <span class="<%= statusClass(r.effectivePriority) %>"><%= r.effectivePriority %> priority</span>
-      <span class="<%= statusClass(r.type) %>"><%= r.type %></span>
-      <% if (r.overdue) { %><span class="badge badge-red">Overdue</span><% } %>
-    </p>
-  </div>
-  <div class="actions">
-    <% if (typeof canEdit !== 'undefined' && canEdit) { %>
-      <a class="btn btn-light" href="/requests/<%= r.id %>/edit"><%- icon('edit') %> Edit Report</a>
-    <% } %>
-    <% if (typeof canCancel !== 'undefined' && canCancel) { %>
-      <button type="button" class="btn btn-danger btn-sm" onclick="openCancelModal()"><%- icon('trash') %> Cancel Report</button>
-    <% } %>
-    <a class="btn btn-light" href="/requests">Back to list</a>
-  </div>
-</div>
-
-<% if (r.status === 'Cancelled') { %>
-  <div class="alert alert-error" style="margin-bottom:18px;display:flex;align-items:center;gap:10px;">
-    <%- icon('alert-circle') %>
-    <div>
-      <strong>This report has been cancelled.</strong>
-      <span class="muted" style="display:block;font-size:12.5px;">Cancelled on <%= fmtDateTime(r.cancelledAt) %></span>
-    </div>
-  </div>
-<% } else if (r.status === 'Rejected') { %>
-  <div class="alert alert-error" style="margin-bottom:18px;display:flex;align-items:center;gap:10px;">
-    <%- icon('x-circle') %>
-    <div>
-      <strong>This report was reviewed and rejected by the Administrator.</strong>
-      <span class="muted" style="display:block;font-size:12.5px;">Reason: <%= r.rejectionReason || 'Declined by administrator' %><% if (r.rejectedAt) { %> · <%= fmtDateTime(r.rejectedAt) %><% } %></span>
-    </div>
-  </div>
-<% } else if (currentUser.id === r.requesterId && r.status === 'Pending') { %>
-  <div class="alert alert-info" style="margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-    <div style="display:flex;align-items:center;gap:10px;">
-      <%- icon('info') %>
-      <span>Your report is pending review. Did you make a mistake? You can still <strong>edit</strong> your report details or <strong>cancel</strong> this ticket before a technician is assigned.</span>
-    </div>
-    <div style="display:flex;gap:8px;">
-      <a href="/requests/<%= r.id %>/edit" class="btn btn-sm btn-light"><%- icon('edit') %> Edit Report</a>
-      <button type="button" class="btn btn-sm btn-danger" onclick="openCancelModal()"><%- icon('trash') %> Cancel Report</button>
-    </div>
-  </div>
-<% } %>
-
-<div class="grid grid-main">
-  <div>
-    <div class="card">
-      <h2>Request Details</h2>
-      <dl class="dl">
-        <dt>Approval Status</dt>
-        <dd>
-          <% if (r.status === 'Pending') { %>
-            <span class="badge badge-amber"><%- icon('clock') %> Awaiting Admin Approval</span>
-          <% } else if (r.status === 'Approved') { %>
-            <span class="badge badge-blue"><%- icon('check-circle') %> Approved by Admin</span>
-            <% if (r.approvedAt) { %><span class="sub"><%= fmtDateTime(r.approvedAt) %></span><% } %>
-          <% } else if (r.status === 'Rejected') { %>
-            <span class="badge badge-red"><%- icon('x-circle') %> Rejected by Admin</span>
-            <% if (r.rejectionReason) { %><span class="sub" style="color:var(--red)"><%= r.rejectionReason %></span><% } %>
+<div class="request-detail-page">
+  <div class="rd-head card">
+    <div class="rd-head-top">
+      <div class="rd-head-left">
+        <div class="rd-head-idline">
+          <span class="rd-request-id mono"><%= r.code %></span>
+          <span class="rd-head-sep" aria-hidden="true">·</span>
+          <span class="rd-request-equip"><%= r.equipment ? r.equipment.name : (r.category ? r.category.name : r.title) %></span>
+          <span class="rd-head-sep" aria-hidden="true">·</span>
+          <span class="rd-head-equipid"><% if (r.equipment) { %>Equipment ID: <%= r.equipment.code %><% } else { %><%= [r.location, r.category ? r.category.name : ''].filter(Boolean).join(' · ') || 'General repair' %><% } %></span>
+        </div>
+        <div class="rd-badges">
+          <span class="<%= statusClass(r.status) %>"><%= r.status %></span>
+          <% if (r.type === 'Preventive') { %>
+            <span class="badge badge-teal"><%- icon('shield') %> Preventive Maintenance Request</span>
           <% } else { %>
-            <span class="badge badge-green"><%- icon('check-circle') %> Approved</span>
-            <% if (r.approvedAt) { %><span class="sub"><%= fmtDateTime(r.approvedAt) %></span><% } %>
+            <span class="badge badge-indigo"><%- icon('wrench') %> Corrective Repair Request</span>
           <% } %>
-        </dd>
-        <dt>Equipment</dt>
-        <dd><% if (r.equipment) { %><a href="/equipment/<%= r.equipment.id %>"><%= r.equipment.code %> – <%= r.equipment.name %></a>
-          <span class="<%= statusClass(r.equipment.status) %>"><%= r.equipment.status %></span><% } else { %>—<% } %></dd>
-        <dt>Category / Location</dt><dd><%= r.category ? r.category.name : '—' %> · <%= r.equipment ? r.equipment.location : '—' %></dd>
-        <dt>Problem</dt><dd style="white-space:pre-line"><%= r.description %></dd>
-        <dt>Severity</dt>
-        <dd>
-          <% if (r.severity && C.SEVERITIES[r.severity]) { %>
-            <span class="chip sev-chip-<%= r.severity %>"><%= C.SEVERITIES[r.severity] %></span>
-          <% } else { %>
-            <span class="badge badge-amber">Pending Admin Assessment</span>
-          <% } %>
-        </dd>
-        <dt>Requested by</dt><dd><%= r.requester ? r.requester.name : '—' %><% if (r.requester && r.requester.department) { %> <span class="muted">(<%= r.requester.department %>)</span><% } %></dd>
-        <dt>Submitted</dt><dd><%= fmtDateTime(r.createdAt) %></dd>
-        <dt>Technician</dt><dd><%= r.technician ? r.technician.name : 'Not assigned yet' %></dd>
-        <dt>Target date</dt><dd><%= r.targetDate ? fmtDate(r.targetDate) : '—' %></dd>
-        <% if (r.startedAt) { %><dt>Work started</dt><dd><%= fmtDateTime(r.startedAt) %></dd><% } %>
-        <% if (r.completedAt) { %><dt>Completed</dt><dd><%= fmtDateTime(r.completedAt) %></dd><% } %>
-        <% if (r.cancelledAt) { %><dt>Cancelled</dt><dd><%= fmtDateTime(r.cancelledAt) %></dd><% } %>
-      </dl>
-    </div>
-
-    <% if (canWork && C.TECH_ACTIVE_STATUSES.includes(r.status)) { %>
-    <div class="card">
-      <h2>Update Progress</h2>
-      <form method="post" action="/requests/<%= r.id %>/status" class="filters">
-        <div class="field wide">
-          <label for="progress-note">Note <span class="hint">(required when putting on hold)</span></label>
-          <input type="text" id="progress-note" name="note" maxlength="1000" placeholder="e.g. Waiting for replacement part">
+          <span class="<%= statusClass(r.effectivePriority) %>"><%= r.effectivePriority %> Priority (<%= r.priority ? 'Manual' : 'Calculated' %>)</span>
+          <% if (r.reportedAt) { %><span class="badge badge-gray">Reported <%= fmtManila(r.reportedAt) %></span><% } %>
+          <% if (r.verificationStatus && r.verificationStatus !== 'Not Submitted') { %><span class="<%= statusClass(r.verificationStatus) %>"><%= r.verificationStatus %></span><% } %>
+          <% if (r.startedAt) { %><span class="badge badge-blue">Started <%= fmtManila(r.startedAt) %></span><% } %>
+          <% if (r.completedAt) { %><span class="badge badge-green">Completed <%= fmtManila(r.completedAt) %></span><% } %>
+          <% if (r.completedAt && r.startedAt) { %><span class="badge badge-gray">Elapsed: <%= elapsedLabel %></span><% } %>
+          <% if (r.overdue) { %><span class="badge badge-red">Overdue</span><% } %>
         </div>
-        <div class="actions">
-          <% if (r.status === 'Assigned') { %><button class="btn" name="action" value="start" type="submit">▶ Start Work</button><% } %>
-          <% if (r.status === 'In Progress') { %><button class="btn btn-light" name="action" value="hold" type="submit">⏸ Put On Hold</button><% } %>
-          <% if (r.status === 'On Hold') { %><button class="btn" name="action" value="resume" type="submit">▶ Resume Work</button><% } %>
-        </div>
-      </form>
-    </div>
-
-    <div class="card card-floating" id="complete">
-      <h2>Complete Repair</h2>
-      <p class="muted">This saves a record to the equipment's maintenance history.</p>
-      <form method="post" action="/requests/<%= r.id %>/complete" enctype="multipart/form-data">
-        <div class="form-grid">
-          <div class="field full">
-            <label for="problem">Problem identified *</label>
-            <input type="text" id="problem" name="problem" required maxlength="1000" value="<%= r.type === 'Preventive' ? 'Scheduled preventive maintenance' : '' %>">
-          </div>
-          <div class="field full">
-            <label for="actionsTaken">Actions performed *</label>
-            <textarea id="actionsTaken" name="actionsTaken" required maxlength="2000"></textarea>
-          </div>
-          <div class="field">
-            <label for="partsReplaced">Parts replaced</label>
-            <input type="text" id="partsReplaced" name="partsReplaced" maxlength="1000" placeholder="e.g. 1x HDMI port, 2x fuse">
-          </div>
-          <div class="field">
-            <label for="serviceDate">Service date *</label>
-            <input type="date" id="serviceDate" name="serviceDate" value="<%= today %>" max="<%= today %>" required>
-          </div>
-          <div class="field">
-            <label for="resultingStatus">Equipment condition after repair</label>
-            <select id="resultingStatus" name="resultingStatus">
-              <% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= s === 'Operational' ? 'selected' : '' %>><%= s %></option><% }) %>
-            </select>
-          </div>
-          <div class="field">
-            <label for="remarks">Remarks</label>
-            <input type="text" id="remarks" name="remarks" maxlength="1000">
-          </div>
-          <div class="field">
-            <label for="after-photos">After-repair photos <span class="hint">(optional)</span></label>
-            <input type="file" id="after-photos" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" multiple>
-          </div>
-          <div class="field">
-            <label for="photoNote">Photo note</label>
-            <input type="text" id="photoNote" name="photoNote" maxlength="1000">
-          </div>
-        </div>
-        <button class="btn btn-success" type="submit">✔ Mark as Completed</button>
-      </form>
-    </div>
-    <% } %>
-
-    <% if (record) { var rt = getUser(record.technicianId); %>
-    <div class="card">
-      <h2>Maintenance Record</h2>
-      <dl class="dl">
-        <dt>Service date</dt><dd><%= fmtDate(record.serviceDate) %></dd>
-        <dt>Technician</dt><dd><%= rt ? rt.name : '—' %></dd>
-        <dt>Problem identified</dt><dd><%= record.problem %></dd>
-        <dt>Actions performed</dt><dd style="white-space:pre-line"><%= record.actionsTaken %></dd>
-        <dt>Parts replaced</dt><dd><%= record.partsReplaced || '—' %></dd>
-        <dt>Condition after</dt><dd><span class="<%= statusClass(record.resultingStatus) %>"><%= record.resultingStatus %></span></dd>
-        <% if (record.remarks) { %><dt>Remarks</dt><dd><%= record.remarks %></dd><% } %>
-      </dl>
-    </div>
-    <% } %>
-
-    <div class="card" id="docs">
-      <h2>Repair Documentation</h2>
-      <% [['Before repair', before], ['After repair', after]].forEach(function (group) { %>
-        <h3 class="mt"><%= group[0] %> <span class="muted">(<%= group[1].length %>)</span></h3>
-        <% if (!group[1].length) { %><p class="muted">No photos.</p><% } else { %>
-          <div class="photos">
-            <% group[1].forEach(function (a) { var au = getUser(a.userId); %>
-              <figure>
-                <a href="/uploads/<%= a.filename %>" target="_blank" rel="noopener"><img src="/uploads/<%= a.filename %>" alt="<%= a.originalName %>" loading="lazy"></a>
-                <figcaption><%= a.note || a.originalName %><br><%= au ? au.name : '' %> · <%= fmtDate(a.createdAt) %></figcaption>
-              </figure>
-            <% }) %>
-          </div>
+      </div>
+      <div class="rd-head-actions">
+        <% if (typeof canEdit !== 'undefined' && canEdit) { %>
+          <a class="btn btn-light rd-head-btn" href="/requests/<%= r.id %>/edit"><%- icon('edit') %> Edit Report</a>
         <% } %>
-      <% }) %>
-      <% if (r.status !== 'Cancelled') { %>
-      <form method="post" action="/requests/<%= r.id %>/attachments" enctype="multipart/form-data" class="filters mt" style="border-top:1px solid var(--border);padding-top:14px">
-        <div class="field">
-          <label for="stage">Stage</label>
-          <select id="stage" name="stage">
-            <option value="before">Before repair</option>
-            <% if (canWork) { %><option value="after" <%= r.status === 'Completed' ? 'selected' : '' %>>After repair</option><% } %>
-          </select>
+        <% if (typeof canCancel !== 'undefined' && canCancel) { %>
+          <button type="button" class="btn btn-danger rd-head-btn" onclick="openCancelModal()"><%- icon('trash') %> Cancel Report</button>
+        <% } %>
+        <a class="btn btn-light rd-head-btn" href="/requests">Back to List</a>
+      </div>
+    </div>
+  </div>
+
+  <% if (r.status === 'Cancelled') { %>
+    <div class="rd-banner rd-banner-danger">
+      <span class="rd-banner-icon"><%- icon('alert-circle') %></span>
+      <div class="rd-banner-body">
+        <p class="rd-banner-title">This report has been cancelled.</p>
+        <span class="rd-banner-sub">Cancelled on <%= fmtDateTime(r.cancelledAt) %></span>
+      </div>
+    </div>
+  <% } else if (r.status === 'Rejected') { %>
+    <div class="rd-banner rd-banner-danger">
+      <span class="rd-banner-icon"><%- icon('x-circle') %></span>
+      <div class="rd-banner-body">
+        <p class="rd-banner-title">This report was reviewed and rejected by the Administrator.</p>
+        <span class="rd-banner-sub">Reason: <%= r.rejectionReason || 'Declined by administrator' %><% if (r.rejectedAt) { %> · <%= fmtDateTime(r.rejectedAt) %><% } %></span>
+      </div>
+    </div>
+  <% } else if (currentUser.id === r.requesterId && (r.status === 'Reported' || (!isNewFlow && r.status === 'Pending'))) { %>
+    <div class="rd-banner rd-banner-info">
+      <span class="rd-banner-icon"><%- icon('info') %></span>
+      <div class="rd-banner-body">
+        <p class="rd-banner-title">Pending Review</p>
+        <span class="rd-banner-sub">Your report has been submitted and is awaiting administrator review. You can still edit or cancel it before a technician is assigned.</span>
+      </div>
+    </div>
+  <% } else if (currentUser.id === r.requesterId && isNewFlow && r.status === 'Pending') { %>
+    <div class="rd-banner rd-banner-info">
+      <span class="rd-banner-icon"><%- icon('user-check') %></span>
+      <div class="rd-banner-body">
+        <p class="rd-banner-title">Technician Assigned</p>
+        <span class="rd-banner-sub"><%= r.technician ? r.technician.name : 'A technician' %> has been assigned to your request. Repair work has not started yet, so this report can no longer be edited or cancelled.</span>
+      </div>
+    </div>
+  <% } %>
+
+  <div class="rd-grid">
+    <div class="rd-col rd-col-left">
+      <div class="card rd-card rd-details-card" id="details">
+        <div class="rd-details-header">
+          <span class="rd-details-header-icon" aria-hidden="true"><%- icon('file-text') %></span>
+          <h2>Request Details</h2>
         </div>
-        <div class="field wide">
-          <label for="doc-photos">Photos</label>
-          <input type="file" id="doc-photos" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" multiple required>
+        <dl class="rd-dl rd-details-dl">
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('layers') %></span><span>Request Type</span></span></dt>
+            <dd>
+              <% if (r.type === 'Preventive') { %>
+                <span class="badge badge-teal">Preventive Maintenance Request</span>
+              <% } else { %>
+                <span class="badge rd-badge-type">Corrective Repair Request</span>
+              <% } %>
+            </dd>
+          </div>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('check-circle') %></span><span>Approval Status</span></span></dt>
+            <dd>
+              <% if (r.status === 'Reported' || (!isNewFlow && r.status === 'Pending')) { %>
+                <span class="badge rd-badge-pending"><%- icon('clock') %> Awaiting Admin Approval</span>
+              <% } else if (isNewFlow && r.status === 'Pending') { %>
+                <span class="badge badge-blue"><%- icon('user-check') %> Assigned to <%= r.technician ? r.technician.name : 'Technician' %></span>
+              <% } else if (r.status === 'Approved') { %>
+                <span class="badge badge-blue"><%- icon('check-circle') %> Approved by Admin</span>
+                <% if (r.approvedAt) { %><span class="rd-subtext"><%= fmtDateTime(r.approvedAt) %></span><% } %>
+              <% } else if (r.status === 'Rejected') { %>
+                <span class="badge badge-red"><%- icon('x-circle') %> Rejected by Admin</span>
+                <% if (r.rejectionReason) { %><span class="rd-subtext" style="color:var(--red)"><%= r.rejectionReason %></span><% } %>
+              <% } else { %>
+                <span class="badge badge-green"><%- icon('check-circle') %> Approved</span>
+                <% if (r.approvedAt) { %><span class="rd-subtext"><%= fmtDateTime(r.approvedAt) %></span><% } %>
+              <% } %>
+            </dd>
+          </div>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('monitor') %></span><span>Equipment</span></span></dt>
+            <dd>
+              <% if (r.equipment) { %>
+                <a href="/equipment/<%= r.equipment.id %>"><%= r.equipment.code %> – <%= r.equipment.name %></a>
+                <span class="badge <%= r.equipment.status === 'Needs Repair' ? 'rd-badge-pending' : statusClass(r.equipment.status) %>"><%= r.equipment.status %></span>
+              <% } else { %>
+                <span class="rd-na">Not provided</span>
+              <% } %>
+            </dd>
+          </div>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('map-pin') %></span><span>Category / Location</span></span></dt>
+            <dd>
+              <% var catName = r.category ? r.category.name : ''; var locName = r.location; %>
+              <% if (catName || locName) { %>
+                <%= catName || 'Not provided' %> · <%= locName || 'Not provided' %>
+              <% } else { %>
+                <span class="rd-na">Not provided</span>
+              <% } %>
+            </dd>
+          </div>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('file') %></span><span>Problem</span></span></dt>
+            <dd class="rd-pre"><%= r.description ? r.description : '' %><% if (!r.description) { %><span class="rd-na">Not provided</span><% } %></dd>
+          </div>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('alert') %></span><span>Severity</span></span></dt>
+            <dd>
+              <% if (r.severity && C.SEVERITIES[r.severity]) { %>
+                <span class="chip sev-chip-<%= r.severity %>"><%= C.SEVERITIES[r.severity] %></span>
+              <% } else { %>
+                <span class="badge rd-badge-pending">Pending Admin Assessment</span>
+              <% } %>
+            </dd>
+          </div>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('user') %></span><span>Requested By</span></span></dt>
+            <dd>
+              <% if (r.requester) { %>
+                <%= r.requester.name %><% if (r.requester.department) { %> <span class="muted">(<%= r.requester.department %>)</span><% } %>
+              <% } else { %>
+                <span class="rd-na">Not provided</span>
+              <% } %>
+            </dd>
+          </div>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('calendar') %></span><span>Submitted</span></span></dt>
+            <dd><%= r.createdAt ? fmtDateTime(r.createdAt) : '' %><% if (!r.createdAt) { %><span class="rd-na">Not provided</span><% } %></dd>
+          </div>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('tool') %></span><span>Technician</span></span></dt>
+            <dd><% if (r.technician) { %><%= r.technician.name %><% } else { %><span class="rd-na">Not provided</span><% } %></dd>
+          </div>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('clock') %></span><span>Target Date</span></span></dt>
+            <dd>
+              <% if (r.targetDate) { %>
+                <%= fmtDate(r.targetDate) %><% if (r.overdue) { %> <span class="badge badge-red">Overdue</span><% } %>
+              <% } else { %>
+                <span class="rd-na">Not provided</span><% if (r.overdue) { %> <span class="badge badge-red">Overdue</span><% } %>
+              <% } %>
+            </dd>
+          </div>
+          <% if (r.startedAt) { %>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('play') %></span><span>Work Started</span></span></dt>
+            <dd><%= fmtDateTime(r.startedAt) %></dd>
+          </div>
+          <% } %>
+          <% if (r.completedAt) { %>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('check') %></span><span>Completed</span></span></dt>
+            <dd><%= fmtDateTime(r.completedAt) %></dd>
+          </div>
+          <% } %>
+          <% if (r.cancelledAt) { %>
+          <div class="rd-dl-row">
+            <dt><span class="rd-dl-label"><span class="rd-dl-icon"><%- icon('x-circle') %></span><span>Cancelled</span></span></dt>
+            <dd><%= fmtDateTime(r.cancelledAt) %></dd>
+          </div>
+          <% } %>
+        </dl>
+      </div>
+
+      <% if (canWork && (C.TECH_ACTIVE_STATUSES.includes(r.status) || (isNewFlow && r.status === 'Pending') || isRework)) { %>
+      <% if (isRework) { %>
+        <div class="rd-banner rd-banner-danger">
+          <span class="rd-banner-icon"><%- icon('alert') %></span>
+          <div class="rd-banner-body">
+            <p class="rd-banner-title">Returned for Rework</p>
+            <span class="rd-banner-sub"><%= r.reworkReason || 'Administrator requested additional work.' %> · <%= fmtManila(r.reworkAt) %></span>
+          </div>
         </div>
-        <div class="field wide">
-          <label for="doc-note">Note</label>
-          <input type="text" id="doc-note" name="note" maxlength="1000">
+        <div class="card rd-card">
+          <div class="rd-card-head"><h2>Resume Rework</h2></div>
+          <form method="post" action="/requests/<%= r.id %>/rework/start" enctype="multipart/form-data">
+            <div class="field"><label for="rework-remarks">Rework remarks *</label><input type="text" id="rework-remarks" name="remarks" required maxlength="1000"></div>
+            <div class="field"><label for="rework-proof">Updated picture proof *</label><input type="file" id="rework-proof" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" required></div>
+            <button class="btn btn-danger" type="submit"><%- icon('refresh') %> Start New Rework Attempt</button>
+          </form>
         </div>
-        <button class="btn btn-light" type="submit">Upload</button>
+      <% } else { %>
+      <div class="card rd-card">
+        <div class="rd-card-head"><h2>Update Progress</h2></div>
+        <form method="post" action="/requests/<%= r.id %>/status" enctype="multipart/form-data" class="rd-inline-form">
+          <div class="field rd-field-grow">
+            <label for="progress-note">Remarks <span class="hint">(required to start)</span></label>
+            <input type="text" id="progress-note" name="note" maxlength="1000" placeholder="e.g. Started inspection, replacement part needed">
+          </div>
+          <% if (isNewFlow) { %>
+          <div class="field rd-field-grow">
+            <label for="start-proof">Picture proof *</label>
+            <input type="file" id="start-proof" name="photos" accept="image/jpeg,image/png,image/gif,image/webp">
+          </div>
+          <% } %>
+          <div class="rd-inline-actions">
+            <% if (r.status === 'Assigned' || (isNewFlow && r.status === 'Pending')) { %><button class="btn" name="action" value="start" type="submit">▶ Start Repair</button><% } %>
+            <% if (r.status === 'In Progress') { %><button class="btn btn-light" name="action" value="hold" type="submit">⏸ Put On Hold</button><% } %>
+            <% if (r.status === 'On Hold') { %><button class="btn" name="action" value="resume" type="submit">▶ Resume Work</button><% } %>
+          </div>
+        </form>
+      </div>
+
+      <% if (r.status === 'In Progress') { %>
+      <form method="post" action="/requests/<%= r.id %>/nearing-completion" enctype="multipart/form-data" class="card rd-card">
+        <div class="rd-card-head"><h2>Nearing Completion</h2></div>
+        <div class="field"><label for="nearing-remarks">Progress remarks *</label><input type="text" id="nearing-remarks" name="remarks" required maxlength="1000"></div>
+        <div class="field"><label for="nearing-proof">Updated picture proof *</label><input type="file" id="nearing-proof" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" required></div>
+        <button class="btn btn-primary" type="submit"><%- icon('check-circle') %> Save Progress</button>
       </form>
       <% } %>
-    </div>
+      <% } %>
+      <% } %>
 
-    <div class="card" id="timeline">
-      <h2>Activity History</h2>
-      <ul class="timeline">
-        <% activities.forEach(function (a) { var u = getUser(a.userId); %>
-          <li>
-            <div class="what"><%= a.action %><% if (a.fromStatus && a.toStatus) { %> <span class="muted">(<%= a.fromStatus %> → <%= a.toStatus %>)</span><% } %></div>
-            <% if (a.details) { %><div class="details"><%= a.details %></div><% } %>
-            <div class="when"><%= u ? u.name : 'System' %><% if (u) { %> (<%= C.ROLES[u.role] %>)<% } %> · <%= fmtDateTime(a.createdAt) %></div>
-          </li>
-        <% }) %>
-      </ul>
-      <form method="post" action="/requests/<%= r.id %>/notes" class="filters mt">
-        <div class="field wide"><label for="note">Add a note</label><input type="text" id="note" name="note" maxlength="2000" required></div>
-        <button class="btn btn-light" type="submit">Add Note</button>
-      </form>
-    </div>
-  </div>
+      <%- include('partials/materials-panel') %>
 
-  <div>
-    <% if (role === 'admin' && r.status === 'Pending') { %>
-    <!-- Administrator Approval & Triage Panel -->
-    <div class="card" style="border: 2px solid var(--accent); position: relative; overflow: hidden; background: linear-gradient(to bottom, var(--surface), var(--bg));">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <h2 style="margin:0;display:flex;align-items:center;gap:8px;font-size:16px;">
-          <%- icon('check-circle') %> Administrator Approval
-        </h2>
-        <span class="badge badge-amber">Action Required</span>
+      <% if (r.status === 'Nearing Completion' || isRework) { %>
+      <div class="card rd-card card-floating" id="complete">
+        <div class="rd-card-head"><h2>Complete Repair</h2></div>
+        <p class="muted rd-card-sub"><% if (isNewFlow) { %>Final proof and remarks are required. Materials: <%= formatMoney(materialTotals.subtotalCents) %>. Elapsed so far: <%= elapsedLabel %>.<% } else { %>This saves a record to the equipment's maintenance history.<% } %></p>
+        <form method="post" action="/requests/<%= r.id %>/complete" enctype="multipart/form-data">
+          <div class="form-grid">
+            <div class="field full">
+              <label for="problem">Problem identified *</label>
+              <input type="text" id="problem" name="problem" required maxlength="1000" value="<%= r.type === 'Preventive' ? 'Scheduled preventive maintenance' : '' %>">
+            </div>
+            <div class="field full">
+              <label for="actionsTaken">Work performed / actions taken *</label>
+              <textarea id="actionsTaken" name="actionsTaken" required maxlength="2000"></textarea>
+            </div>
+            <div class="field">
+              <label for="partsReplaced">Parts replaced</label>
+              <input type="text" id="partsReplaced" name="partsReplaced" maxlength="1000" placeholder="e.g. 1x HDMI port, 2x fuse">
+            </div>
+            <div class="field">
+              <label for="serviceDate">Completion / service date *</label>
+              <input type="date" id="serviceDate" name="serviceDate" value="<%= today %>" max="<%= today %>" required>
+            </div>
+            <div class="field">
+              <label for="resultingStatus">Equipment condition after repair</label>
+              <select data-ec-select="1" id="resultingStatus" name="resultingStatus">
+                <% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= s === 'Operational' ? 'selected' : '' %>><%= s %></option><% }) %>
+              </select>
+            </div>
+            <div class="field">
+              <label for="remarks">Final completion remarks <%= isNewFlow ? '*' : '' %></label>
+              <input type="text" id="remarks" name="remarks" maxlength="1000" <%= isNewFlow ? 'required' : '' %>>
+            </div>
+            <div class="field">
+              <label for="after-photos">Final picture proof <%= isNewFlow ? '*' : '(optional)' %></label>
+              <input type="file" id="after-photos" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" <%= isNewFlow ? 'required' : 'multiple' %>>
+            </div>
+            <div class="field">
+              <label for="photoNote">Photo note</label>
+              <input type="text" id="photoNote" name="photoNote" maxlength="1000">
+            </div>
+          </div>
+          <button class="btn btn-success" type="submit">✔ Mark as Completed</button>
+        </form>
       </div>
-      <p class="muted" style="font-size:13px;line-height:1.4;margin:0 0 14px;">
-        Review and triage this report filed by <strong><%= r.requester ? r.requester.name : 'Requester' %></strong>. You can approve it for dispatch or reject if invalid.
-      </p>
+      <% } %>
 
-      <form method="post" action="/requests/<%= r.id %>/approve">
-        <div style="background:var(--surface);padding:12px;border-radius:var(--radius);margin-bottom:12px;border:1px solid var(--border);">
-          <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;color:var(--muted);">1. Triage & Priority</div>
-          <div class="field" style="margin-bottom:8px;">
-            <label for="appr-sev">Severity Assessment *</label>
-            <select id="appr-sev" name="severity" required>
-              <% Object.keys(C.SEVERITIES).forEach(function (k) { %>
-                <option value="<%= k %>" <%= Number(r.severity || 2) === Number(k) ? 'selected' : '' %>><%= C.SEVERITIES[k] %></option>
-              <% }) %>
-            </select>
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label for="appr-prio">Priority</label>
-            <select id="appr-prio" name="priority">
-              <option value="auto" <%= !r.priority ? 'selected' : '' %>>Automatic calculation (<%= r.rec.level %>)</option>
-              <% C.PRIORITIES.forEach(function (p) { %><option <%= r.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
-            </select>
-          </div>
+      <% if (record) { var rt = getUser(record.technicianId); %>
+      <div class="card rd-card">
+        <div class="rd-card-head"><h2>Maintenance Record</h2></div>
+        <dl class="rd-dl">
+          <div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Service date</span></span></dt><dd><%= fmtDate(record.serviceDate) %></dd></div>
+          <div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Technician</span></span></dt><dd><%= rt ? rt.name : '—' %></dd></div>
+          <div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Problem identified</span></span></dt><dd><%= record.problem %></dd></div>
+          <div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Actions performed</span></span></dt><dd class="rd-pre"><%= record.actionsTaken %></dd></div>
+          <div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Parts replaced</span></span></dt><dd><%= record.partsReplaced || '—' %></dd></div>
+          <div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Condition after</span></span></dt><dd><span class="<%= statusClass(record.resultingStatus) %>"><%= record.resultingStatus %></span></dd></div>
+          <% if (record.remarks) { %><div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Remarks</span></span></dt><dd><%= record.remarks %></dd></div><% } %>
+        </dl>
+      </div>
+      <% } %>
+
+      <div class="card rd-card" id="docs">
+        <div class="rd-card-head"><h2>Repair Documentation</h2></div>
+        <p class="muted rd-card-sub">Before-repair photos are captured when the request is submitted or while it is open. After-repair photos become available only once the repair is completed.</p>
+        <%
+          var canDeleteSavedPhoto = function (a, stage) {
+            if (role === 'admin') return true;
+            if (stage === 'before' && currentUser && String(r.requesterId) === String(currentUser.id) && C.OPEN_STATUSES.includes(r.status)) return true;
+            return false;
+          };
+        %>
+        <div class="rd-doc-grid">
+          <section class="rd-doc-section">
+            <div class="rd-doc-section-head">
+              <h3>Before Repair Photos</h3>
+              <span class="rd-doc-count" data-rd-count="before"><%= before.length %></span>
+            </div>
+            <% if (!before.length) { %>
+              <p class="rd-doc-empty" data-rd-empty="before">No before-repair photos yet.</p>
+            <% } else { %>
+              <div class="photos rd-photos" data-rd-gallery="before">
+                <% before.forEach(function (a) { var au = getUser(a.userId); %>
+                  <figure data-attachment-id="<%= a.id %>">
+                    <a href="/uploads/<%= a.filename %>" target="_blank" rel="noopener"><img src="/uploads/<%= a.filename %>" alt="<%= a.originalName %>" loading="lazy"></a>
+                    <% if (canDeleteSavedPhoto(a, 'before')) { %>
+                      <button type="button" class="rd-photo-remove rd-saved-photo-remove" data-attachment-id="<%= a.id %>" data-stage="before" aria-label="Remove photo <%= a.originalName %>">&times;</button>
+                    <% } %>
+                    <figcaption><%= a.note || a.originalName %><br><%= au ? au.name : '' %> · <%= fmtDate(a.createdAt) %></figcaption>
+                  </figure>
+                <% }) %>
+              </div>
+              <p class="rd-doc-empty" data-rd-empty="before" style="display:none;">No before-repair photos yet.</p>
+            <% } %>
+          </section>
+          <section class="rd-doc-section">
+            <div class="rd-doc-section-head">
+              <h3>After Repair Photos</h3>
+              <span class="rd-doc-count" data-rd-count="after"><%= after.length %></span>
+            </div>
+            <% if (!after.length) { %>
+              <p class="rd-doc-empty" data-rd-empty="after">After-repair photos appear here once the repair is completed.</p>
+            <% } else { %>
+              <div class="photos rd-photos" data-rd-gallery="after">
+                <% after.forEach(function (a) { var au = getUser(a.userId); %>
+                  <figure data-attachment-id="<%= a.id %>">
+                    <a href="/uploads/<%= a.filename %>" target="_blank" rel="noopener"><img src="/uploads/<%= a.filename %>" alt="<%= a.originalName %>" loading="lazy"></a>
+                    <% if (canDeleteSavedPhoto(a, 'after')) { %>
+                      <button type="button" class="rd-photo-remove rd-saved-photo-remove" data-attachment-id="<%= a.id %>" data-stage="after" aria-label="Remove photo <%= a.originalName %>">&times;</button>
+                    <% } %>
+                    <figcaption><%= a.note || a.originalName %><br><%= au ? au.name : '' %> · <%= fmtDate(a.createdAt) %></figcaption>
+                  </figure>
+                <% }) %>
+              </div>
+              <p class="rd-doc-empty" data-rd-empty="after" style="display:none;">After-repair photos appear here once the repair is completed.</p>
+            <% } %>
+          </section>
         </div>
+        <% var canAddBefore = C.OPEN_STATUSES.includes(r.status); %>
+        <% var canAddAfter = r.status === 'Completed' && canWork; %>
+        <% if (canAddBefore || canAddAfter) { %>
+        <form method="post" action="/requests/<%= r.id %>/attachments" enctype="multipart/form-data" class="rd-upload-form" id="rdUploadForm" data-request-id="<%= r.id %>" novalidate>
+          <div class="rd-upload-top">
+            <div class="field rd-upload-type">
+              <label for="doc-stage">Photo Type</label>
+              <select data-ec-select="1" id="doc-stage" name="stage" required>
+                <% if (canAddBefore) { %><option value="before">Before Repair</option><% } %>
+                <% if (canAddAfter) { %><option value="after">After Repair</option><% } %>
+              </select>
+              <% if (!canAddAfter) { %><small class="muted rd-upload-hint">After Repair photos are available when the repair status is Completed.</small><% } %>
+            </div>
+            <div class="field rd-upload-note">
+              <label for="doc-note">Note <span class="muted">(optional)</span></label>
+              <input type="text" id="doc-note" name="note" maxlength="1000" placeholder="Add an optional note about these photos">
+            </div>
+          </div>
 
-        <div style="background:var(--surface);padding:12px;border-radius:var(--radius);margin-bottom:14px;border:1px solid var(--border);">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <div style="font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);">2. Dispatch Technician <span class="hint" style="font-size:11px;text-transform:none;">(optional)</span></div>
+          <div class="field rd-upload-photos">
+            <label for="doc-photos-input">Photos</label>
+            <div class="rd-photo-picker">
+              <input type="file" id="doc-photos-input" name="photos" class="rd-photo-input" accept="image/jpeg,image/png,image/gif,image/webp" multiple required aria-describedby="doc-photos-help">
+              <label for="doc-photos-input" class="btn btn-light rd-photo-choose" id="rdPhotoChooseBtn"><%- icon('camera') %> Choose Photos</label>
+              <span class="rd-photo-picker-meta" id="doc-photos-help">JPG, PNG, GIF, or WEBP · up to 6 photos · 5 MB each</span>
+            </div>
+            <div class="rd-photo-previews" id="rdPhotoPreviews" aria-live="polite"></div>
+          </div>
+
+          <div class="rd-upload-status" id="rdUploadStatus" aria-live="polite"></div>
+
+          <div class="rd-upload-actions">
+            <button class="btn btn-primary rd-upload-submit" type="submit" id="rdUploadSubmitBtn"><%- icon('upload') %> Upload Photos</button>
+          </div>
+        </form>
+        <script>
+        (function () {
+          var form = document.getElementById('rdUploadForm');
+          if (!form) return;
+          var input = document.getElementById('doc-photos-input');
+          var chooseBtn = document.getElementById('rdPhotoChooseBtn');
+          var previews = document.getElementById('rdPhotoPreviews');
+          var statusBox = document.getElementById('rdUploadStatus');
+          var submitBtn = document.getElementById('rdUploadSubmitBtn');
+          var stageSelect = document.getElementById('doc-stage');
+          var noteInput = document.getElementById('doc-note');
+          var maxFiles = 6;
+          var maxBytes = 5 * 1024 * 1024;
+          var allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+          var selected = [];
+
+          function setStatus(type, msg) {
+            statusBox.className = 'rd-upload-status' + (type ? ' is-' + type : '');
+            statusBox.textContent = msg || '';
+          }
+
+          function syncInput() {
+            var dt = new DataTransfer();
+            selected.forEach(function (item) { dt.items.add(item.file); });
+            input.files = dt.files;
+          }
+
+          function renderPreviews() {
+            previews.innerHTML = '';
+            if (!selected.length) {
+              previews.classList.remove('has-files');
+              return;
+            }
+            previews.classList.add('has-files');
+            selected.forEach(function (item, idx) {
+              var card = document.createElement('div');
+              card.className = 'rd-photo-preview';
+              var img = document.createElement('img');
+              img.src = item.url;
+              img.alt = item.file.name;
+              img.loading = 'lazy';
+              var meta = document.createElement('div');
+              meta.className = 'rd-photo-preview-meta';
+              var name = document.createElement('span');
+              name.className = 'rd-photo-preview-name';
+              name.textContent = item.file.name;
+              name.title = item.file.name;
+              var size = document.createElement('span');
+              size.className = 'rd-photo-preview-size';
+              size.textContent = (item.file.size / 1024 / 1024).toFixed(2) + ' MB';
+              meta.appendChild(name);
+              meta.appendChild(size);
+              var remove = document.createElement('button');
+              remove.type = 'button';
+              remove.className = 'rd-photo-remove';
+              remove.setAttribute('aria-label', 'Remove ' + item.file.name);
+              remove.innerHTML = '&times;';
+              remove.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                URL.revokeObjectURL(item.url);
+                selected.splice(idx, 1);
+                syncInput();
+                renderPreviews();
+                setStatus('', '');
+              });
+              card.appendChild(img);
+              card.appendChild(meta);
+              card.appendChild(remove);
+              previews.appendChild(card);
+            });
+          }
+
+          function addFiles(fileList) {
+            var errs = [];
+            Array.prototype.forEach.call(fileList || [], function (file) {
+              if (allowed.indexOf(file.type) === -1) { errs.push(file.name + ': only JPG, PNG, GIF, or WEBP images are allowed.'); return; }
+              if (file.size > maxBytes) { errs.push(file.name + ': must be 5 MB or smaller.'); return; }
+              if (selected.length >= maxFiles) { errs.push('You can upload up to ' + maxFiles + ' photos at a time.'); return; }
+              var exists = selected.some(function (it) { return it.file.name === file.name && it.file.size === file.size && it.file.lastModified === file.lastModified; });
+              if (exists) return;
+              selected.push({ file: file, url: URL.createObjectURL(file) });
+            });
+            syncInput();
+            renderPreviews();
+            if (errs.length) setStatus('error', errs[0]);
+            else setStatus('', '');
+          }
+
+          input.addEventListener('change', function () { addFiles(input.files); input.value = ''; syncInput(); });
+
+          form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            setStatus('', '');
+            if (!selected.length) { setStatus('error', 'Please choose at least one photo.'); return; }
+            if (stageSelect.value === 'after' && !<%= canAddAfter ? 'true' : 'false' %>) { setStatus('error', 'After Repair photos are available only when the repair status is Completed.'); return; }
+            if (stageSelect.value === 'before' && !<%= canAddBefore ? 'true' : 'false' %>) { setStatus('error', 'Before Repair photos can only be added while the request is open.'); return; }
+
+            var fd = new FormData();
+            fd.append('stage', stageSelect.value);
+            fd.append('note', noteInput.value || '');
+            selected.forEach(function (item) { fd.append('photos', item.file); });
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', form.action);
+            xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+            xhr.setRequestHeader('Accept', 'application/json');
+            submitBtn.disabled = true;
+            submitBtn.classList.add('is-loading');
+            setStatus('progress', 'Uploading 0%...');
+
+            xhr.upload.onprogress = function (ev) {
+              if (ev.lengthComputable) {
+                var pct = Math.max(0, Math.min(100, Math.round((ev.loaded / ev.total) * 100)));
+                setStatus('progress', 'Uploading ' + pct + '%...');
+              }
+            };
+            xhr.onload = function () {
+              submitBtn.disabled = false;
+              submitBtn.classList.remove('is-loading');
+              var data = {};
+              try { data = JSON.parse(xhr.responseText || '{}'); } catch (_) {}
+              if (xhr.status >= 200 && xhr.status < 300 && data.ok) {
+                setStatus('success', data.message || 'Photos uploaded successfully.');
+                selected.forEach(function (item) { URL.revokeObjectURL(item.url); });
+                selected = [];
+                syncInput();
+                renderPreviews();
+                noteInput.value = '';
+                setTimeout(function () { window.location.reload(); }, 900);
+              } else {
+                setStatus('error', data.error || 'Upload failed. Please try again.');
+              }
+            };
+            xhr.onerror = function () {
+              submitBtn.disabled = false;
+              submitBtn.classList.remove('is-loading');
+              setStatus('error', 'Network error while uploading. Please check your connection and try again.');
+            };
+            xhr.send(fd);
+          });
+        })();
+        </script>
+        <% } %>
+        <script>
+        (function () {
+          var buttons = document.querySelectorAll('.rd-saved-photo-remove[data-attachment-id]');
+          if (!buttons.length) return;
+          buttons.forEach(function (btn) {
+            btn.addEventListener('click', async function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              var attId = btn.getAttribute('data-attachment-id');
+              var stage = btn.getAttribute('data-stage') || 'before';
+              if (!attId) return;
+
+              var confirmed = false;
+              if (window.ecConfirmPhotoRemove) confirmed = await window.ecConfirmPhotoRemove();
+              else if (window.ecConfirm) confirmed = await window.ecConfirm({ title: 'Remove Photo?', message: 'Are you sure you want to remove this photo? This action cannot be undone.', confirmLabel: 'Remove Photo', cancelLabel: 'Cancel', tone: 'danger', icon: 'trash' });
+              else confirmed = window.confirm('Remove this photo permanently? This action cannot be undone.');
+              if (!confirmed) return;
+
+              btn.disabled = true;
+              try {
+                var res = await fetch('/requests/<%= r.id %>/attachments/' + encodeURIComponent(attId) + '/delete', {
+                  method: 'POST',
+                  headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+                });
+                var data = await res.json().catch(function () { return {}; });
+                if (!res.ok || !data.ok) {
+                  btn.disabled = false;
+                  if (window.ecAlert) await window.ecAlert(data.error || 'Could not remove photo.', { title: 'Could Not Remove Photo', tone: 'danger', icon: 'warning' });
+                  else window.alert(data.error || 'Could not remove photo.');
+                  return;
+                }
+                var figure = btn.closest('figure');
+                var gallery = btn.closest('[data-rd-gallery]');
+                if (figure) figure.remove();
+                if (gallery) {
+                  var remaining = gallery.querySelectorAll('figure').length;
+                  var countEl = document.querySelector('[data-rd-count="' + stage + '"]');
+                  if (countEl) countEl.textContent = String(remaining);
+                  if (remaining === 0) {
+                    gallery.style.display = 'none';
+                    var empty = gallery.parentElement.querySelector('.rd-doc-empty[data-rd-empty="' + stage + '"]');
+                    if (empty) empty.style.display = '';
+                  }
+                } else {
+                  var countEl2 = document.querySelector('[data-rd-count="' + stage + '"]');
+                  if (countEl2) countEl2.textContent = String(Math.max(0, parseInt(countEl2.textContent || '1', 10) - 1));
+                }
+              } catch (err) {
+                btn.disabled = false;
+                if (window.ecAlert) await window.ecAlert('Network error while removing photo.', { title: 'Connection Error', tone: 'danger', icon: 'warning' });
+                else window.alert('Network error while removing photo.');
+              }
+            });
+          });
+        })();
+        </script>
+      </div>
+    </div>
+
+    <div class="rd-col rd-col-right">
+      <% if (role === 'admin' && (isNewFlow ? r.status === 'Reported' : ['Reported', 'Pending', 'Approved'].includes(r.status))) { %>
+      <div class="card rd-card" id="approve">
+        <div class="rd-card-head rd-card-head-between">
+          <h2><%- icon('check-circle') %> Administrator Approval</h2>
+          <span class="badge badge-amber">Action Required</span>
+        </div>
+        <p class="muted rd-card-sub">Review and triage this <strong><%= r.type === 'Preventive' ? 'Preventive Maintenance Request' : 'Corrective Repair Request' %></strong> filed by <strong><%= r.requester ? r.requester.name : 'Requester' %></strong>. You can approve it for dispatch or reject it if invalid.</p>
+        <p class="muted rd-card-sub">Calculated priority: <span class="<%= statusClass(r.rec.level) %>"><%= r.rec.level %> (<%= r.rec.score %>/100)</span> · from item/category importance, severity and waiting time.</p>
+        <form method="post" action="/requests/<%= r.id %>/approve" enctype="multipart/form-data" data-confirm-title="Approve Request?" data-confirm="Are you sure you want to approve request <%= r.code %>? Its status will change and the requester will be notified." data-confirm-ok="Confirm Approval" data-confirm-cancel="Cancel" data-confirm-tone="success" data-confirm-icon="check">
+          <div class="rd-admin-block">
+            <div class="rd-admin-block-title">1. Triage &amp; Priority</div>
+            <div class="field">
+              <label for="appr-sev">Severity Assessment *</label>
+              <select data-ec-select="1" id="appr-sev" name="severity" required>
+                <% Object.keys(C.SEVERITIES).forEach(function (k) { %>
+                  <option value="<%= k %>" <%= Number(r.severity || 2) === Number(k) ? 'selected' : '' %>><%= C.SEVERITIES[k] %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label for="appr-prio">Priority</label>
+              <select data-ec-select="1" id="appr-prio" name="priority">
+                <option value="auto" <%= !r.priority ? 'selected' : '' %>>Automatic calculation (<%= r.rec.level %>)</option>
+                <% C.PRIORITIES.forEach(function (p) { %><option <%= r.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
+              </select>
+            </div>
+          </div>
+          <div class="rd-admin-block">
+            <div class="rd-admin-block-title">2. Dispatch Technician <span class="hint">(optional)</span></div>
             <% if (recommendations[0] && recommendations[0].best) { %>
-              <span class="badge badge-green" style="font-size:10.5px;">Best: <%= recommendations[0].technician.name %></span>
+              <span class="badge badge-green rd-best-badge">Best: <%= recommendations[0].technician.name %></span>
+            <% } %>
+            <div class="field">
+              <label for="appr-tech">Assign Technician <span class="hint">(active technicians only, optional)</span></label>
+              <select data-ec-select="1" id="appr-tech" name="technicianId">
+                <option value="">Leave unassigned for now (Approve only)</option>
+                <% var defaultTech = recommendations[0] && recommendations[0].best ? recommendations[0].technician.id : ''; %>
+                <% technicians.forEach(function (t) { %>
+                  <option value="<%= t.id %>" <%= defaultTech === t.id ? 'selected' : '' %>><%= t.name %> · <%= t.availability %><% if (t.specNames.length) { %> · <%= t.specNames.join(', ') %><% } %> · <%= t.activeTasks %> active task<%= t.activeTasks === 1 ? '' : 's' %><%= t.activeTasks >= highWorkloadAt ? ' (high workload)' : '' %></option>
+                <% }) %>
+              </select>
+            </div>
+            <div class="field">
+              <label for="appr-target">Target Completion Date <span class="hint">(required when assigning)</span></label>
+              <input type="date" id="appr-target" name="targetDate" min="<%= today %>" value="<%= r.targetDate && r.targetDate >= today ? r.targetDate : addDays(today, r.effectivePriority === 'High' ? 1 : r.effectivePriority === 'Medium' ? 3 : 7) %>">
+            </div>
+            <div class="field" style="margin-bottom:0;">
+              <label for="appr-note">Instructions / Note <span class="hint">(optional)</span></label>
+              <input type="text" id="appr-note" name="note" maxlength="500" placeholder="Instructions for technician...">
+            </div>
+            <% if (isNewFlow) { %>
+            <div class="field" style="margin-bottom:0;">
+              <label for="appr-proof">Supporting picture proof <%= r.technicianId ? '(optional)' : '*' %></label>
+              <input type="file" id="appr-proof" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" <%= r.technicianId ? '' : 'required' %>>
+              <span class="hint">Required when approving and assigning a technician.</span>
+            </div>
             <% } %>
           </div>
-          <div class="field" style="margin-bottom:8px;">
-            <label for="appr-tech">Assign Technician</label>
-            <select id="appr-tech" name="technicianId">
-              <option value="">Leave unassigned for now (Approve only)</option>
-              <% var defaultTech = recommendations[0] && recommendations[0].best ? recommendations[0].technician.id : ''; %>
-              <% technicians.forEach(function (t) { %>
-                <option value="<%= t.id %>" <%= defaultTech === t.id ? 'selected' : '' %>><%= t.name %> (<%= t.availability %>)<% if (t.specialization) { %> · <%= t.specialization %><% } %></option>
-              <% }) %>
-            </select>
+          <div class="rd-admin-actions">
+            <button class="btn btn-primary" type="submit"><%- icon('check') %> Approve Request</button>
+            <button class="btn btn-danger btn-sm" type="button" onclick="openRejectModal()"><%- icon('x') %> Reject</button>
           </div>
-          <div class="field" style="margin-bottom:8px;">
-            <label for="appr-target">Target Completion Date</label>
-            <input type="date" id="appr-target" name="targetDate" min="<%= today %>" value="<%= r.targetDate && r.targetDate >= today ? r.targetDate : addDays(today, r.effectivePriority === 'High' ? 1 : r.effectivePriority === 'Medium' ? 3 : 7) %>">
-          </div>
-          <div class="field" style="margin-bottom:0;">
-            <label for="appr-note">Instructions / Note <span class="hint">(optional)</span></label>
-            <input type="text" id="appr-note" name="note" maxlength="500" placeholder="Instructions for technician...">
-          </div>
-        </div>
-
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button class="btn btn-primary" type="submit" style="flex:1;justify-content:center;">
-            <%- icon('check') %> Approve Request
-          </button>
-          <button class="btn btn-danger btn-sm" type="button" onclick="openRejectModal()" style="white-space:nowrap;">
-            <%- icon('x') %> Reject
-          </button>
-        </div>
-      </form>
-    </div>
-    <% } %>
-
-    <div class="card">
-      <h2>Priority</h2>
-      <div class="score">
-        <div class="num"><%= r.rec.score %><small>/100</small></div>
-        <div>
-          <div>Recommended: <span class="<%= statusClass(r.rec.level) %>"><%= r.rec.level %></span></div>
-          <div>Current: <span class="<%= statusClass(r.effectivePriority) %>"><%= r.effectivePriority %></span> <span class="muted">(<%= r.priority ? 'set manually' : 'automatic' %>)</span></div>
-        </div>
-      </div>
-      <div class="breakdown">
-        <% [['Importance', b.importance, 'indigo'], ['Severity', b.severity, 'amber'], ['Waiting time', b.waiting, 'blue']].forEach(function (x) { %>
-          <div class="bar-row">
-            <span><%= x[0] %><span class="sub muted" style="display:block;font-size:11px"><%= x[1].label %></span></span>
-            <div class="bar"><span class="<%= x[2] %>" style="width:<%= (x[1].points / x[1].max * 100).toFixed(0) %>%"></span></div>
-            <span class="text-right"><%= x[1].points %>/<%= x[1].max %></span>
-          </div>
-        <% }) %>
-      </div>
-      <p class="muted" style="font-size:12px;margin:6px 0 0">70+ = High, 40–69 = Medium, below 40 = Low. Waiting time adds up to 20 points over 14 days.</p>
-      <% if (role === 'admin' && r.isOpen && r.status !== 'Pending') { %>
-        <form method="post" action="/requests/<%= r.id %>/priority" class="filters mt">
-          <div class="field">
-            <label for="severity">Set Severity</label>
-            <select id="severity" name="severity">
-              <option value="" <%= !r.severity ? 'selected' : '' %>>-- Select Severity --</option>
-              <% Object.keys(C.SEVERITIES).forEach(function (k) { %>
-                <option value="<%= k %>" <%= Number(r.severity) === Number(k) ? 'selected' : '' %>><%= C.SEVERITIES[k] %></option>
-              <% }) %>
-            </select>
-          </div>
-          <div class="field">
-            <label for="priority">Set Priority</label>
-            <select id="priority" name="priority">
-              <option value="auto" <%= !r.priority ? 'selected' : '' %>>Automatic (<%= r.rec.level %>)</option>
-              <% C.PRIORITIES.forEach(function (p) { %><option <%= r.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
-            </select>
-          </div>
-          <button class="btn btn-light" type="submit">Update</button>
         </form>
+      </div>
       <% } %>
-    </div>
 
-    <% if (role === 'admin' && r.isOpen && r.status !== 'Pending') { %>
-    <div class="card" id="assign">
-      <h2><%= r.technician ? 'Reassign Technician' : 'Assign Technician' %></h2>
-      <h3 class="muted" style="font-size:12px;text-transform:uppercase;letter-spacing:.4px">Recommended technicians</h3>
-      <% if (!recommendations.length) { %><p class="muted">No technician accounts yet. <a href="/users/new?role=technician">Add one</a>.</p><% } %>
-      <ul class="rec-list">
-        <% recommendations.forEach(function (x) { %>
-          <li class="<%= x.best ? 'best' : '' %> <%= x.eligible ? '' : 'ineligible' %>">
-            <div>
-              <strong><%= x.technician.name %></strong> <% if (x.best) { %><span class="badge badge-green">Best match</span><% } %>
-              <div class="reasons"><%= x.reasons.join(' · ') %></div>
+      <div class="card rd-card" id="priority-card">
+        <div class="rd-card-head"><h2>Priority</h2></div>
+        <div class="rd-priority-top">
+          <div class="rd-priority-score">
+            <span class="rd-priority-num"><%= r.rec.score %></span>
+            <span class="rd-priority-denom">/100</span>
+          </div>
+          <div class="rd-priority-meta">
+            <div class="rd-priority-meta-row"><span class="rd-priority-meta-label">Recommended</span> <span class="<%= statusClass(r.rec.level) %>"><%= r.rec.level %></span></div>
+            <div class="rd-priority-meta-row"><span class="rd-priority-meta-label">Current</span> <span class="<%= statusClass(r.effectivePriority) %>"><%= r.effectivePriority %></span> <span class="muted">(<%= r.priority ? 'set manually' : 'automatic' %>)</span></div>
+          </div>
+        </div>
+        <div class="rd-breakdown">
+          <% [['Importance', b.importance, 'indigo'], ['Severity', b.severity, 'amber'], ['Waiting time', b.waiting, 'blue']].forEach(function (x) { %>
+            <div class="rd-bar-row">
+              <div class="rd-bar-label">
+                <span><%= x[0] %></span>
+                <span class="rd-bar-sub"><%= x[1].label %></span>
+              </div>
+              <div class="rd-bar-track"><span class="rd-bar-fill <%= x[2] %>" style="width:<%= (x[1].points / x[1].max * 100).toFixed(0) %>%"></span></div>
+              <div class="rd-bar-points"><%= x[1].points %>/<%= x[1].max %></div>
             </div>
-            <div class="text-right">
-              <div class="pts"><%= x.score %></div>
-              <% if (x.eligible) { %><button type="button" class="btn-link" data-pick-tech="<%= x.technician.id %>">Use</button><% } %>
+          <% }) %>
+        </div>
+        <div class="rd-priority-note">
+          Calculated automatically from item/category importance (40 pts), reported severity (40 pts) and waiting time (20 pts over 14 days). 70+ = High, 40–69 = Medium, below 40 = Low.
+        </div>
+        <% if (role === 'admin' && r.isOpen && r.status !== 'Pending') { %>
+          <form method="post" action="/requests/<%= r.id %>/priority" class="rd-priority-form">
+            <div class="field">
+              <label for="severity">Set Severity</label>
+              <select data-ec-select="1" id="severity" name="severity">
+                <option value="" <%= !r.severity ? 'selected' : '' %>>-- Select Severity --</option>
+                <% Object.keys(C.SEVERITIES).forEach(function (k) { %>
+                  <option value="<%= k %>" <%= Number(r.severity) === Number(k) ? 'selected' : '' %>><%= C.SEVERITIES[k] %></option>
+                <% }) %>
+              </select>
             </div>
-          </li>
-        <% }) %>
-      </ul>
-      <p class="muted" style="font-size:12px">Score: specialization match 50 + availability (Available 30, Busy 10) + workload (20 minus 5 per active task).</p>
-      <form method="post" action="/requests/<%= r.id %>/assign">
-        <div class="field">
-          <label for="technicianId">Technician *</label>
-          <select id="technicianId" name="technicianId" required>
-            <option value="">Choose…</option>
-            <% var pick = r.technicianId || (recommendations[0] && recommendations[0].best ? recommendations[0].technician.id : null); %>
-            <% technicians.forEach(function (t) { %><option value="<%= t.id %>" <%= pick === t.id ? 'selected' : '' %>><%= t.name %> (<%= t.availability %>)</option><% }) %>
-          </select>
-        </div>
-        <div class="field">
-          <label for="targetDate">Target completion date *</label>
-          <input type="date" id="targetDate" name="targetDate" min="<%= today %>" value="<%= r.targetDate && r.targetDate >= today ? r.targetDate : addDays(today, r.effectivePriority === 'High' ? 1 : r.effectivePriority === 'Medium' ? 3 : 7) %>" required>
-        </div>
-        <div class="field">
-          <label for="assign-note">Instructions <span class="hint">(optional)</span></label>
-          <input type="text" id="assign-note" name="note" maxlength="500">
-        </div>
-        <button class="btn" type="submit"><%= r.technician ? 'Update Assignment' : 'Assign' %></button>
-      </form>
-    </div>
-    <% } %>
+            <div class="field">
+              <label for="priority">Set Priority</label>
+              <select data-ec-select="1" id="priority" name="priority">
+                <option value="auto" <%= !r.priority ? 'selected' : '' %>>Automatic (<%= r.rec.level %>)</option>
+                <% C.PRIORITIES.forEach(function (p) { %><option <%= r.priority === p ? 'selected' : '' %>><%= p %></option><% }) %>
+              </select>
+            </div>
+            <button class="btn btn-light" type="submit">Update</button>
+          </form>
+        <% } %>
+      </div>
 
-    <% if (role === 'admin' && ['Approved', 'Assigned'].includes(r.status)) { %>
-    <div class="card">
-      <h2>Reject Request</h2>
-      <p class="muted" style="margin:-4px 0 10px;font-size:12.5px;">Need to revoke or decline this request after review? You can reject it here.</p>
-      <button class="btn btn-danger btn-sm" type="button" onclick="openRejectModal()"><%- icon('x') %> Reject Request</button>
-    </div>
-    <% } %>
+      <% if (role === 'admin' && r.isOpen && (r.status !== 'Pending' || (isNewFlow && r.technicianId))) { %>
+      <div class="card rd-card" id="assign">
+        <div class="rd-card-head"><h2><%= r.technician ? 'Reassign Technician' : 'Assign Technician' %></h2></div>
+        <h3 class="rd-section-label">Recommended technicians</h3>
+        <% if (!recommendations.length) { %><p class="muted">No technician accounts yet. <a href="/users/new?role=technician">Add one</a>.</p><% } %>
+        <ul class="rec-list">
+          <% recommendations.forEach(function (x) { %>
+            <li class="<%= x.best ? 'best' : '' %> <%= x.eligible ? '' : 'ineligible' %>">
+              <div>
+                <strong><%= x.technician.name %></strong> <% if (x.best) { %><span class="badge badge-green">Best match</span><% } %> <% if (x.workloadWarning) { %><span class="badge badge-amber" title="Many active assignments">High workload</span><% } %>
+                <div class="reasons"><%= x.reasons.join(' · ') %></div>
+              </div>
+              <div class="text-right">
+                <div class="pts"><%= x.score %></div>
+                <% if (x.eligible) { %><button type="button" class="btn-link" data-pick-tech="<%= x.technician.id %>">Use</button><% } %>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+        <p class="muted" style="font-size:12px;margin-top:8px;">Score: specialization match 50 + availability (Available 30, Busy 10) + workload (20 minus 5 per active task).</p>
+        <form method="post" action="/requests/<%= r.id %>/assign" enctype="multipart/form-data">
+          <div class="field">
+            <label for="technicianId">Technician * <span class="hint">(active technicians only)</span></label>
+            <select data-ec-select="1" id="technicianId" name="technicianId" required>
+              <option value="">Choose…</option>
+              <% var pick = r.technicianId || (recommendations[0] && recommendations[0].best ? recommendations[0].technician.id : null); %>
+              <% technicians.forEach(function (t) { %><option value="<%= t.id %>" <%= pick === t.id ? 'selected' : '' %>><%= t.name %> · <%= t.availability %><% if (t.specNames.length) { %> · <%= t.specNames.join(', ') %><% } %> · <%= t.activeTasks %> active task<%= t.activeTasks === 1 ? '' : 's' %><%= t.activeTasks >= highWorkloadAt ? ' (high workload)' : '' %></option><% }) %>
+            </select>
+          </div>
+          <div class="field">
+            <label for="targetDate">Target completion date *</label>
+            <input type="date" id="targetDate" name="targetDate" min="<%= today %>" value="<%= r.targetDate && r.targetDate >= today ? r.targetDate : addDays(today, r.effectivePriority === 'High' ? 1 : r.effectivePriority === 'Medium' ? 3 : 7) %>" required>
+          </div>
+          <div class="field">
+            <label for="assign-note">Instructions <span class="hint">(optional)</span></label>
+            <input type="text" id="assign-note" name="note" maxlength="500">
+          </div>
+          <% if (isNewFlow && r.technicianId) { %>
+          <div class="field">
+            <label for="reassign-reason">Reason for reassignment *</label>
+            <input type="text" id="reassign-reason" name="reassignReason" maxlength="500" required>
+          </div>
+          <% } %>
+          <% if (isNewFlow) { %>
+          <div class="field">
+            <label for="assign-proof">Supporting picture proof <%= r.technicianId ? '(optional)' : '*' %></label>
+            <input type="file" id="assign-proof" name="photos" accept="image/jpeg,image/png,image/gif,image/webp" <%= r.technicianId ? '' : 'required' %>>
+          </div>
+          <% } %>
+          <button class="btn" type="submit"><%= r.technician ? 'Update Assignment' : 'Assign' %></button>
+        </form>
+      </div>
+      <% } %>
 
-    <% if (r.isOpen && (role === 'admin' || (r.requesterId === currentUser.id && r.status === 'Pending'))) { %>
-    <div class="card">
-      <h2>Cancel Report</h2>
-      <p class="muted" style="margin:-4px 0 10px;font-size:12.5px;">Did you report by mistake or is the issue resolved? You can cancel this report.</p>
-      <button class="btn btn-danger btn-sm" type="button" onclick="openCancelModal()"><%- icon('trash') %> Cancel Report</button>
+      <% if (role === 'admin' && ['Approved', 'Assigned'].includes(r.status)) { %>
+      <div class="card rd-card" id="reject">
+        <div class="rd-card-head"><h2>Reject Request</h2></div>
+        <p class="muted rd-card-sub">Need to revoke or decline this request after review? You can reject it here.</p>
+        <button class="btn btn-danger btn-sm" type="button" onclick="openRejectModal()"><%- icon('x') %> Reject Request</button>
+      </div>
+      <% } %>
+
+      <% if (typeof canCancel !== 'undefined' && canCancel) { %>
+      <div class="card rd-card rd-cancel-card">
+        <div class="rd-card-head"><h2>Cancel Report</h2></div>
+        <p class="muted rd-card-sub">Did you report by mistake or is the issue resolved? You can cancel this report.</p>
+        <div class="rd-cancel-action">
+          <button class="btn btn-danger" type="button" onclick="openCancelModal()"><%- icon('trash') %> Cancel Report</button>
+        </div>
+      </div>
+      <% } %>
+
+      <div class="card rd-card" id="verification">
+        <div class="rd-card-head"><h2>Repair Verification</h2></div>
+        <dl class="rd-dl">
+          <div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Verification status</span></span></dt><dd><span class="<%= statusClass(r.verificationStatus || 'Not Submitted') %>"><%= r.verificationStatus || 'Not Submitted' %></span></dd></div>
+          <% if (r.verifiedAt) { %><div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Verified at</span></span></dt><dd><%= fmtManila(r.verifiedAt) %> by <%= getUser(r.verifiedBy) ? getUser(r.verifiedBy).name : '—' %></dd></div><% } %>
+          <% if (r.reworkReason) { %><div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Rework reason</span></span></dt><dd><%= r.reworkReason %></dd></div><% } %>
+          <div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Elapsed repair time</span></span></dt><dd><%= elapsedLabel %></dd></div>
+          <div class="rd-dl-row"><dt><span class="rd-dl-label"><span>Materials total</span></span></dt><dd><%= formatMoney(materialTotals.subtotalCents) %></dd></div>
+        </dl>
+        <a class="btn btn-sm btn-light" href="#timeline"><%- icon('history') %> View Timeline</a>
+
+        <% if (canVerify) { %>
+          <form method="post" action="/requests/<%= r.id %>/verify" data-confirm="Verify that this repair is complete?" class="verify-form">
+            <input type="hidden" name="confirm" value="yes">
+            <div class="field"><label for="verify-remarks">Verification remarks</label><input type="text" id="verify-remarks" name="remarks" maxlength="1000"></div>
+            <button class="btn btn-success" type="submit"><%- icon('check-circle') %> Verify Completion</button>
+          </form>
+          <form method="post" action="/requests/<%= r.id %>/rework" class="verify-form" data-confirm="Return this repair for rework?" data-confirm-tone="warning">
+            <div class="field"><label for="rework-reason">Reason for rework *</label><textarea id="rework-reason" name="reason" maxlength="1000" required></textarea></div>
+            <button class="btn btn-danger" type="submit"><%- icon('alert') %> Return for Rework</button>
+          </form>
+        <% } %>
+      </div>
+
+      <div class="card rd-card" id="timeline">
+        <div class="rd-card-head"><h2>Activity History</h2></div>
+        <p class="muted rd-card-sub">Complete repair timeline: reports, attempts, materials, proof, and verification decisions.</p>
+        <ul class="rd-timeline">
+          <% timeline.forEach(function (t) { %>
+            <li class="rd-timeline-item">
+              <span class="rd-timeline-dot" aria-hidden="true"></span>
+              <div class="rd-timeline-content">
+                <div class="rd-timeline-what"><%= t.title %><% if (t.previousStatus && t.newStatus) { %> <span class="muted">(<%= t.previousStatus %> → <%= t.newStatus %>)</span><% } %></div>
+                <% if (t.details) { %><div class="rd-timeline-details"><%= t.details %></div><% } %>
+                <div class="rd-timeline-meta"><span><%= fmtManila(t.at) %> · <%= t.kind %></span></div>
+              </div>
+            </li>
+          <% }); %>
+        </ul>
+        <ul class="rd-timeline">
+          <% activities.forEach(function (a) { var u = getUser(a.userId); %>
+            <li class="rd-timeline-item">
+              <span class="rd-timeline-dot" aria-hidden="true"></span>
+              <div class="rd-timeline-content">
+                <div class="rd-timeline-what"><%= a.action %><% if (a.fromStatus && a.toStatus) { %> <span class="muted">(<%= a.fromStatus %> → <%= a.toStatus %>)</span><% } %></div>
+                <% if (a.details) { %><div class="rd-timeline-details"><%= a.details %></div><% } %>
+                <div class="rd-timeline-meta">
+                  <% if (u) { %><%- include('../partials/avatar', { user: u, name: u.name, size: 'xs' }) %><% } %>
+                  <span><%= u ? u.name : 'System' %><% if (u) { %> (<%= C.ROLES[u.role] %>)<% } %> · <%= fmtDateTime(a.createdAt) %></span>
+                </div>
+              </div>
+            </li>
+          <% }) %>
+        </ul>
+        <form method="post" action="/requests/<%= r.id %>/notes" class="rd-note-form">
+          <div class="field rd-field-grow">
+            <label for="note">Add a note</label>
+            <input type="text" id="note" name="note" maxlength="2000" required placeholder="Write a note...">
+          </div>
+          <button class="btn btn-light" type="submit">Add Note</button>
+        </form>
+      </div>
     </div>
-    <% } %>
   </div>
-</div>
 
-<% if (r.isOpen && (role === 'admin' || (r.requesterId === currentUser.id && r.status === 'Pending'))) { %>
+<% if (typeof canCancel !== 'undefined' && canCancel) { %>
 <!-- Cancel Modal Dialog -->
 <div id="cancel-modal" class="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;align-items:center;justify-content:center;padding:16px;">
   <div class="modal-card card" style="max-width:480px;width:100%;margin:0;box-shadow:0 12px 36px rgba(0,0,0,0.3);">
@@ -457,7 +914,7 @@
 </script>
 <% } %>
 
-<% if (role === 'admin' && ['Pending', 'Approved', 'Assigned'].includes(r.status)) { %>
+<% if (role === 'admin' && ['Reported', 'Pending', 'Approved', 'Assigned'].includes(r.status)) { %>
 <!-- Admin Reject Modal Dialog -->
 <div id="reject-modal" class="modal-backdrop" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:99;align-items:center;justify-content:center;padding:16px;">
   <div class="modal-card card" style="max-width:500px;width:100%;margin:0;box-shadow:0 12px 36px rgba(0,0,0,0.3);">
@@ -530,5 +987,6 @@
   }
 </script>
 <% } %>
+</div>
 
 <%- include('../partials/footer') %>

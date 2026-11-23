@@ -24,9 +24,27 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/style.css?v=20260522-tech1">
+  <link rel="stylesheet" href="/css/tables.css">
+  <link rel="stylesheet" href="/css/theme-toggle.css">
+  <link rel="stylesheet" href="/css/alignment.css">
+  <link rel="stylesheet" href="/css/admin-ui.css">
+  <link rel="stylesheet" href="/css/search-input.css">
+  <link rel="stylesheet" href="/css/categories.css">
+  <link rel="stylesheet" href="/css/students.css">
+  <link rel="stylesheet" href="/css/locations.css">
+  <link rel="stylesheet" href="/css/equipment-management-header.css">
+  <link rel="stylesheet" href="/css/profile.css">
+  <link rel="stylesheet" href="/css/auto-filter.css">
+  <link rel="stylesheet" href="/css/student-dashboard.css?v=20260522-sc2">
+  <link rel="stylesheet" href="/css/avatar.css?v=20260522-sf1">
+  <link rel="stylesheet" href="/css/shared-dropdown.css?v=20260522-gs1">
+  <link rel="stylesheet" href="/css/typography.css?v=20260522-ty2">
+  <link rel="stylesheet" href="/css/mobile-overrides.css?v=20260522-m1">
+  <link rel="stylesheet" href="/css/repair-workflow.css?v=20261123">
+  <script src="/js/theme-toggle.js" defer></script>
 </head>
-<body class="<%= currentUser ? 'role-' + currentUser.role : '' %>">
+<body class="<%= currentUser ? 'role-' + currentUser.role : '' %><%= typeof pageClass !== 'undefined' && pageClass ? ' ' + pageClass : '' %>">
 <% if (currentUser) { %>
 <%
   var bottomItems = bottomNavFor(currentUser.role);
@@ -36,8 +54,8 @@
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <a class="brand" href="/" title="EduCare - Home">
-        <span class="brand-logo"><img src="/img/logo.png" alt="EduCare logo"></span>
-        <span class="brand-text"><strong>Edu<span>Care</span></strong><small>St. Anthony Center of Science and Technology</small></span>
+        <span class="brand-logo"><img src="/img/educare-logo.svg" alt="EduCare logo"></span>
+        <span class="brand-text"><strong>Edu<span>Care</span></strong><small>School Equipment Maintenance and Repair Management System</small></span>
       </a>
     </div>
     <nav aria-label="Main menu">
@@ -48,6 +66,21 @@
         </a>
       <% }) %>
     </nav>
+    <div class="who">
+      <a class="who-user-link" href="/profile" title="My Profile">
+        <span class="who-user">
+          <%- include('avatar', { user: currentUser, name: currentUser.name, size: 'sm', className: 'avatar' }) %>
+          <span class="who-meta">
+            <strong><%= currentUser.name %></strong>
+            <small><%= C.ROLES[currentUser.role] %></small>
+          </span>
+        </span>
+      </a>
+      <div class="who-divider" aria-hidden="true"></div>
+      <form method="post" action="/logout" class="who-logout">
+        <button type="submit" class="who-signout-btn" title="Sign Out"><%- icon('logout') %><span>Sign Out</span></button>
+      </form>
+    </div>
   </aside>
   <nav class="bottom-nav" aria-label="Quick menu">
     <% bottomItems.forEach(function (item) { var on = item === bottomActive; %>
@@ -69,39 +102,10 @@
       <button type="button" class="topbar-hamburger-btn hamburger-btn" id="topbar-hamburger-btn" aria-controls="sidebar" aria-expanded="false" title="Toggle Sidebar Menu" aria-label="Toggle Sidebar Menu">
         <%- icon('menu') %>
       </button>
-      <a href="/" class="brand-mini"><span class="brand-logo"><img src="/img/logo.png" alt=""></span><span>Edu<span>Care</span></span></a>
+      <a href="/" class="brand-mini"><span class="brand-logo"><img src="/img/educare-logo.svg" alt=""></span><span>Edu<span>Care</span></span></a>
       <span class="spacer"></span>
-      <button type="button" class="theme-switch" id="theme-toggle" role="switch" aria-checked="false" aria-label="Toggle light / dark mode" title="Switch light / dark mode">
-        <span class="theme-switch-slider"></span>
-        <span class="theme-switch-btn theme-btn-light" aria-hidden="true"><%- icon('sun') %></span>
-        <span class="theme-switch-btn theme-btn-dark" aria-hidden="true"><%- icon('moon') %></span>
-      </button>
+      <%- include('theme-toggle') %>
       <a class="bell" href="/notifications" title="Notifications" aria-label="Notifications<%= unreadCount ? ' (' + unreadCount + ' unread)' : '' %>"><%- icon('bell') %><% if (unreadCount) { %><span class="dot"><%= unreadCount %></span><% } %></a>
-      <div class="topbar-profile" id="topbar-profile">
-        <button type="button" class="topbar-profile-btn" id="topbar-profile-btn" aria-haspopup="true" aria-expanded="false" title="<%= currentUser.name %>">
-          <% if (currentUser.avatar) { %>
-            <span class="avatar topbar-avatar avatar-has-img"><img src="/uploads/<%= currentUser.avatar %>" alt="" class="avatar-img"></span>
-          <% } else { %>
-            <span class="avatar topbar-avatar"><%= initials(currentUser.name) %></span>
-          <% } %>
-          <span class="topbar-profile-meta">
-            <strong><%= currentUser.name %></strong>
-            <small><%= C.ROLES[currentUser.role] %></small>
-          </span>
-          <span class="topbar-profile-caret" aria-hidden="true"><%- icon('chevron-right') %></span>
-        </button>
-        <div class="topbar-profile-menu" id="topbar-profile-menu" hidden>
-          <a href="/profile"><%- icon('user') %> My Profile</a>
-          <a href="/profile"><%- icon('edit') %> Edit Profile</a>
-          <% if (currentUser.role === 'admin') { %>
-            <a href="/settings/email"><%- icon('settings') %> Account Settings</a>
-          <% } %>
-          <div class="topbar-profile-divider"></div>
-          <form method="post" action="/logout" class="topbar-profile-logout-form">
-            <button type="submit" class="topbar-profile-logout"><%- icon('logout') %> Sign Out</button>
-          </form>
-        </div>
-      </div>
     </header>
     <main class="content">
       <% if (flash) { %>

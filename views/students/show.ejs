@@ -1,0 +1,107 @@
+<%- include('../partials/header') %>
+
+<div class="students-page">
+  <a class="sd-back-link" href="/students"><%- icon('arrow-left') %> Back to Student Directory</a>
+
+  <%- include('../partials/header-banner', {
+    title: student.fullName,
+    subtitle: 'Official Student Directory record used by registration, profile, and dashboard views.'
+  }) %>
+
+  <div class="card sd-detail-card">
+    <div class="card-head">
+      <h2><%- icon('id-card') %> Directory Information</h2>
+      <span class="badge <%= statusLabel === 'Active' ? 'badge-green' : 'badge-gray' %>">
+        <%- icon(statusLabel === 'Active' ? 'check-circle' : 'pause') %> <%= statusLabel %>
+      </span>
+    </div>
+    <div class="sd-detail-grid">
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">Student ID</span>
+        <span class="sd-detail-value sd-mono"><%= student.studentId %></span>
+      </div>
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">Full Name</span>
+        <span class="sd-detail-value"><%= student.fullName %></span>
+      </div>
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">Grade Level</span>
+        <span class="sd-detail-value"><%= student.gradeLevel %></span>
+      </div>
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">Section</span>
+        <span class="sd-detail-value"><%= student.section %></span>
+      </div>
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">Academic Year</span>
+        <span class="sd-detail-value"><%= student.schoolYear || '—' %></span>
+      </div>
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">LRN</span>
+        <span class="sd-detail-value"><%= student.lrn || 'Not provided' %></span>
+      </div>
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">Track</span>
+        <span class="sd-detail-value"><%= student.track || 'Not specified' %></span>
+      </div>
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">Directory Email</span>
+        <span class="sd-detail-value"><%= student.email || 'Not provided' %></span>
+      </div>
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">Address</span>
+        <span class="sd-detail-value"><%= student.address || 'Not provided' %></span>
+      </div>
+      <div class="sd-detail-item">
+        <span class="sd-detail-label">Added</span>
+        <span class="sd-detail-value"><%= student.createdAt ? fmtDate(student.createdAt) : '—' %></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card sd-detail-card">
+    <div class="card-head">
+      <h2><%- icon('user-check') %> Linked Account</h2>
+    </div>
+    <% if (account) { %>
+      <div class="ec-identity sd-account-identity">
+        <%- include('../partials/avatar', { user: account, name: account.name || student.fullName, size: 'lg' }) %>
+        <span class="ec-identity__text">
+          <strong class="ec-identity__name"><%= account.name || student.fullName %></strong>
+          <span class="ec-identity__meta"><%= C.ROLES[account.role] || account.role %> · <%= account.email %></span>
+        </span>
+      </div>
+      <div class="sd-detail-grid">
+        <div class="sd-detail-item">
+          <span class="sd-detail-label">Email Address</span>
+          <span class="sd-detail-value"><%= account.email %></span>
+        </div>
+        <div class="sd-detail-item">
+          <span class="sd-detail-label">Account Role</span>
+          <span class="sd-detail-value"><%= C.ROLES[account.role] || account.role %></span>
+        </div>
+        <div class="sd-detail-item">
+          <span class="sd-detail-label">Account Status</span>
+          <span class="sd-detail-value"><%= account.active ? 'Active' : 'Inactive' %></span>
+        </div>
+        <div class="sd-detail-item">
+          <span class="sd-detail-label">Last Sign-in</span>
+          <span class="sd-detail-value"><%= account.lastLoginAt ? fmtDateTime(account.lastLoginAt) : 'Never' %></span>
+        </div>
+      </div>
+    <% } else { %>
+      <p class="muted" style="margin:0;">No login account is linked yet. The student can create one through public registration using this Student ID and full name.</p>
+    <% } %>
+  </div>
+
+  <div class="sd-form-actions">
+    <a class="btn btn-light" href="/students/<%= student.id %>/edit"><%- icon('edit') %> Edit Record</a>
+    <form method="post" action="/students/<%= student.id %>/toggle" class="inline-form" data-confirm="<%= statusLabel === 'Active' ? 'Deactivate' : 'Activate' %> <%= student.fullName %>?">
+      <button class="btn btn-light <%= statusLabel === 'Active' ? 'btn-danger' : 'btn-success' %>" type="submit">
+        <%- icon(statusLabel === 'Active' ? 'pause' : 'check-circle') %> <%= statusLabel === 'Active' ? 'Deactivate Record' : 'Activate Record' %>
+      </button>
+    </form>
+    <a class="btn btn-light" href="/students"><%- icon('arrow-left') %> Directory</a>
+  </div>
+</div><!-- /.students-page -->
+<%- include('../partials/footer') %>

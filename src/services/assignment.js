@@ -7,6 +7,9 @@
 const db = require('../db');
 const C = require('../constants');
 
+// Technicians at or above this many active tasks are flagged as overloaded.
+const HIGH_WORKLOAD_AT = 3;
+
 function activeTaskCount(technicianId) {
   return db.where('requests', (r) => r.technicianId === technicianId && C.TECH_ACTIVE_STATUSES.includes(r.status)).length;
 }
@@ -37,7 +40,8 @@ function recommendTechnicians(equipment) {
 
     const active = activeTaskCount(t.id);
     const loadPts = Math.max(0, 20 - active * 5);
-    reasons.push(`${active} active task(s)`);
+    const workloadWarning = active >= HIGH_WORKLOAD_AT;
+    reasons.push(`${active} active task(s)${workloadWarning ? ' (high workload)' : ''}`);
 
     return {
       technician: t,
@@ -45,6 +49,7 @@ function recommendTechnicians(equipment) {
       specMatch: specPts === 50,
       availability,
       active,
+      workloadWarning,
       eligible,
       reasons,
     };
@@ -55,4 +60,4 @@ function recommendTechnicians(equipment) {
   return results;
 }
 
-module.exports = { recommendTechnicians, activeTaskCount };
+module.exports = { recommendTechnicians, activeTaskCount, HIGH_WORKLOAD_AT };

@@ -1,0 +1,226 @@
+<!-- Floating Edit Profile Modal (reuses the existing /profile update endpoints) -->
+<%- include('avatar-crop-modal') %>
+
+<div id="profile-edit-modal" class="submit-modal-backdrop profile-edit-modal" style="display:none;" onclick="closeProfileEditModal(event)">
+  <div class="submit-modal-card profile-modal-card" onclick="event.stopPropagation()">
+    <div class="submit-modal-header">
+      <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+        <span class="po-panel-icon"><%- icon('edit') %></span>
+        <div>
+          <h2 style="margin:0;font-size:18px;font-weight:800;color:var(--text);letter-spacing:-0.3px;">Edit Profile</h2>
+          <p style="margin:2px 0 0;font-size:12px;color:var(--muted);">Update your details and account security</p>
+        </div>
+      </div>
+      <button type="button" class="submit-modal-close" onclick="closeProfileEditModal()" title="Close" aria-label="Close Edit Profile">&times;</button>
+    </div>
+
+    <div class="submit-modal-body">
+      <div id="profile-modal-flash"></div>
+
+      <!-- Avatar upload — preview, crop, reposition, and zoom before saving -->
+      <div class="pm-photo-section">
+        <div class="pm-avatar-row">
+          <%- include('avatar', { user: currentUser, name: currentUser.name, size: 'lg', className: 'pm-avatar-preview' }) %>
+          <span class="pm-avatar-label"><%- icon('camera') %> Profile Photo</span>
+          <label class="btn btn-light btn-sm pm-avatar-upload" for="modal-avatar-input" title="Choose a profile photo">Choose Photo</label>
+          <input type="file" id="modal-avatar-input" name="avatar" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" form="modal-avatar-form" style="display:none;">
+          <% if (currentUser.avatar) { %>
+            <button type="button" class="btn btn-light btn-sm" id="modal-remove-avatar">Remove</button>
+          <% } %>
+        </div>
+        <form id="modal-avatar-form" method="post" action="/profile/avatar" enctype="multipart/form-data" style="display:none;">
+          <input type="hidden" name="removeAvatar" id="modal-remove-avatar-flag" value="0">
+        </form>
+      </div>
+      <div class="pm-photo-divider" aria-hidden="true"></div>
+
+      <!-- Personal Details -->
+      <div class="pm-section">
+        <h3 class="pm-section-title"><%- icon('user') %> Personal Details</h3>
+
+        <form id="profile-details-form" method="post" action="/profile" enctype="multipart/form-data">
+          <div class="pm-fields">
+            <div class="field">
+              <label for="name">Full Name <span class="req">*</span></label>
+              <div class="input-icon-wrap">
+                <span class="field-icon"><%- icon('user') %></span>
+                <input type="text" id="name" name="name" value="<%= currentUser.name %>" required maxlength="120" placeholder="Enter full name">
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="email">School Email Address <span class="badge badge-sm badge-gray"><%- icon('lock') %> Read-only</span></label>
+              <div class="input-icon-wrap">
+                <span class="field-icon"><%- icon('mail') %></span>
+                <input type="email" id="email" value="<%= currentUser.email %>" disabled class="input-readonly">
+                <span class="field-icon-right"><%- icon('lock') %></span>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="phone">Phone Number <span class="field-tag">11 digits</span></label>
+              <div class="input-icon-wrap">
+                <span class="field-icon"><%- icon('phone') %></span>
+                <input type="tel" id="phone" name="phone" value="<%= currentUser.phone || '' %>" maxlength="11" pattern="[0-9]{11}" inputmode="numeric" placeholder="09171234567" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)">
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="department">Department / Office / Club</label>
+              <div class="input-icon-wrap">
+                <span class="field-icon"><%- icon('building') %></span>
+                <input type="text" id="department" name="department" value="<%= currentUser.department || '' %>" maxlength="150" placeholder="e.g. Student Council, Grade 12 - STEM A">
+              </div>
+            </div>
+
+            <div class="field pm-field-full">
+              <label for="address">Address</label>
+              <div class="input-icon-wrap">
+                <span class="field-icon"><%- icon('map-pin') %></span>
+                <input type="text" id="address" name="address" value="<%= currentUser.address || (typeof studentInfo !== 'undefined' && studentInfo && studentInfo.address) || '' %>" maxlength="250" placeholder="House / Street, Barangay, City / Municipality">
+              </div>
+            </div>
+          </div>
+
+          <% if (currentUser.role === 'technician') { %>
+            <div class="field" style="margin-top:12px;">
+              <label>My Specializations &amp; Technical Skills</label>
+              <div class="spec-grid">
+                <% (typeof categories !== 'undefined' ? categories : []).forEach(function (c) { var on = (currentUser.specializations || []).includes(c.id); %>
+                  <label class="spec-item <%= on ? 'checked' : '' %>">
+                    <input type="checkbox" name="specializations" value="<%= c.id %>" <%= on ? 'checked' : '' %> onchange="this.closest('.spec-item').classList.toggle('checked', this.checked)">
+                    <strong><%= c.name %></strong>
+                  </label>
+                <% }) %>
+              </div>
+            </div>
+          <% } %>
+        </form>
+      </div>
+
+      <!-- Account Security -->
+      <div class="pm-section">
+        <h3 class="pm-section-title"><%- icon('shield') %> Account Security</h3>
+
+        <% if (currentUser.role === 'technician') { %>
+          <form method="post" action="/technicians/<%= currentUser.id %>/availability" class="technician-avail-card" style="margin-bottom:12px;">
+            <input type="hidden" name="back" value="/profile">
+            <div class="avail-header">
+              <strong><%- icon('wrench') %> Technician Availability</strong>
+              <span class="avail-current <%= statusClass(currentUser.availability) %>"><%= currentUser.availability %></span>
+            </div>
+            <div class="avail-row">
+              <select data-ec-select="1" name="availability" aria-label="Availability">
+                <% C.AVAILABILITY.forEach(function (a) { %><option <%= currentUser.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
+              </select>
+              <button class="btn btn-light btn-sm" type="submit">Update</button>
+            </div>
+          </form>
+        <% } %>
+
+        <form method="post" action="/profile/password" id="profile-password-form">
+          <div class="field">
+            <label for="current_password">Current Password <span class="req">*</span></label>
+            <div class="input-icon-wrap">
+              <span class="field-icon"><%- icon('lock') %></span>
+              <input type="password" id="current_password" name="current" required autocomplete="current-password" placeholder="Enter current password">
+              <button type="button" class="btn-toggle-pw" data-target="current_password" title="Show / hide password" aria-label="Toggle password visibility"><%- icon('eye') %></button>
+            </div>
+          </div>
+
+          <div class="pm-fields">
+            <div class="field">
+              <label for="new_password">New Password <span class="req">*</span></label>
+              <div class="input-icon-wrap">
+                <span class="field-icon"><%- icon('lock') %></span>
+                <input type="password" id="new_password" name="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 chars">
+                <button type="button" class="btn-toggle-pw" data-target="new_password" title="Show / hide password" aria-label="Toggle password visibility"><%- icon('eye') %></button>
+              </div>
+            </div>
+
+            <div class="field">
+              <label for="confirm_password">Confirm Password <span class="req">*</span></label>
+              <div class="input-icon-wrap">
+                <span class="field-icon"><%- icon('lock') %></span>
+                <input type="password" id="confirm_password" name="confirm" required minlength="8" autocomplete="new-password" placeholder="Repeat new password">
+                <button type="button" class="btn-toggle-pw" data-target="confirm_password" title="Show / hide password" aria-label="Toggle password visibility"><%- icon('eye') %></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="pw-strength-container" id="pw-meter-wrap" style="display:none">
+            <div class="pw-strength-bar"><div class="pw-strength-fill" id="pw-meter-fill"></div></div>
+            <div class="pw-strength-text"><span>Password Strength:</span> <strong id="pw-strength-label">Enter password</strong></div>
+          </div>
+
+          <div class="pw-rules-compact">
+            <div class="pw-rules-headline"><%- icon('shield') %> <span>Security Requirements</span></div>
+            <div class="pw-rules-grid">
+              <div class="pw-rule-chip" id="rule-length"><span class="pw-rule-icon"><%- icon('check') %></span><span>At least 8 chars</span></div>
+              <div class="pw-rule-chip" id="rule-letters"><span class="pw-rule-icon"><%- icon('check') %></span><span>Letters (A-Z, a-z)</span></div>
+              <div class="pw-rule-chip" id="rule-number"><span class="pw-rule-icon"><%- icon('check') %></span><span>Numbers / symbols</span></div>
+              <div class="pw-rule-chip" id="rule-match"><span class="pw-rule-icon"><%- icon('check') %></span><span>Passwords match</span></div>
+            </div>
+          </div>
+
+          <button class="btn btn-primary pm-update-pw" type="submit" id="btn-change-password"><%- icon('lock') %> Update Password</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="submit-modal-footer">
+      <button type="button" class="btn btn-light" onclick="closeProfileEditModal()">Cancel</button>
+      <button type="button" class="btn btn-primary" id="profile-modal-save"><%- icon('check') %> Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var input = document.getElementById('modal-avatar-input');
+    var form = document.getElementById('modal-avatar-form');
+    var flag = document.getElementById('modal-remove-avatar-flag');
+    var removeBtn = document.getElementById('modal-remove-avatar');
+    var allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    var maxBytes = 5 * 1024 * 1024;
+
+    if (input && form) {
+      input.addEventListener('change', async function () {
+        var file = this.files && this.files[0];
+        if (!file) return;
+        if (allowed.indexOf(file.type) === -1) {
+          if (window.ecAlert) await window.ecAlert('Please choose a JPG, JPEG, PNG, or WEBP image.', { title: 'Invalid File Type', tone: 'warning', icon: 'warning' });
+          this.value = '';
+          return;
+        }
+        if (file.size > maxBytes) {
+          if (window.ecAlert) await window.ecAlert('Photo size exceeds 5 MB. Please choose a smaller image.', { title: 'File Too Large', tone: 'warning', icon: 'warning' });
+          this.value = '';
+          return;
+        }
+        if (typeof window.openAvatarCropper === 'function') {
+          var field = this;
+          window.openAvatarCropper(file, function () { field.value = ''; });
+        } else {
+          form.submit();
+        }
+      });
+    }
+    if (removeBtn && form && flag) {
+      removeBtn.addEventListener('click', async function () {
+        var ok = window.ecConfirm ? await window.ecConfirm({
+          title: 'Remove Profile Photo?',
+          message: 'Are you sure you want to remove your profile photo? This action cannot be undone.',
+          confirmLabel: 'Remove Photo',
+          cancelLabel: 'Cancel',
+          tone: 'danger',
+          icon: 'trash'
+        }) : false;
+        if (ok) {
+          flag.value = '1';
+          form.submit();
+        }
+      });
+    }
+  })();
+</script>

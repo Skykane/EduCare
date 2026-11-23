@@ -17,20 +17,39 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="/css/auth.css">
+  <link rel="stylesheet" href="/css/theme-toggle.css">
+  <link rel="stylesheet" href="/css/alignment.css">
+  <link rel="stylesheet" href="/css/typography.css">
+  <link rel="stylesheet" href="/css/mobile-overrides.css?v=20260522-m1">
+  <script src="/js/theme-toggle.js" defer></script>
 </head>
 <body>
-<button type="button" class="auth-theme-switch" id="theme-toggle" role="switch" aria-checked="false" aria-label="Toggle light / dark mode" title="Switch light / dark mode">
-  <span class="auth-theme-slider"></span>
-  <span class="auth-theme-btn auth-theme-sun" aria-hidden="true"><%- icon('sun') %></span>
-  <span class="auth-theme-btn auth-theme-moon" aria-hidden="true"><%- icon('moon') %></span>
-</button>
 <div class="auth">
-  <div class="auth-hero" role="img" aria-label="St. Anthony Center of Science and Technology, Inc. campus"></div>
-  <div class="auth-side">
+  <!-- Decorative background layers only; never interactive. -->
+  <div class="auth-bg" aria-hidden="true">
+    <div class="auth-bg-glow auth-bg-glow-a"></div>
+    <div class="auth-bg-glow auth-bg-glow-b"></div>
+    <div class="auth-bg-rings"></div>
+    <div class="auth-bg-grid"></div>
+    <div class="auth-bg-dots"></div>
+    <div class="auth-bg-shape auth-bg-shape-a"></div>
+    <div class="auth-bg-shape auth-bg-shape-b"></div>
+    <div class="auth-bg-shape auth-bg-shape-c"></div>
+    <div class="auth-bg-orb auth-bg-orb-a"></div>
+    <div class="auth-bg-orb auth-bg-orb-b"></div>
+    <img class="auth-bg-shield" src="/img/educare-logo.svg" alt="">
+    <img class="auth-bg-shield auth-bg-shield-sub" src="/img/educare-logo.svg" alt="">
+    <div class="auth-bg-vignette"></div>
+  </div>
+
+  <main class="auth-side">
     <div class="auth-card">
-      <img class="auth-logo" src="/img/logo.png" alt="St. Anthony Center of Science and Technology, Inc. – EduCare logo">
-      <h1 class="auth-brand">Edu<span>Care</span></h1>
-      <p class="auth-tagline">School Equipment Maintenance and<br>Repair Management System</p>
-      <div class="auth-rule"></div>
+      <%- include('theme-toggle', { cls: 'auth-theme-switch' }) %>
+      <div class="auth-card-header">
+        <div class="auth-logo-frame">
+          <img class="auth-logo" src="/img/educare-logo.svg" alt="EduCare logo">
+        </div>
+        <h1 class="auth-brand">Edu<span>Care</span></h1>
+      </div>

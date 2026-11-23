@@ -1,0 +1,168 @@
+<%- include('../partials/header') %>
+
+<%
+  var addAction = `<a class="btn-banner-sub" href="/students/new">${icon('plus')} Add Student</a>`;
+%>
+<div class="students-page">
+  <%- include('../partials/header-banner', {
+    title: 'Student Directory',
+    subtitle: 'Manage the official 2026 student records used by registration, profiles, and dashboards.',
+    extraActions: addAction
+  }) %>
+
+  <div class="sd-summary" aria-label="Student Directory summary">
+    <div class="sd-summary-card">
+      <span class="sd-summary-icon"><%- icon('users') %></span>
+      <span class="sd-summary-copy"><span class="sd-summary-label">Directory records</span><strong class="sd-summary-value"><%= counts.total %></strong></span>
+    </div>
+    <div class="sd-summary-card">
+      <span class="sd-summary-icon"><%- icon('check-circle') %></span>
+      <span class="sd-summary-copy"><span class="sd-summary-label">Active records</span><strong class="sd-summary-value"><%= counts.active %></strong></span>
+    </div>
+    <div class="sd-summary-card">
+      <span class="sd-summary-icon"><%- icon('pause') %></span>
+      <span class="sd-summary-copy"><span class="sd-summary-label">Inactive records</span><strong class="sd-summary-value"><%= counts.inactive %></strong></span>
+    </div>
+    <div class="sd-summary-card">
+      <span class="sd-summary-icon"><%- icon('user-check') %></span>
+      <span class="sd-summary-copy"><span class="sd-summary-label">Linked accounts</span><strong class="sd-summary-value"><%= counts.linked %></strong></span>
+    </div>
+  </div>
+
+  <div class="sd-section-head"><h2>Search &amp; Filters</h2></div>
+  <form class="card filters" method="get" action="/students" data-auto-filter data-auto-results="#students-results">
+    <div class="field wide">
+      <label for="sd-q">Search</label>
+      <span class="search-input">
+        <span class="search-input-icon"><%- icon('search') %></span>
+        <input type="search" id="sd-q" name="q" value="<%= f.q %>" placeholder="Student ID or full name">
+      </span>
+    </div>
+    <div class="field">
+      <label for="sd-grade">Grade Level</label>
+      <select id="sd-grade" name="gradeLevel" data-ec-select="1">
+        <option value="">All Grades</option>
+        <% grades.forEach(function (grade) { %>
+          <option value="<%= grade %>" <%= f.gradeLevel === grade ? 'selected' : '' %>><%= grade %></option>
+        <% }) %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="sd-section">Section</label>
+      <select id="sd-section" name="section" data-ec-select="1">
+        <option value="">All Sections</option>
+        <% var _secOpts = (typeof sectionOptions !== 'undefined' && sectionOptions.length) ? sectionOptions : []; %>
+        <% var _secGroups = (typeof groupedSectionOptions !== 'undefined' && groupedSectionOptions.length) ? groupedSectionOptions : []; %>
+        <% if (_secGroups.length) { %>
+          <% _secGroups.forEach(function (group) { %>
+            <optgroup label="<%= group.group %>">
+              <% group.options.forEach(function (opt) { %>
+                <option value="<%= opt.section %>" data-grade="<%= opt.grade %>" <%= f.section === opt.section && (!f.gradeLevel || f.gradeLevel === opt.grade) ? 'selected' : '' %>><%= opt.label %></option>
+              <% }) %>
+            </optgroup>
+          <% }) %>
+        <% } else { %>
+          <% sections.forEach(function (section) { %>
+            <option value="<%= section %>" <%= f.section === section ? 'selected' : '' %>><%= section %></option>
+          <% }) %>
+        <% } %>
+      </select>
+    </div>
+    <div class="field">
+      <label for="sd-status">Status</label>
+      <select data-ec-select="1" id="sd-status" name="status">
+        <option value="">All Statuses</option>
+        <option value="Active" <%= f.status === 'Active' ? 'selected' : '' %>>Active</option>
+        <option value="Inactive" <%= f.status === 'Inactive' ? 'selected' : '' %>>Inactive</option>
+      </select>
+    </div>
+    <div class="actions"><a class="btn btn-light" href="/students" data-filter-clear>Clear</a></div>
+  </form>
+
+  <div class="card sd-table-card" id="students-results" data-auto-results>
+    <div class="table-wrap">
+      <table class="stack-table sd-table">
+        <colgroup><col><col><col><col><col><col><col></colgroup>
+        <thead>
+          <tr>
+            <th>Student ID</th><th>Full Name</th><th>Grade Level</th><th>Section</th>
+            <th>School Year</th><th>Status</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!students.length) { %>
+            <tr><td colspan="7" class="empty">No student records found.</td></tr>
+          <% } %>
+          <% students.forEach(function (s) { %>
+            <tr>
+              <td data-label="Student ID" class="sd-mono"><span class="sd-primary"><%= s.studentId %></span></td>
+              <td data-label="Full Name">
+                <div class="ec-identity ec-identity--table">
+                  <% if (s.account) { %>
+                    <%- include('../partials/avatar', { user: s.account, name: s.fullName, size: 'sm' }) %>
+                  <% } else { %>
+                    <%- include('../partials/avatar', { user: null, name: s.fullName, size: 'sm', initialsText: initials(s.fullName) }) %>
+                  <% } %>
+                  <span class="ec-identity__text">
+                    <span class="sd-primary ec-identity__name"><%= s.fullName %></span>
+                    <% if (s.account && s.account.email) { %>
+                      <span class="sd-secondary ec-identity__meta"><%= s.account.email %></span>
+                    <% } else { %>
+                      <span class="sd-secondary ec-identity__meta">No account yet</span>
+                    <% } %>
+                  </span>
+                </div>
+              </td>
+              <td data-label="Grade Level"><%= s.gradeLevel %></td>
+              <td data-label="Section"><%= s.section %></td>
+              <td data-label="School Year"><%= s.schoolYear %></td>
+              <td data-label="Status">
+                <span class="badge <%= s.statusLabel === 'Active' ? 'badge-green' : 'badge-gray' %>">
+                  <%- icon(s.statusLabel === 'Active' ? 'check-circle' : 'pause') %> <%= s.statusLabel %>
+                </span>
+              </td>
+              <td data-label="Actions">
+                <div class="row-actions">
+                  <a class="btn btn-light btn-sm sd-action-view" href="/students/<%= s.id %>" title="View <%= s.fullName %>"><%- icon('eye') %> View</a>
+                  <a class="btn btn-light btn-sm sd-action-edit" href="/students/<%= s.id %>/edit" title="Edit <%= s.fullName %>"><%- icon('edit') %> Edit</a>
+                  <form method="post" action="/students/<%= s.id %>/toggle" class="inline-form" data-confirm="<%= s.statusLabel === 'Active' ? 'Deactivate' : 'Activate' %> <%= s.fullName %>?">
+                    <button class="btn btn-light btn-sm sd-action-toggle <%= s.statusLabel === 'Active' ? 'sd-action-deactivate' : '' %>" type="submit">
+                      <%- icon(s.statusLabel === 'Active' ? 'pause' : 'check-circle') %> <%= s.statusLabel === 'Active' ? 'Deactivate' : 'Activate' %>
+                    </button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div><!-- /.students-page -->
+<script>
+(function () {
+  var grade = document.getElementById('sd-grade');
+  var section = document.getElementById('sd-section');
+  if (!grade || !section) return;
+  function syncSections() {
+    var g = grade.value || '';
+    var current = section.value || '';
+    var keepCurrent = false;
+    Array.prototype.forEach.call(section.options, function (opt) {
+      if (!opt.value) { opt.hidden = false; opt.disabled = false; return; }
+      var og = opt.getAttribute('data-grade') || '';
+      var show = !g || !og || og === g;
+      opt.hidden = !show;
+      opt.disabled = !show;
+      if (show && opt.value === current) keepCurrent = true;
+    });
+    if (current && !keepCurrent) {
+      section.value = '';
+      section.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+  grade.addEventListener('change', syncSections);
+  syncSections();
+})();
+</script>
+<%- include('../partials/footer') %>

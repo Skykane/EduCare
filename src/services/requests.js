@@ -6,9 +6,14 @@ const { isOverdueRequest } = require('./scheduler');
 
 // Adds linked records and the computed priority to a request.
 function enrichRequest(r) {
-  const equipment = db.find('equipment', r.equipmentId);
-  const category = equipment ? db.find('categories', equipment.categoryId) : null;
+  const equipment = r.equipmentId ? db.find('equipment', r.equipmentId) : null;
+  const category = equipment
+    ? db.find('categories', equipment.categoryId)
+    : r.categoryId
+      ? db.find('categories', r.categoryId)
+      : null;
   const rec = computePriority(r, equipment);
+  const location = r.location || (equipment && equipment.location) || '';
   // First photo sent with the report, shown as the card thumbnail.
   const photo = db.all('attachments').find((a) => a.requestId === r.id && a.stage === 'before') || null;
   return {
@@ -16,6 +21,7 @@ function enrichRequest(r) {
     photo,
     equipment,
     category,
+    location,
     requester: db.find('users', r.requesterId),
     technician: r.technicianId ? db.find('users', r.technicianId) : null,
     rec,
@@ -58,9 +64,10 @@ function canViewRequest(user, r) {
   return false;
 }
 
-// Who may update a request's work status (start, hold, complete).
+// Only the assigned maintenance personnel may perform repair work.
+// Administrators triage/assign and verify, but do not perform the repair.
 function canWorkOn(user, r) {
-  return !!user && (user.role === 'admin' || (user.role === 'technician' && r.technicianId === user.id));
+  return !!user && user.role === 'technician' && r.technicianId === user.id;
 }
 
 module.exports = { enrichRequest, sortByPriority, nextCode, canViewRequest, canWorkOn };

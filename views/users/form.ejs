@@ -1,9 +1,14 @@
 <%- include('../partials/header') %>
 <div class="form-floating-wrap">
 <div class="page-head">
-  <div>
-    <h1><%= account.id ? 'Edit Account' : 'New User Account' %></h1>
-    <p style="margin:4px 0 0;font-size:13.5px;color:var(--muted);">Manage user credentials, permissions, and institutional role.</p>
+  <div class="ec-identity">
+    <% if (account.id) { %>
+      <%- include('../partials/avatar', { user: account, name: account.name, size: 'lg' }) %>
+    <% } %>
+    <div>
+      <h1><%= account.id ? 'Edit Account' : 'New User Account' %></h1>
+      <p style="margin:4px 0 0;font-size:13.5px;color:var(--muted);">Manage user credentials, permissions, and institutional role.</p>
+    </div>
   </div>
   <a class="btn btn-light" href="/users">Cancel</a>
 </div>
@@ -22,7 +27,7 @@
     </div>
     <div class="field">
       <label for="role">Role *</label>
-      <select id="role" name="role">
+      <select data-ec-select="1" id="role" name="role">
         <% Object.keys(C.ROLES).forEach(function (k) { %><option value="<%= k %>" <%= account.role === k ? 'selected' : '' %>><%= C.ROLES[k] %></option><% }) %>
       </select>
     </div>
@@ -39,11 +44,11 @@
     </div>
     <div class="field" id="student-id-field">
       <label for="studentId">Student ID</label>
-      <input type="text" id="studentId" name="studentId" value="<%= account.studentId || '' %>" placeholder="e.g. 2024-00101" maxlength="50">
+      <input type="text" id="studentId" name="studentId" value="<%= account.studentId || '' %>" placeholder="Enter student ID" maxlength="50">
     </div>
     <div class="field">
       <label for="address">Address</label>
-      <input type="text" id="address" name="address" value="<%= account.address || '' %>" placeholder="e.g. 142 San Agustin St., Pasig City" maxlength="250">
+      <input type="text" id="address" name="address" value="<%= account.address || '' %>" placeholder="Enter complete address" maxlength="250">
     </div>
     <div class="field">
       <label for="phone">Phone</label>
@@ -52,7 +57,7 @@
     <% if (account.id) { %>
       <div class="field">
         <label for="approvalStatus">Account Approval Status</label>
-        <select id="approvalStatus" name="approvalStatus">
+        <select data-ec-select="1" id="approvalStatus" name="approvalStatus">
           <option value="approved" <%= (account.approvalStatus || 'approved') === 'approved' ? 'selected' : '' %>>Approved & Active</option>
           <option value="pending" <%= account.approvalStatus === 'pending' ? 'selected' : '' %>>Pending Approval</option>
           <option value="rejected" <%= account.approvalStatus === 'rejected' ? 'selected' : '' %>>Rejected</option>
@@ -73,7 +78,7 @@
     </div>
     <div class="field" style="max-width:260px">
       <label for="availability">Availability</label>
-      <select id="availability" name="availability">
+      <select data-ec-select="1" id="availability" name="availability">
         <% C.AVAILABILITY.forEach(function (a) { %><option <%= account.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
       </select>
     </div>

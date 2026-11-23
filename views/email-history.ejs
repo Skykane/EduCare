@@ -1,182 +1,625 @@
 <%- include('partials/header') %>
 
-<%- include('partials/header-banner', {
-  breadcrumb: '<a href="/">Home</a> &rsaquo; Email History',
-  title: 'Outgoing Email History',
-  subtitle: 'History of all notifications and emails sent by EduCare.'
-}) %>
+<%
+  var emailSummary = typeof summary !== 'undefined' ? summary : { total: totalCount || 0, delivered: 0, failed: 0, pending: 0 };
+  var hasFilters = !!(f.q || f.status);
+%>
 
-<!-- Search & Status Filter Card -->
-<div class="card" style="margin-bottom: 20px;">
-  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 14px;">
-    <form method="get" action="/email-history" style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex: 1; min-width: 280px;">
-      <div style="position: relative; flex: 1; min-width: 200px;">
-        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; display: grid; place-items: center;">
-          <%- icon('search') %>
-        </span>
-        <input type="search" name="q" value="<%= f.q || '' %>" placeholder="Search recipient, subject, keywords..." style="width: 100%; height: 38px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 12px 0 38px; font-size: 13px; background: var(--surface); color: var(--text); box-sizing: border-box;">
+<style>
+/* =========================================================
+   Outgoing Email History — compact monitoring dashboard
+   Scoped to this page. Log data, statuses and delivery logic
+   are untouched; this layer only controls presentation.
+   ========================================================= */
+.email-history-page,
+.email-history-page * { text-align: left; }
+
+/* Header: keep maroon gradient, remove excess decoration/height. */
+.email-history-page .dash-header-banner {
+  padding: 10px 18px !important;
+  min-height: 0 !important;
+  margin-bottom: 14px !important;
+  box-shadow: none !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+.email-history-page .dash-banner-watermark { display: none !important; }
+.email-history-page .dash-banner-content { justify-content: space-between !important; }
+.email-history-page .dash-banner-text,
+.email-history-page .dash-banner-text h1,
+.email-history-page .dash-banner-text p { text-align: left !important; }
+.email-history-page .dash-banner-text h1 { font-size: 18px !important; }
+.email-history-page .dash-banner-text p { font-size: 12px !important; }
+
+/* Search & Filters */
+.email-history-page .email-section-head {
+  display: flex;
+  align-items: center;
+  margin: 0 0 10px;
+}
+.email-history-page .email-section-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: left !important;
+}
+.email-history-page .email-filter-card {
+  padding: 14px 16px !important;
+  margin-bottom: 16px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+}
+.email-history-page .email-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.email-history-page .email-filters {
+  display: flex;
+  flex: 1 1 560px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin: 0;
+}
+.email-history-page .email-field { display: flex; flex-direction: column; min-width: 0; }
+.email-history-page .email-field label {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  margin: 0 0 5px;
+  text-align: left !important;
+}
+.email-history-page .email-search-field { flex: 2.1 1 300px; }
+.email-history-page .email-status-field { flex: 1 1 170px; }
+/* Search icon/padding are provided by the shared /css/search-input.css component. */
+.email-history-page input[type='search'],
+.email-history-page select {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 11px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  font-size: 12.5px !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+}
+.email-history-page .email-filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.email-history-page .email-control-btn,
+.email-history-page .email-clear-form .btn {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 15px !important;
+  border-radius: 8px !important;
+  font-size: 12.5px !important;
+  box-shadow: none !important;
+}
+.email-history-page .email-clear-form { margin: 0; flex: 0 0 auto; }
+.email-history-page .email-clear-form .btn-clear-logs {
+  color: var(--red) !important;
+  background: rgba(220, 38, 38, 0.05) !important;
+  border: 1px solid rgba(220, 38, 38, 0.35) !important;
+}
+.email-history-page .email-clear-form .btn-clear-logs:hover {
+  background: rgba(220, 38, 38, 0.12) !important;
+}
+
+/* Summary cards */
+.email-history-page .email-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.email-history-page .email-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+.email-history-page .email-summary-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+}
+.email-history-page .email-summary-icon .ic { width: 17px; height: 17px; }
+.email-history-page .email-summary-total .email-summary-icon { color: var(--primary); background: var(--primary-soft); }
+.email-history-page .email-summary-sent .email-summary-icon { color: var(--green); background: var(--green-soft); }
+.email-history-page .email-summary-failed .email-summary-icon { color: var(--red); background: var(--red-soft); }
+.email-history-page .email-summary-pending .email-summary-icon { color: var(--amber); background: var(--amber-soft); }
+.email-history-page .email-summary-copy { display: flex; flex-direction: column; min-width: 0; }
+.email-history-page .email-summary-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.email-history-page .email-summary-value {
+  font-size: 20px;
+  line-height: 1.15;
+  font-weight: 800;
+  color: var(--text);
+}
+
+/* History section + table */
+.email-history-page .email-history-card {
+  padding: 16px 18px !important;
+  margin-bottom: 16px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+}
+.email-history-page .email-history-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.email-history-page .email-history-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.email-history-page .email-history-title h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: left !important;
+}
+.email-history-page .email-count-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.email-history-page .email-page-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.email-history-page .email-page-size label {
+  margin: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.email-history-page .email-page-size select { width: 76px !important; height: 34px !important; min-height: 34px !important; }
+
+.app .email-history-page .email-history-table-box {
+  border: 1px solid var(--border) !important;
+  border-radius: 11px !important;
+  box-shadow: none !important;
+  overflow: hidden !important;
+}
+.app .email-history-page table.email-history-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+}
+.email-history-page table.email-history-table col.email-col-time { width: 16%; }
+.email-history-page table.email-history-table col.email-col-recipient { width: 23%; }
+.email-history-page table.email-history-table col.email-col-subject { width: 34%; }
+.email-history-page table.email-history-table col.email-col-status { width: 14%; }
+.email-history-page table.email-history-table col.email-col-actions { width: 13%; }
+
+.app .email-history-page table.email-history-table thead th {
+  height: 40px !important;
+  padding: 8px 10px !important;
+  font-size: 10.5px !important;
+  color: #fff !important;
+  text-align: center !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
+  white-space: nowrap !important;
+}
+.app .email-history-page table.email-history-table thead th:last-child { border-right: 0 !important; }
+.app .email-history-page table.email-history-table tbody td {
+  height: 58px !important;
+  padding: 8px 10px !important;
+  font-size: 12.5px !important;
+  vertical-align: middle !important;
+  border-right: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
+}
+.app .email-history-page table.email-history-table tbody tr:last-child > td { border-bottom: 0 !important; }
+.app .email-history-page table.email-history-table tbody td:last-child { border-right: 0 !important; }
+.app .email-history-page table.email-history-table tbody tr:nth-child(even) > td { background-color: #fbf9fa !important; }
+.app .email-history-page table.email-history-table tbody tr:hover > td { background-color: var(--primary-soft) !important; }
+
+.app .email-history-page table.email-history-table td.email-col-time,
+.app .email-history-page table.email-history-table td.email-col-time .cell,
+.app .email-history-page table.email-history-table td.email-col-recipient,
+.app .email-history-page table.email-history-table td.email-col-recipient .cell,
+.app .email-history-page table.email-history-table td.email-col-subject,
+.app .email-history-page table.email-history-table td.email-col-subject .cell {
+  text-align: left !important;
+  justify-content: flex-start !important;
+}
+.app .email-history-page table.email-history-table td.email-col-status,
+.app .email-history-page table.email-history-table td.email-col-status .cell,
+.app .email-history-page table.email-history-table td.email-col-actions,
+.app .email-history-page table.email-history-table td.email-col-actions .cell {
+  text-align: center !important;
+  justify-content: center !important;
+}
+
+.app .email-history-page table.email-history-table td.email-col-recipient .cell,
+.app .email-history-page table.email-history-table td.email-col-subject .cell {
+  display: block !important;
+  max-width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+.email-history-page .email-recipient,
+.email-history-page .email-subject {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.email-history-page .email-subject { font-weight: 600; color: var(--text); }
+.email-history-page .email-time { color: var(--muted); font-size: 12px; white-space: nowrap; }
+
+.app .email-history-page table.email-history-table .email-status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 5px !important;
+  min-height: 22px !important;
+  padding: 3px 9px !important;
+  font-size: 11px !important;
+  white-space: nowrap !important;
+}
+.email-history-page .email-status-badge .ic { width: 12px; height: 12px; }
+.email-history-page .email-preview-btn {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  font-size: 11.5px !important;
+  border-radius: 7px !important;
+  box-shadow: none !important;
+  background: #fff !important;
+  border: 1px solid var(--primary) !important;
+  color: var(--primary) !important;
+  gap: 5px !important;
+}
+.email-history-page .email-preview-btn:hover { background: var(--primary-soft) !important; }
+.email-history-page .email-preview-btn .ic { width: 13px; height: 13px; }
+
+/* Pagination */
+.email-history-page .email-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.email-history-page .email-range-text { font-size: 11.5px; color: var(--muted); }
+.email-history-page .email-pager { display: flex; align-items: center; gap: 8px; }
+.email-history-page .email-page-text { font-size: 11.5px; color: var(--muted); min-width: 74px; text-align: center; }
+.email-history-page .email-page-btn {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  border-radius: 7px !important;
+  font-size: 11.5px !important;
+  box-shadow: none !important;
+}
+.email-history-page .email-page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.email-history-page table.email-history-table tbody tr[hidden] { display: none !important; }
+
+/* Empty state */
+.email-history-page .email-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 4px;
+  padding: 38px 16px;
+}
+.email-history-page .email-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  margin-bottom: 10px;
+}
+.email-history-page .email-empty-state strong { font-size: 14px; color: var(--text); }
+.email-history-page .email-empty-state p { margin: 3px 0 14px; color: var(--muted); font-size: 12.5px; max-width: 420px; }
+
+/* Preview modal: keep it readable, never truncate the real subject. */
+.email-history-page .submit-modal-header { justify-content: space-between !important; }
+.email-history-page .submit-modal-header > div:first-child {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  text-align: left !important;
+}
+.email-history-page .submit-modal-header h2,
+.email-history-page .email-modal-meta { text-align: left !important; }
+.email-history-page .email-modal-subject {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  max-width: none !important;
+  word-break: break-word;
+}
+.email-history-page .email-modal-strip { text-align: left !important; }
+.email-history-page .email-modal-strip > div { justify-content: flex-start !important; }
+
+@media (max-width: 1100px) {
+  .email-history-page .email-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .email-history-page .email-filters { flex: 1 1 100%; }
+}
+@media (max-width: 900px) {
+  .app .email-history-page table.email-history-table tbody td,
+  .app .email-history-page table.email-history-table tbody td .cell,
+  .app .email-history-page table.email-history-table tbody td::before {
+    text-align: left !important;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+  }
+  .app .email-history-page table.email-history-table td.email-col-status .cell,
+  .app .email-history-page table.email-history-table td.email-col-actions .cell {
+    justify-content: flex-start !important;
+  }
+  .app .email-history-page table.email-history-table td.email-col-recipient .cell,
+  .app .email-history-page table.email-history-table td.email-col-subject .cell {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
+  .email-history-page .email-recipient,
+  .email-history-page .email-subject { white-space: normal !important; overflow: visible !important; }
+}
+@media (max-width: 640px) {
+  .email-history-page .email-summary-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .email-history-page .email-summary-card { padding: 10px 11px; gap: 9px; }
+  .email-history-page .email-summary-value { font-size: 18px; }
+  .email-history-page .email-search-field,
+  .email-history-page .email-status-field { flex: 1 1 100%; }
+  .email-history-page .email-filter-actions,
+  .email-history-page .email-clear-form { width: 100%; }
+  .email-history-page .email-filter-actions .btn,
+  .email-history-page .email-clear-form .btn { flex: 1 1 0 !important; }
+  .email-history-page .email-history-toolbar { align-items: flex-start; }
+  .email-history-page .email-page-size { width: 100%; }
+  .email-history-page .email-pagination { justify-content: center; }
+}
+</style>
+
+<div class="email-history-page">
+  <%- include('partials/header-banner', {
+    title: 'Outgoing Email History',
+    subtitle: 'History of all notifications and emails sent by EduCare.'
+  }) %>
+
+  <!-- Search & Filters -->
+  <div class="card email-filter-card">
+    <div class="email-section-head"><h2>Search &amp; Filters</h2></div>
+    <div class="email-filter-row">
+      <form class="email-filters" method="get" action="/email-history" data-auto-filter data-auto-results="#email-history-results">
+        <div class="email-field email-search-field">
+          <label for="q">Search</label>
+          <span class="search-input">
+            <span class="search-input-icon"><%- icon('search') %></span>
+            <input type="search" id="q" name="q" value="<%= f.q || '' %>" placeholder="Recipient, subject, or keywords">
+          </span>
+        </div>
+        <div class="email-field email-status-field">
+          <label for="status">Status</label>
+          <select data-ec-select="1" id="status" name="status">
+            <option value="" <%= !f.status ? 'selected' : '' %>>All Statuses</option>
+            <option value="delivered" <%= f.status === 'delivered' ? 'selected' : '' %>>Sent</option>
+            <option value="simulated" <%= f.status === 'simulated' ? 'selected' : '' %>>Pending</option>
+            <option value="failed" <%= f.status === 'failed' ? 'selected' : '' %>>Failed</option>
+          </select>
+        </div>
+        <div class="email-filter-actions">
+          <a href="/email-history" class="btn btn-sm btn-light email-control-btn" data-filter-clear>Clear</a>
+        </div>
+      </form>
+
+      <% if (totalCount > 0) { %>
+        <form method="post" action="/email-history/clear" class="inline-form email-clear-form" data-confirm="Are you sure you want to permanently clear all <%= totalCount %> outgoing email log records? This cannot be undone.">
+          <button type="submit" class="btn btn-sm btn-clear-logs"><%- icon('trash') %> Clear Outbox Logs</button>
+        </form>
+      <% } %>
+    </div>
+  </div>
+
+  <!-- Compact summary cards derived from actual log records -->
+  <div class="email-summary-grid">
+    <div class="email-summary-card email-summary-total">
+      <span class="email-summary-icon"><%- icon('mail') %></span>
+      <span class="email-summary-copy"><span class="email-summary-label">Total Emails</span><strong class="email-summary-value"><%= Number(emailSummary.total) || 0 %></strong></span>
+    </div>
+    <div class="email-summary-card email-summary-sent">
+      <span class="email-summary-icon"><%- icon('check-circle') %></span>
+      <span class="email-summary-copy"><span class="email-summary-label">Sent</span><strong class="email-summary-value"><%= Number(emailSummary.delivered) || 0 %></strong></span>
+    </div>
+    <div class="email-summary-card email-summary-failed">
+      <span class="email-summary-icon"><%- icon('x-circle') %></span>
+      <span class="email-summary-copy"><span class="email-summary-label">Failed</span><strong class="email-summary-value"><%= Number(emailSummary.failed) || 0 %></strong></span>
+    </div>
+    <div class="email-summary-card email-summary-pending">
+      <span class="email-summary-icon"><%- icon('clock') %></span>
+      <span class="email-summary-copy"><span class="email-summary-label">Pending</span><strong class="email-summary-value"><%= Number(emailSummary.pending) || 0 %></strong></span>
+    </div>
+  </div>
+
+  <!-- Email history table -->
+  <div class="card email-history-card" id="email-history-results" data-auto-results>
+    <div class="email-history-toolbar">
+      <div class="email-history-title">
+        <h2>Outgoing Email History</h2>
+        <span class="email-count-pill"><%= totalCount %> total records</span>
       </div>
-      <div style="min-width: 150px;">
-        <select name="status" style="width: 100%; height: 38px; border: 1.5px solid var(--border); border-radius: 8px; padding: 0 10px; font-size: 13px; background: var(--surface); color: var(--text);">
-          <option value="" <%= !f.status ? 'selected' : '' %>>All Statuses</option>
-          <option value="delivered" <%= f.status === 'delivered' ? 'selected' : '' %>>Delivered</option>
-          <option value="simulated" <%= f.status === 'simulated' ? 'selected' : '' %>>Logged / Outbox</option>
-          <option value="failed" <%= f.status === 'failed' ? 'selected' : '' %>>Failed</option>
+      <div class="email-page-size">
+        <label for="emailPageSize">Rows per page</label>
+        <select data-ec-select="1" id="emailPageSize">
+          <option value="10" selected>10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="all">All</option>
         </select>
       </div>
-      <div style="display: flex; gap: 6px;">
-        <button type="submit" class="btn btn-sm btn-primary">Filter</button>
-        <% if (f.q || f.status) { %>
-          <a href="/email-history" class="btn btn-sm btn-light">Clear</a>
-        <% } %>
-      </div>
-    </form>
+    </div>
 
-    <% if (totalCount > 0) { %>
-      <form method="post" action="/email-history/clear" class="inline-form" data-confirm="Are you sure you want to clear the entire outgoing email history log?">
-        <button type="submit" class="btn btn-sm btn-light" style="color: var(--red); display: inline-flex; align-items: center; gap: 6px;">
-          <%- icon('trash') %> Clear Outbox Logs
-        </button>
-      </form>
+    <% if (!outgoingEmails.length) { %>
+      <div class="email-empty-state">
+        <span class="email-empty-icon"><%- icon('mail') %></span>
+        <strong>No Outgoing Emails Found</strong>
+        <p>
+          <% if (hasFilters) { %>
+            No records matched your search or status filter. Try clearing the filters.
+          <% } else { %>
+            No outgoing emails have been logged yet. Emails will appear here when EduCare sends notifications.
+          <% } %>
+        </p>
+        <a href="/settings/email" class="btn btn-sm btn-primary"><%- icon('settings') %> Go to Email Settings</a>
+      </div>
+    <% } else { %>
+      <div class="email-history-table-box">
+        <div class="table-wrap">
+          <table class="stack-table email-history-table">
+            <colgroup>
+              <col class="email-col-time"><col class="email-col-recipient"><col class="email-col-subject"><col class="email-col-status"><col class="email-col-actions">
+            </colgroup>
+            <thead><tr><th>Time</th><th>Recipient</th><th>Subject</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              <% outgoingEmails.forEach(function (m, idx) { %>
+                <tr data-email-index="<%= idx %>">
+                  <td data-label="Time" class="email-col-time"><span class="email-time"><%= m.createdAt ? fmtDateTime(m.createdAt) : 'Recently' %></span></td>
+                  <td data-label="Recipient" class="email-col-recipient"><span class="email-recipient" title="<%= m.to || '' %>"><%= m.to || '—' %></span></td>
+                  <td data-label="Subject" class="email-col-subject"><span class="email-subject" title="<%= m.subject || '' %>"><%= m.subject || 'No Subject' %></span></td>
+                  <td data-label="Status" class="email-col-status">
+                    <% if (m.status === 'delivered') { %>
+                      <span class="badge badge-green email-status-badge" title="Successfully delivered"><%- icon('check-circle') %> Sent</span>
+                    <% } else if (m.status === 'failed') { %>
+                      <span class="badge badge-red email-status-badge" title="<%= m.error || 'Delivery failed' %>"><%- icon('x-circle') %> Failed</span>
+                    <% } else if (m.status === 'simulated' || m.status === 'pending') { %>
+                      <span class="badge badge-amber email-status-badge" title="<%= m.error || 'Saved in outbox log' %>"><%- icon('clock') %> Pending</span>
+                    <% } else { %>
+                      <span class="badge badge-gray email-status-badge"><%= m.status %></span>
+                    <% } %>
+                  </td>
+                  <td data-label="" class="email-col-actions">
+                    <button type="button" class="btn btn-sm btn-light email-preview-btn" onclick="viewEmailModal(<%= idx %>)"><%- icon('eye') %> Preview Email</button>
+                  </td>
+                </tr>
+              <% }) %>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="email-pagination">
+        <span class="email-range-text" id="emailRangeText">Showing records</span>
+        <div class="email-pager">
+          <button type="button" class="btn btn-sm btn-light email-page-btn" id="emailPrevPage">Previous</button>
+          <span class="email-page-text" id="emailPageText">Page 1 of 1</span>
+          <button type="button" class="btn btn-sm btn-light email-page-btn" id="emailNextPage">Next</button>
+        </div>
+      </div>
     <% } %>
-  </div>
-</div>
-
-<!-- Outgoing Email Logs Table Card -->
-<div class="card email-history-card">
-  <div class="card-head" style="margin-bottom: 14px;">
-    <div>
-      <h2 style="margin: 0; font-size: 17px; font-weight: 700;">Outgoing Email History (<%= totalCount %>)</h2>
-      <p style="margin: 3px 0 0; font-size: 12.5px; color: var(--muted);">History of all notifications and emails sent by EduCare.</p>
-    </div>
+    <script type="application/json" id="outgoing-data-json"><%- JSON.stringify(outgoingEmails).replace(/</g, '\\u003c') %></script>
   </div>
 
-  <% if (!outgoingEmails.length) { %>
-    <div style="text-align: center; padding: 48px 16px;">
-      <span style="display: inline-grid; place-items: center; width: 48px; height: 48px; border-radius: 12px; background: rgba(99, 102, 241, 0.1); color: #6366f1; margin-bottom: 12px;">
-        <%- icon('mail') %>
-      </span>
-      <strong style="display: block; font-size: 15px; color: var(--text);">No Outgoing Emails Found</strong>
-      <p style="color: var(--muted); font-size: 13px; max-width: 420px; margin: 4px auto 16px;">
-        <% if (f.q || f.status) { %>
-          No records matched your search query. Try clearing filters.
-        <% } else { %>
-          No outgoing emails logged yet. Emails will be logged here whenever users register, request approvals, or log in.
-        <% } %>
-      </p>
-      <a href="/settings/email" class="btn btn-sm btn-primary">
-        <%- icon('settings') %> Go to Email Settings
-      </a>
-    </div>
-  <% } else { %>
-    <div class="email-history-table-box">
-      <div class="table-wrap">
-        <table class="stack-table email-history-table">
-        <thead>
-          <tr>
-            <th style="min-width: 155px;">Time</th>
-            <th style="min-width: 170px;">Recipient</th>
-            <th>Subject</th>
-            <th style="min-width: 130px;">Status</th>
-            <th style="min-width: 140px;">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <% outgoingEmails.forEach(function (m, idx) { %>
-            <tr>
-              <td data-label="Time" class="nowrap" style="font-size: 12.5px; color: var(--muted);">
-                <%= m.createdAt ? fmtDateTime(m.createdAt) : 'Recently' %>
-              </td>
-              <td data-label="Recipient">
-                <strong style="font-size: 13.5px;"><%= m.to %></strong>
-              </td>
-              <td data-label="Subject">
-                <span style="font-weight: 600; color: var(--text);"><%= m.subject %></span>
-              </td>
-              <td data-label="Status">
-                <% if (m.status === 'delivered') { %>
-                  <span class="badge badge-green" style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('check-circle') %> Delivered</span>
-                <% } else if (m.status === 'simulated') { %>
-                  <span class="badge badge-amber" title="<%= m.error || 'Saved in log' %>" style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('clock') %> Logged / Outbox</span>
-                <% } else if (m.status === 'failed') { %>
-                  <span class="badge badge-red" title="<%= m.error %>" style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('x') %> Failed</span>
-                <% } else { %>
-                  <span class="badge badge-gray"><%= m.status %></span>
-                <% } %>
-              </td>
-              <td data-label="" class="nowrap">
-                <button type="button" class="btn btn-sm btn-light" onclick="viewEmailModal(<%= idx %>)" style="display: inline-flex; align-items: center; gap: 4px;">
-                  <%- icon('eye') %> Preview Email
-                </button>
-              </td>
-            </tr>
-          <% }) %>
-        </tbody>
-      </table>
-      </div>
-    </div>
-  <% } %>
-</div>
-
-<!-- Floating Modal Card: Email Preview Modal -->
-<div id="email-preview-modal" class="submit-modal-backdrop" style="display: none;" onclick="closeEmailModal(event)">
-  <div class="submit-modal-card" style="max-width: 760px; width: 100%; max-height: min(92vh, 850px); display: flex; flex-direction: column;" onclick="event.stopPropagation()">
-    <!-- Header -->
-    <div class="submit-modal-header" style="align-items: flex-start; padding: 18px 22px 14px;">
-      <div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
-        <span style="display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: rgba(99, 102, 241, 0.12); color: #6366f1; flex-shrink: 0;">
-          <%- icon('mail') %>
-        </span>
-        <div style="min-width: 0; flex: 1;">
-          <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px;">
-            <h2 id="modal-email-subject" style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 520px;">Email Preview</h2>
-            <span id="modal-email-status-badge" class="badge"></span>
+  <!-- Email preview modal -->
+  <div id="email-preview-modal" class="submit-modal-backdrop" style="display: none;" onclick="closeEmailModal(event)">
+    <div class="submit-modal-card" style="max-width: 760px; width: 100%; max-height: min(92vh, 850px); display: flex; flex-direction: column;" onclick="event.stopPropagation()">
+      <div class="submit-modal-header" style="align-items: flex-start; padding: 18px 22px 14px;">
+        <div style="display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1;">
+          <span style="display: inline-grid; place-items: center; width: 42px; height: 42px; border-radius: 12px; background: rgba(140, 23, 36, 0.10); color: var(--primary); flex-shrink: 0;">
+            <%- icon('mail') %>
+          </span>
+          <div style="min-width: 0; flex: 1;">
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 3px;">
+              <h2 id="modal-email-subject" class="email-modal-subject" style="margin: 0; font-size: 16px; font-weight: 700; color: var(--text);">Email Preview</h2>
+              <span id="modal-email-status-badge" class="badge"></span>
+            </div>
+            <p id="modal-email-meta-time" class="email-modal-meta" style="margin: 0; font-size: 12px; color: var(--muted);"></p>
           </div>
-          <p id="modal-email-meta-time" style="margin: 0; font-size: 12px; color: var(--muted);"></p>
+        </div>
+        <button type="button" class="submit-modal-close" onclick="closeEmailModal()" aria-label="Close modal" title="Close (Esc)">&times;</button>
+      </div>
+
+      <div class="email-modal-strip" style="padding: 12px 22px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <div>
+            <span style="color: var(--muted); font-weight: 600;">Recipient:</span>
+            <strong id="modal-email-to" style="color: var(--text); font-family: var(--mono); margin-left: 4px;"></strong>
+          </div>
+          <div>
+            <span style="color: var(--muted); font-weight: 600;">From:</span>
+            <span id="modal-email-from" style="color: var(--muted); margin-left: 4px;"></span>
+          </div>
+        </div>
+        <div id="modal-email-error-box" style="display: none; background: rgba(220, 38, 38, 0.08); border: 1px solid rgba(220, 38, 38, 0.25); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--red); line-height: 1.4;">
+          <strong style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('alert') %> Delivery Log:</strong>
+          <span id="modal-email-error-msg" style="word-break: break-word;"></span>
         </div>
       </div>
-      <button type="button" class="submit-modal-close" onclick="closeEmailModal()" aria-label="Close modal" title="Close (Esc)">&times;</button>
-    </div>
 
-    <!-- Metadata Details Strip -->
-    <div style="padding: 12px 22px; background: var(--bg); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 6px; font-size: 12.5px;">
-      <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-        <div>
-          <span style="color: var(--muted); font-weight: 600;">Recipient:</span>
-          <strong id="modal-email-to" style="color: var(--text); font-family: var(--mono); margin-left: 4px;"></strong>
-        </div>
-        <div id="modal-email-sender-wrap">
-          <span style="color: var(--muted); font-weight: 600;">From:</span>
-          <span id="modal-email-from" style="color: var(--muted); margin-left: 4px;"></span>
-        </div>
+      <div style="flex: 1; min-height: 340px; padding: 16px 22px; background: var(--surface); display: flex; flex-direction: column; overflow: hidden;">
+        <iframe id="modal-email-frame" style="width: 100%; height: 100%; flex: 1; border: 1px solid var(--border); border-radius: 12px; background: #ffffff;" title="Email Content"></iframe>
       </div>
-      <!-- Error / Delivery Info Box (Shown dynamically if error present) -->
-      <div id="modal-email-error-box" style="display: none; background: rgba(220, 38, 38, 0.08); border: 1px solid rgba(220, 38, 38, 0.25); border-radius: 8px; padding: 8px 12px; font-size: 12px; color: var(--red); line-height: 1.4;">
-        <strong style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('alert') %> Delivery Log:</strong>
-        <span id="modal-email-error-msg" style="word-break: break-word;"></span>
-      </div>
-    </div>
 
-    <!-- Modal Body: Email Preview Frame -->
-    <div style="flex: 1; min-height: 340px; padding: 16px 22px; background: var(--surface); display: flex; flex-direction: column; overflow: hidden;">
-      <iframe id="modal-email-frame" style="width: 100%; height: 100%; flex: 1; border: 1px solid var(--border); border-radius: 12px; background: #ffffff; box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);" title="Email Content"></iframe>
-    </div>
-
-    <!-- Modal Footer -->
-    <div style="padding: 12px 22px; border-top: 1px solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; border-radius: 0 0 20px 20px;">
-      <span style="font-size: 11.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px;">
-        <%- icon('check-circle') %> Interactive HTML Email Preview
-      </span>
-      <div style="display: flex; gap: 8px;">
-        <button type="button" class="btn btn-sm btn-light" id="modal-raw-toggle" onclick="toggleRawView()">View Raw HTML</button>
-        <button type="button" class="btn btn-sm btn-primary" onclick="closeEmailModal()">Close</button>
+      <div style="padding: 12px 22px; border-top: 1px solid var(--border); background: var(--surface); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; border-radius: 0 0 20px 20px;">
+        <span style="font-size: 11.5px; color: var(--muted); display: inline-flex; align-items: center; gap: 5px;">
+          <%- icon('check-circle') %> Email body preview
+        </span>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="btn btn-sm btn-light" id="modal-raw-toggle" onclick="toggleRawView()">View Raw HTML</button>
+          <button type="button" class="btn btn-sm btn-primary" onclick="closeEmailModal()">Close</button>
+        </div>
       </div>
     </div>
   </div>
-</div>
+</div><!-- /.email-history-page -->
 
 <script>
-  var outgoingData = <%- JSON.stringify(outgoingEmails) %>;
+  var outgoingData = [];
+  window.educareSetOutgoingData = function (data) { outgoingData = data || []; };
+  var outgoingDataNode = document.getElementById('outgoing-data-json');
+  if (outgoingDataNode) {
+    try { window.educareSetOutgoingData(JSON.parse(outgoingDataNode.textContent)); } catch (err) { /* ignore malformed payload */ }
+  }
   var modal = document.getElementById('email-preview-modal');
   var modalSubject = document.getElementById('modal-email-subject');
   var modalTo = document.getElementById('modal-email-to');
@@ -202,32 +645,30 @@
     modalTo.textContent = email.to || '—';
     modalFrom.textContent = email.from || 'EduCare System';
 
-    // Format timestamp
     if (email.createdAt) {
       try {
         var d = new Date(email.createdAt);
-        modalTime.textContent = 'Sent: ' + d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
+        modalTime.textContent = 'Logged: ' + d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
       } catch (err) {
         modalTime.textContent = email.createdAt;
       }
     } else {
-      modalTime.textContent = 'Sent recently';
+      modalTime.textContent = 'Logged recently';
     }
 
-    // Status badge
     var st = (email.status || 'simulated').toLowerCase();
+    modalStatusBadge.className = 'badge';
     if (st === 'delivered') {
-      modalStatusBadge.className = 'badge badge-green';
-      modalStatusBadge.textContent = 'Delivered';
+      modalStatusBadge.classList.add('badge-green');
+      modalStatusBadge.textContent = 'Sent';
     } else if (st === 'failed') {
-      modalStatusBadge.className = 'badge badge-red';
+      modalStatusBadge.classList.add('badge-red');
       modalStatusBadge.textContent = 'Failed';
     } else {
-      modalStatusBadge.className = 'badge badge-amber';
-      modalStatusBadge.textContent = 'Logged in Outbox';
+      modalStatusBadge.classList.add('badge-amber');
+      modalStatusBadge.textContent = 'Pending';
     }
 
-    // Error message display
     if (email.error) {
       modalErrorBox.style.display = 'block';
       modalErrorMsg.textContent = email.error;
@@ -236,9 +677,7 @@
       modalErrorMsg.textContent = '';
     }
 
-    // Render iframe content
     renderFrameContent();
-
     modal.style.display = 'flex';
     document.body.classList.add('modal-open');
   }
@@ -268,9 +707,7 @@
   }
 
   function closeEmailModal(e) {
-    if (e && e.target && e.target !== modal && !e.target.classList.contains('submit-modal-close')) {
-      return;
-    }
+    if (e && e.target && e.target !== modal && !e.target.classList.contains('submit-modal-close')) return;
     if (modal) {
       modal.style.display = 'none';
       document.body.classList.remove('modal-open');
@@ -278,10 +715,55 @@
   }
 
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && modal && modal.style.display === 'flex') {
-      closeEmailModal();
-    }
+    if (e.key === 'Escape' && modal && modal.style.display === 'flex') closeEmailModal();
   });
+
+  // Client-side pagination over the already-filtered records. No records are
+  // removed; they are only paged for display. Search/status filters still run
+  // server-side across the full log before this page is rendered.
+  // Exposed so automatically refreshed results re-bind correctly.
+  window.educareInitEmailPagination = function () {
+    var rows = Array.prototype.slice.call(document.querySelectorAll('.email-history-table tbody tr[data-email-index]'));
+    if (!rows.length) return;
+    var sizeSelect = document.getElementById('emailPageSize');
+    var rangeText = document.getElementById('emailRangeText');
+    var pageText = document.getElementById('emailPageText');
+    var prev = document.getElementById('emailPrevPage');
+    var next = document.getElementById('emailNextPage');
+    if (!sizeSelect || !rangeText || !pageText || !prev || !next) return;
+    if (sizeSelect.getAttribute('data-pagination-ready') === '1') return;
+    sizeSelect.setAttribute('data-pagination-ready', '1');
+
+    var page = 1;
+
+    function pageSize() {
+      return sizeSelect.value === 'all' ? rows.length : (parseInt(sizeSelect.value, 10) || 10);
+    }
+
+    function render() {
+      var size = pageSize();
+      var total = rows.length;
+      var pages = Math.max(1, Math.ceil(total / size));
+      if (page > pages) page = pages;
+      var startIndex = (page - 1) * size;
+      var endIndex = Math.min(startIndex + size, total);
+
+      rows.forEach(function (row, i) {
+        row.hidden = !(i >= startIndex && i < endIndex);
+      });
+
+      rangeText.textContent = 'Showing ' + (startIndex + 1) + '–' + endIndex + ' of ' + total + ' records';
+      pageText.textContent = 'Page ' + page + ' of ' + pages;
+      prev.disabled = page <= 1;
+      next.disabled = page >= pages;
+    }
+
+    sizeSelect.addEventListener('change', function () { page = 1; render(); });
+    prev.addEventListener('click', function () { if (page > 1) { page -= 1; render(); } });
+    next.addEventListener('click', function () { if (page < Math.ceil(rows.length / pageSize())) { page += 1; render(); } });
+    render();
+  };
+  window.educareInitEmailPagination();
 </script>
 
 <%- include('partials/footer') %>

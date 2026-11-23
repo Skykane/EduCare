@@ -3,76 +3,152 @@
   var schedExtraActions = '';
   if (currentUser.role === 'admin') {
     schedExtraActions = `
-      <form method="post" action="/schedule/check" style="margin:0;">
-        <button class="btn-banner-sub" type="submit" style="cursor:pointer;">${icon('refresh')} Check Reminders Now</button>
+      <form method="post" action="/schedule/check">
+        <button class="btn-banner-sub" type="submit">${icon('refresh')} Check Reminders Now</button>
       </form>
     `;
   }
 %>
-<%- include('partials/header-banner', {
-  breadcrumb: '<a href="/">Home</a> &rsaquo; Maintenance Schedule',
-  title: 'Maintenance & Checkup Schedule',
-  subtitle: 'Scheduled checkups, overdue alerts, and routine equipment inspection dates.',
-  extraActions: schedExtraActions
-}) %>
+<div class="admin-ui-page admin-ui-schedule">
+  <%- include('partials/header-banner', {
+    breadcrumb: '<a href="/">Home</a> &rsaquo; Maintenance Schedule',
+    title: 'Maintenance & Checkup Schedule',
+    subtitle: 'Scheduled checkups, overdue alerts, and routine equipment inspection dates.',
+    extraActions: schedExtraActions
+  }) %>
 
-<div class="stats">
-  <a class="stat red" href="/schedule?status=Overdue"><div class="label">Overdue</div><div class="value"><%= counts.Overdue %></div></a>
-  <a class="stat amber" href="/schedule?status=Due%20Soon"><div class="label">Due within 7 days</div><div class="value"><%= counts['Due Soon'] %></div></a>
-  <a class="stat green" href="/schedule?status=Scheduled"><div class="label">Scheduled</div><div class="value"><%= counts.Scheduled %></div></a>
-  <a class="stat" href="/schedule"><div class="label">All scheduled equipment</div><div class="value"><%= counts.Overdue + counts['Due Soon'] + counts.Scheduled %></div></a>
-</div>
-
-<div class="card">
-  <div class="card-head">
-    <h2><%= status ? status : 'All' %> (<%= rows.length %>)</h2>
-    <% if (status) { %><a class="btn btn-light btn-sm" href="/schedule">Show all</a><% } %>
+  <div class="admin-ui-summary-grid">
+    <a class="admin-ui-summary-card" href="/schedule?status=Overdue" data-auto-filter-link data-auto-results="#schedule-results" data-filter-key="status" data-filter-value="Overdue">
+      <span class="admin-ui-summary-icon red"><%- icon('alert') %></span>
+      <span class="admin-ui-summary-copy">
+        <span class="admin-ui-summary-value"><%= counts.Overdue %></span>
+        <span class="admin-ui-summary-label">Overdue</span>
+        <span class="admin-ui-summary-note">Past the recorded due date</span>
+      </span>
+    </a>
+    <a class="admin-ui-summary-card" href="/schedule?status=Due%20Soon" data-auto-filter-link data-auto-results="#schedule-results" data-filter-key="status" data-filter-value="Due Soon">
+      <span class="admin-ui-summary-icon amber"><%- icon('clock') %></span>
+      <span class="admin-ui-summary-copy">
+        <span class="admin-ui-summary-value"><%= counts['Due Soon'] %></span>
+        <span class="admin-ui-summary-label">Due within 7 days</span>
+        <span class="admin-ui-summary-note">Upcoming inspections</span>
+      </span>
+    </a>
+    <a class="admin-ui-summary-card" href="/schedule?status=Scheduled" data-auto-filter-link data-auto-results="#schedule-results" data-filter-key="status" data-filter-value="Scheduled">
+      <span class="admin-ui-summary-icon green"><%- icon('check-circle') %></span>
+      <span class="admin-ui-summary-copy">
+        <span class="admin-ui-summary-value"><%= counts.Scheduled %></span>
+        <span class="admin-ui-summary-label">Scheduled</span>
+        <span class="admin-ui-summary-note">On track from recorded history</span>
+      </span>
+    </a>
+    <a class="admin-ui-summary-card" href="/schedule?status=No%20maintenance%20recorded" data-auto-filter-link data-auto-results="#schedule-results" data-filter-key="status" data-filter-value="No maintenance recorded">
+      <span class="admin-ui-summary-icon blue"><%- icon('file') %></span>
+      <span class="admin-ui-summary-copy">
+        <span class="admin-ui-summary-value"><%= counts['No maintenance recorded'] %></span>
+        <span class="admin-ui-summary-label">No maintenance recorded</span>
+        <span class="admin-ui-summary-note"><%= counts.All %> configured intervals tracked</span>
+      </span>
+    </a>
   </div>
-  <div class="table-wrap">
-  <table class="stack-table">
-    <thead><tr><th>Equipment</th><th>Location</th><th>Interval</th><th>Last done</th><th>Next due</th><th>Status</th><th>Task</th></tr></thead>
-    <tbody>
-      <% if (!rows.length) { %><tr><td colspan="7" class="empty">Nothing here.</td></tr><% } %>
-      <% rows.forEach(function (s) { var e = s.equipment; %>
-        <tr class="<%= s.status === 'Overdue' ? 'row-overdue' : '' %>">
-          <td><a href="/equipment/<%= e.id %>"><%= e.name %></a><span class="sub mono"><%= e.code %></span></td>
-          <td><%= e.location %></td>
-          <td>Every <%= s.interval %> days<% if (s.intervalLabel) { %><span class="sub"><%= s.intervalLabel %></span><% } %></td>
-          <td class="nowrap"><%= fmtDate(s.base) %><span class="sub"><%= s.basedOn %></span></td>
-          <td class="nowrap"><strong><%= fmtDate(s.nextDue) %></strong>
-            <% if (s.daysLeft < 0) { %>
-              <span class="sub" style="color:var(--red);font-weight:600;"><%= Math.abs(s.daysLeft) %> day(s) late</span>
-            <% } else if (s.daysLeft === 0) { %>
-              <span class="sub" style="color:var(--amber);font-weight:600;">due today</span>
-            <% } else { %>
-              <span class="sub">in <%= s.daysLeft %> day(s)</span>
-            <% } %>
-          </td>
-          <td><span class="<%= statusClass(s.status) %>"><%= s.status %></span></td>
-          <td class="nowrap">
-            <% if (s.openTask) { %>
-              <a href="/requests/<%= s.openTask.id %>" class="mono"><%= s.openTask.code %></a>
-              <span class="sub"><span class="<%= statusClass(s.openTask.status) %>"><%= s.openTask.status %></span></span>
-            <% } else if (currentUser.role === 'admin') { %>
-              <form method="post" action="/schedule/<%= e.id %>/task" class="inline-form">
-                <button class="btn btn-sm <%= s.status === 'Scheduled' ? 'btn-light' : '' %>" type="submit">Create task</button>
-              </form>
-            <% } else { %>—<% } %>
-          </td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-  </div>
-</div>
 
-<% if (unscheduled.length) { %>
-<div class="card">
-  <h2>Equipment without a schedule (<%= unscheduled.length %>)</h2>
-  <p class="muted">Set an inspection interval in the equipment profile to include these.</p>
-  <% unscheduled.forEach(function (e) { %>
-    <a class="tag" href="<%= currentUser.role === 'admin' ? '/equipment/' + e.id + '/edit' : '/equipment/' + e.id %>"><%= e.code %> <%= e.name %></a>
-  <% }) %>
+  <section class="admin-ui-card" id="schedule-results" data-auto-results>
+    <div class="admin-ui-card-head">
+      <div>
+        <h2><%= status ? status : 'All' %> (<%= rows.length %>)</h2>
+        <p class="admin-ui-muted">Next due dates are calculated only from recorded preventive maintenance completions.</p>
+      </div>
+      <a class="btn btn-light btn-sm" href="/schedule" data-auto-filter-link data-auto-results="#schedule-results" data-filter-key="status" data-filter-value="">Show all</a>
+    </div>
+    <div class="admin-ui-table-box">
+      <table class="stack-table admin-ui-table">
+        <thead>
+          <tr>
+            <th class="au-left">Equipment</th>
+            <th class="au-left">Location</th>
+            <th class="au-center">Interval</th>
+            <th class="au-center">Last done</th>
+            <th class="au-center">Next due</th>
+            <th class="au-center">Status</th>
+            <th class="au-center">Task</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!rows.length) { %>
+            <tr><td colspan="7" class="empty">Nothing here.</td></tr>
+          <% } %>
+          <% rows.forEach(function (s) { var e = s.equipment; %>
+            <tr class="<%= s.status === 'Overdue' ? 'row-overdue' : '' %>">
+              <td data-label="Equipment" class="au-left">
+                <a class="admin-ui-primary-link" href="/equipment/<%= e.id %>"><%= e.name %></a>
+                <span class="sub admin-ui-code"><%= e.code %></span>
+              </td>
+              <td data-label="Location" class="au-left"><%= e.location %></td>
+              <td data-label="Interval" class="au-center">
+                Every <%= s.interval %> days
+                <% if (s.intervalLabel) { %><span class="sub"><%= s.intervalLabel %></span><% } %>
+              </td>
+              <td data-label="Last done" class="au-center">
+                <% if (s.hasHistory) { %>
+                  <%= fmtDate(s.base) %>
+                  <span class="sub"><%= s.basedOn %></span>
+                <% } else { %>
+                  <strong>No maintenance recorded</strong>
+                  <span class="sub">No completed checkup found</span>
+                <% } %>
+              </td>
+              <td data-label="Next due" class="au-center">
+                <% if (s.nextDue) { %>
+                  <strong><%= fmtDate(s.nextDue) %></strong>
+                  <% if (s.daysLeft < 0) { %>
+                    <span class="sub is-red"><%= Math.abs(s.daysLeft) %> day<%= Math.abs(s.daysLeft) === 1 ? '' : 's' %> late</span>
+                  <% } else if (s.daysLeft === 0) { %>
+                    <span class="sub is-amber">due today</span>
+                  <% } else { %>
+                    <span class="sub">in <%= s.daysLeft %> day<%= s.daysLeft === 1 ? '' : 's' %></span>
+                  <% } %>
+                <% } else { %>
+                  <strong>Not yet recorded</strong>
+                  <span class="sub">Calculated after the first checkup</span>
+                <% } %>
+              </td>
+              <td data-label="Status" class="au-center">
+                <span class="<%= statusClass(s.status) %>"><%= s.status %></span>
+              </td>
+              <td data-label="Task" class="au-center">
+                <% if (s.openTask) { %>
+                  <a class="mono" href="/requests/<%= s.openTask.id %>"><%= s.openTask.code %></a>
+                  <span class="sub"><span class="<%= statusClass(s.openTask.status) %>"><%= s.openTask.status %></span></span>
+                <% } else if (currentUser.role === 'admin') { %>
+                  <form method="post" action="/schedule/<%= e.id %>/task" class="inline-form">
+                    <button class="btn btn-sm <%= s.status === 'Scheduled' ? 'btn-light' : '' %>" type="submit">Create task</button>
+                  </form>
+                <% } else { %>—<% } %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <% if (unscheduled.length) { %>
+    <section class="admin-ui-card">
+      <div class="admin-ui-card-head">
+        <div>
+          <h2>Equipment without a schedule (<%= unscheduled.length %>)</h2>
+          <p class="admin-ui-muted">Set an inspection interval in the equipment profile to include these items.</p>
+        </div>
+      </div>
+      <div class="admin-ui-tag-list">
+        <% unscheduled.forEach(function (e) { %>
+          <a class="admin-ui-tag" href="<%= currentUser.role === 'admin' ? '/equipment/' + e.id + '/edit' : '/equipment/' + e.id %>">
+            <span class="mono"><%= e.code %></span><%= e.name %>
+            <% if (currentUser.role === 'admin') { %><span class="set">Configure</span><% } %>
+          </a>
+        <% }) %>
+      </div>
+    </section>
+  <% } %>
 </div>
-<% } %>
 <%- include('partials/footer') %>

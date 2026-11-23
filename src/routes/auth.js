@@ -6,8 +6,28 @@ const { notify, adminIds } = require('../services/notify');
 const activity = require('../services/activity');
 const { validatePassword } = require('../services/password');
 const { verifyStudentRegistration, ensureStudentsDatabase } = require('../services/studentVerification');
+const studentDirectory = require('../services/studentDirectory');
+const { makeOptionValue, getGradeSectionOptions, getGroupedGradeSectionOptions } = require('../services/gradeSections');
 
 const router = express.Router();
+
+function renderRegister(res, errors, values, status = 200) {
+  return res.status(status).render('register', {
+    title: 'Register',
+    errors,
+    values,
+    gradeSectionOptions: getGradeSectionOptions(),
+    groupedGradeSectionOptions: getGroupedGradeSectionOptions(),
+  });
+}
+
+// Public registration offers only Student and Teacher accounts. Both are
+// requesters internally; `accountKind` decides whether Student Directory
+// verification is required. A client-sent `role` is never trusted.
+const ACCOUNT_TYPE_ROLES = Object.freeze({
+  student: 'requester',
+  teacher: 'requester',
+});
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HOURS = 60 * 60 * 1000;
@@ -45,7 +65,8 @@ function startSession(req, res, user, remember, next) {
       /* ignore */
     }
 
-    res.redirect(next);
+    // Accounts created with a temporary password must choose a new one first.
+    res.redirect(user.mustChangePassword ? '/profile/change-password' : next);
   });
 }
 
@@ -63,10 +84,11 @@ router.post('/login', (req, res) => {
   const next = safeLocalPath(b.next, '/');
   const remember = b.remember === '1';
 
-  // Search by either email or studentId
+  // Search by email, student ID, or username.
   const user = db.all('users').find(
     (u) =>
       u.email.toLowerCase() === lowerInput ||
+      (u.username && u.username.toLowerCase() === lowerInput) ||
       (u.studentId && u.studentId.toLowerCase() === lowerInput)
   );
   const ok = user && bcrypt.compareSync(String(b.password || ''), user.passwordHash);
@@ -124,13 +146,14 @@ router.post('/login', (req, res) => {
     );
   }
 
-  // Verify student registration if role is requester (student account)
-  if (user.role === 'requester') {
+  // Teacher requesters sign in with email/password only. Student accounts
+  // must still match an official Student Directory record.
+  if (user.role === 'requester' && user.accountKind !== 'teacher') {
     if (!user.studentId) {
       return renderLogin(
         res,
         {
-          error: 'Access Denied: You are not an officially registered student of this high school. No Student ID is associated with this account.',
+          error: 'Access Denied: You are not a registered member of the institution. No Student ID is associated with this account.',
           email: rawInput,
           remember,
           next,
@@ -144,7 +167,7 @@ router.post('/login', (req, res) => {
       return renderLogin(
         res,
         {
-          error: verification.reason || 'Access Denied: You are not an officially registered student of this high school.',
+          error: verification.reason || 'Access Denied: You are not a registered member of the institution.',
           email: rawInput,
           remember,
           next,
@@ -164,65 +187,136 @@ router.post('/logout', (req, res) => {
   });
 });
 
-// ---------- Register (supports Student, Admin, Technician with Approval Workflow) ----------
+// Public, read-only directory check used by the registration form to retrieve
+// grade level and section. It returns only the record matching the submitted
+// Student ID + full name; the full directory is never exposed to students.
+router.post('/api/student-verify', (req, res) => {
+  const b = req.body || {};
+  const studentId = str(b.studentId, 50).toUpperCase();
+  const name = str(b.fullName || b.name, 120);
+  const verification = verifyStudentRegistration(studentId, name);
+  res.set('Cache-Control', 'no-store');
+
+  const toPublic = (student) =>
+    student
+      ? {
+          studentId: student.studentId,
+          fullName: student.fullName || student.name || '',
+          gradeLevel: student.gradeLevel || '',
+          section: student.section || '',
+          schoolYear: student.schoolYear || '',
+          status: studentDirectory.statusOf(student),
+        }
+      : null;
+
+  if (!verification.allowed) {
+    return res.status(200).json({
+      ok: false,
+      registered: false,
+      message: verification.reason || 'Student record verification failed.',
+      student: toPublic(verification.student),
+    });
+  }
+
+  if (studentDirectory.isStudentIdRegistered(studentId)) {
+    return res.status(200).json({
+      ok: false,
+      registered: true,
+      message: 'This Student ID is already associated with an account. Please log in instead.',
+      student: toPublic(verification.student),
+    });
+  }
+
+  return res.status(200).json({
+    ok: true,
+    registered: false,
+    message: 'Student record verified.',
+    student: toPublic(verification.student),
+  });
+});
+
+// ---------- Register (public signup: Student or Teacher only) ----------
 router.get('/register', (req, res) => {
   if (req.user) return res.redirect('/');
-  res.render('register', { title: 'Register', errors: [], values: { role: 'requester' } });
+  return renderRegister(res, [], { accountType: 'student', role: 'requester' });
 });
 
 router.post('/register', (req, res) => {
   ensureStudentsDatabase();
   const b = req.body || {};
-  const requestedRole = ['admin', 'technician', 'requester'].includes(b.role) ? b.role : 'requester';
-  const rawStudentId = str(b.studentId, 50).trim().toUpperCase();
-  const studentId = requestedRole === 'requester' ? rawStudentId : null;
+
+  // The account-type selector is the only trusted source of the role.
+  // Admin and Technician are intentionally absent, so they cannot be
+  // self-registered. Any client-sent `role` is ignored.
+  const accountType = str(b.accountType, 20).trim().toLowerCase();
+  const roleForAccountType = Object.prototype.hasOwnProperty.call(ACCOUNT_TYPE_ROLES, accountType)
+    ? ACCOUNT_TYPE_ROLES[accountType]
+    : null;
+  const requestedRole = roleForAccountType || 'requester';
+  const isStudent = accountType === 'student';
+  const isTeacher = accountType === 'teacher';
+  const errors = [];
+  if (!roleForAccountType) {
+    errors.push('Select a valid account type (Student or Teacher).');
+  }
+
+  const studentId = isStudent ? studentDirectory.normalizeStudentId(b.studentId) : null;
+  const enteredName = str(b.fullName || b.name, 120);
 
   const values = {
+    accountType: roleForAccountType ? accountType : 'student',
     role: requestedRole,
+    accountKind: isTeacher ? 'teacher' : 'student',
     studentId,
-    name: str(b.name, 120),
+    fullName: enteredName,
+    name: enteredName,
     email: str(b.email, 200).toLowerCase(),
-    department: str(b.department, 150),
   };
-  const password = String(b.password || '');
-  const errors = [];
 
-  // Enforce Student ID check only if registering as a Student (requester)
-  if (requestedRole === 'requester') {
-    if (!studentId) {
-      errors.push('Student ID is required for student registration. Only officially registered students can create an account.');
+  const password = String(b.password || '');
+  let verifiedStudent = null;
+
+  // Student accounts are created only from a verified directory record. The
+  // browser never supplies grade level, section, status or identity values that
+  // the server trusts. The optional confirmation dropdown is ignored here.
+  if (isStudent) {
+    const verification = verifyStudentRegistration(studentId, enteredName);
+    if (!verification.allowed) {
+      errors.push(verification.reason || 'Unable to verify this Student Directory record.');
     } else {
-      const verification = verifyStudentRegistration(studentId);
-      if (!verification.allowed) {
-        errors.push(verification.reason || 'Access Denied: You are not an officially registered student of this high school.');
-      } else {
-        // Check if this Student ID is already linked to an existing account
-        const alreadyLinked = db.all('users').find(
-          (u) => u.studentId && u.studentId.toUpperCase() === studentId
-        );
-        if (alreadyLinked) {
-          errors.push('Access Denied: This Student ID is already associated with an existing account. Please log in instead.');
-        } else {
-          // Auto-set department to student's official grade & section if not provided
-          if (!values.department && verification.student) {
-            values.department = `${verification.student.gradeLevel} - ${verification.student.section}`;
-          }
-          if (!values.name && verification.student) {
-            values.name = verification.student.fullName;
-          }
-        }
+      verifiedStudent = verification.student;
+      // These values are for redisplay only. The server uses the verified
+      // directory record directly when the account is created below.
+      values.fullName = verifiedStudent.fullName || verifiedStudent.name || enteredName;
+      values.gradeLevel = verifiedStudent.gradeLevel || '';
+      values.section = verifiedStudent.section || '';
+      values.gradeSection = makeOptionValue(values.gradeLevel, values.section);
+      values.department = `${values.gradeLevel} – ${values.section}`;
+    }
+
+    if (studentId && studentDirectory.isStudentIdRegistered(studentId)) {
+      errors.push('This Student ID is already associated with an account. Please log in instead.');
+    }
+    if (verifiedStudent) {
+      const linkedId = db.all('users').find(
+        (u) => Number(u.directoryRecordId) === Number(verifiedStudent.id)
+      );
+      if (linkedId) {
+        errors.push('This Student ID is already associated with an account. Please log in instead.');
       }
     }
-  } else if (requestedRole === 'admin') {
-    if (!values.department) values.department = 'Administration Office';
-  } else if (requestedRole === 'technician') {
-    if (!values.department) values.department = 'Maintenance & Technical Services';
+  } else if (isTeacher) {
+    // Optional department/subject helps identify the teacher but is never
+    // used for permissions. Teachers are requesters, not staff accounts.
+    values.department = str(b.department, 150) || 'Faculty';
+    values.name = str(b.name, 120);
   }
 
   if (!values.name) errors.push('Full name is required.');
-  if (!EMAIL_RE.test(values.email)) errors.push('Please enter a valid email address.');
-  else if (db.all('users').some((u) => u.email.toLowerCase() === values.email)) {
-    errors.push('That email is already registered. Try logging in instead.');
+  if (!EMAIL_RE.test(values.email)) {
+    errors.push('Please enter a valid email address.');
+  } else if (db.all('users').some((u) => String(u.email || '').toLowerCase() === values.email)) {
+    errors.push('That email address is already registered. Try logging in instead.');
   }
 
   const pwRes = validatePassword(password, {
@@ -235,46 +329,69 @@ router.post('/register', (req, res) => {
 
   if (errors.length) {
     const hasAccessDenied = errors.some((e) => e.startsWith('Access Denied'));
-    return res.status(hasAccessDenied ? 403 : 400).render('register', { title: 'Register', errors, values });
+    return renderRegister(res, errors, values, hasAccessDenied ? 403 : 400);
   }
 
-  // Feature: Account verification & approval workflow.
-  // New signups start as pending approval (active: false, approvalStatus: 'pending')
-  const C = require('../constants');
-  const roleLabel = C.ROLES[requestedRole] || requestedRole;
+  // Student and Teacher are both ready-to-use requester accounts.
+  const roleLabel = isTeacher ? 'Teacher' : 'Student';
+  // `gradeSection`, `fullName` and `accountType` are form/render helpers. Only
+  // the discrete, directory-derived fields below are persisted.
+  const {
+    gradeSection: _gradeSectionValue,
+    fullName: _fullNameValue,
+    accountType: _accountTypeValue,
+    ...userValues
+  } = values;
+  const displayName = isStudent && verifiedStudent
+    ? (verifiedStudent.fullName || verifiedStudent.name)
+    : values.name;
+
   const user = db.insert('users', {
-    ...values,
-    studentId,
+    ...userValues,
+    name: displayName,
+    studentId: isStudent && verifiedStudent ? verifiedStudent.studentId : null,
+    directoryRecordId: isStudent && verifiedStudent ? verifiedStudent.id : null,
+    gradeLevel: isStudent && verifiedStudent ? verifiedStudent.gradeLevel : null,
+    section: isStudent && verifiedStudent ? verifiedStudent.section : null,
+    department: isStudent && verifiedStudent
+      ? `${verifiedStudent.gradeLevel} – ${verifiedStudent.section}`
+      : values.department,
     phone: '',
     role: requestedRole,
+    accountKind: isTeacher ? 'teacher' : 'student',
     passwordHash: bcrypt.hashSync(password, 10),
-    active: false, // inactive until approved by admin
-    approvalStatus: 'pending', // 'pending' | 'approved' | 'rejected'
+    active: true,
+    approvalStatus: 'approved',
     createdAt: new Date().toISOString(),
     specializations: [],
-    availability: requestedRole === 'technician' ? 'Available' : null,
+    availability: null,
   });
+
+  if (isStudent && verifiedStudent) {
+    studentDirectory.linkAccount(verifiedStudent.id, user);
+  }
 
   activity.log({
     userId: user.id,
-    action: 'Account registered (Pending Approval)',
-    details: `${user.name} registered as ${roleLabel} (${user.email}${studentId ? ', Student ID: ' + studentId : ''}). Awaiting admin verification.`
+    action: `${roleLabel} account registered`,
+    details: isStudent
+      ? `${user.name} registered as ${roleLabel} (${user.email}, Student ID: ${user.studentId}) using a verified Student Directory record.`
+      : `${user.name} registered as ${roleLabel} (${user.email}). Ready to submit requests.`,
   });
 
   notify(adminIds(), {
-    message: `New ${roleLabel} account registered: ${user.name} (${user.email}). Pending administrator approval.`,
-    link: '/users'
+    message: `New ${roleLabel} account registered: ${user.name} (${user.email}). Ready to use.`,
+    link: isStudent ? '/students' : '/users',
   });
 
-  // Feature: Send real email confirmation to newly registered email
-  const { sendRegistrationPendingEmail } = require('../services/mailer');
-  sendRegistrationPendingEmail(user).catch((err) => {
+  // Both public account types are active immediately.
+  const mailer = require('../services/mailer');
+  mailer.sendAccountApprovedEmail(user).catch((err) => {
     console.error('Failed to send registration email:', err.message);
   });
 
-  // Redirect to login with confirmation notice
   renderLogin(res, {
-    notice: `Account registered successfully as ${roleLabel}! Your account is pending administrator verification and approval before you can log in.`,
+    notice: `Account registered successfully as ${roleLabel}! You can log in now with ${isStudent ? 'your email address or Student ID' : 'your email address'}.`,
     email: user.email,
   });
 });

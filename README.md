@@ -13,20 +13,26 @@ npm install
 npm start
 ```
 
-Open http://localhost:3000. Sample data is created automatically the first time.
+Open http://localhost:3000. The app does not create demonstration records automatically. It starts with whatever is currently stored in `data/db.json`.
 
-| Role          | Email                | Password |
-| ------------- | -------------------- | -------- |
-| Administrator | admin@educare.local  | admin123 |
-| Technician    | juan@educare.local   | tech123  |
-| Requester     | ana@educare.local    | user123  |
+## Data entry
 
-Other sample technicians: `maria@`, `pedro@`, `liza@educare.local` (password `tech123`). Other requester: `jose@educare.local` (`user123`).
+All dashboard and report figures are calculated from the records in `data/db.json`. Remove any remaining demonstration records from the modules before entering real ones, so screenshots show only actual data. Enter real records in this order:
+
+1. Grade & sections (`/settings/grade-sections`) – add the real Grade 7–Grade 12 sections; only active entries appear in Student registration
+2. Equipment categories (`/categories`)
+3. Campus locations (`/locations`)
+4. Equipment items (`/equipment`)
+5. User accounts (`/users`) – administrators, technicians, and requesters
+6. Repair requests (`/requests`) and maintenance records (`/history`)
+
+Requester registration checks member IDs against `data/official-students.json`. The file starts as an empty array; add real member records with `studentId`, `lrn`, `fullName`, `email`, `gradeLevel`, `section`, `track`, `status` (`Enrolled` or `Registered`), `schoolYear`, and `address`. It is gitignored so real student details remain local.
+
+An administrator account must already exist in `data/db.json` before you can sign in; none is created automatically.
 
 Other commands:
 
 - `npm run dev` – restarts automatically when you edit a file
-- `npm run seed` – **erases all data** and reloads the sample data
 
 Settings (optional environment variables): `PORT`, `SESSION_SECRET`, `DATA_DIR`, `UPLOAD_DIR`.
 
@@ -77,8 +83,10 @@ You can also set the `EDUCARE_URL` environment variable instead of `-PeduCareUrl
 
 ## Where things are saved
 
-- `data/db.json` – all records (users, equipment, requests, history, notifications)
+- `data/db.json` – all records (users, equipment, requests, history, notifications, and the administrator-managed `gradeSections` list)
 - `uploads/` – repair photos
+
+Older builds stored grade sections in `data/grade-sections.json`. On first run those entries are imported into `gradeSections` in `db.json`; the old file is left untouched. Student registration reads only active records from the database.
 
 Back up these two folders to keep your data.
 
@@ -143,7 +151,6 @@ src/
   db.js                JSON file database
   auth.js              Login session and role checks
   upload.js            Photo uploads
-  seed.js              Sample data
   constants.js         Statuses, priorities, roles
   helpers.js           Date formatting and view helpers
   routes/              One file per section of the app

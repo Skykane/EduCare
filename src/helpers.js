@@ -3,8 +3,58 @@ const C = require('./constants');
 const { icon, statusIcon, categoryIcon } = require('./icons');
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MANILA_TIME = 'Asia/Manila';
 
 const pad = (n) => String(n).padStart(2, '0');
+
+// Repair timestamps are stored in UTC and always displayed in Asia/Manila.
+const manilaParts = new Intl.DateTimeFormat('en-PH', {
+  timeZone: MANILA_TIME,
+  year: 'numeric',
+  month: 'short',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true,
+});
+
+function fmtManila(v) {
+  const d = parseDate(v);
+  if (!d) return '—';
+  const parts = Object.fromEntries(manilaParts.formatToParts(d).map((p) => [p.type, p.value]));
+  return `${parts.month} ${Number(parts.day)}, ${parts.year} ${parts.hour}:${parts.minute} ${parts.dayPeriod}`;
+}
+
+// Human-readable elapsed time. Used for repair duration (never hardcoded).
+function formatDuration(ms) {
+  const total = Math.max(0, Math.floor(Number(ms || 0) / 60000));
+  if (!total) return 'Less than a minute';
+  const days = Math.floor(total / 1440);
+  const hours = Math.floor((total % 1440) / 60);
+  const minutes = total % 60;
+  const parts = [];
+  if (days) parts.push(`${days} ${days === 1 ? 'day' : 'days'}`);
+  if (hours) parts.push(`${hours} ${hours === 1 ? 'hour' : 'hours'}`);
+  if (minutes) parts.push(`${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`);
+  return parts.join(' ');
+}
+
+// Money is stored as integer centavos, never as floating-point pesos.
+function formatMoney(cents) {
+  const n = Math.round(Number(cents || 0));
+  return '₱' + (n / 100).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+const manilaDateFormatter = new Intl.DateTimeFormat('en-CA', {
+  timeZone: MANILA_TIME, year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
+function manilaDateKey(v) {
+  const d = parseDate(v);
+  if (!d) return '';
+  const parts = Object.fromEntries(manilaDateFormatter.formatToParts(d).map((p) => [p.type, p.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 
 function localISO(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -131,9 +181,15 @@ const STATUS_CLASS = {
   Assigned: 'indigo',
   'In Progress': 'blue',
   'On Hold': 'gray',
+  Reported: 'amber',
+  'Nearing Completion': 'teal',
   Completed: 'green',
   Cancelled: 'gray',
   Rejected: 'red',
+  'Not Submitted': 'gray',
+  'Awaiting Verification': 'amber',
+  Verified: 'green',
+  'Rework Required': 'red',
   Low: 'gray',
   Medium: 'amber',
   High: 'red',
@@ -162,6 +218,17 @@ function initials(name) {
     .slice(0, 2)
     .map((w) => w[0].toUpperCase())
     .join('');
+}
+
+// Profile pictures are stored as bare filenames in `users.avatar`. Normalize
+// them here so every view resolves the same URL, including older rows that may
+// contain a path or a full URL. This keeps avatar rendering global and prevents
+// duplicate `/uploads` prefixes.
+function avatarUrl(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  if (/^(?:https?:)?\/\//i.test(raw) || raw.startsWith('/uploads/')) return raw;
+  return '/uploads/' + encodeURIComponent(raw.replace(/^\/?uploads\//, ''));
 }
 
 // Build a query string from the current filters, overriding some keys.
@@ -200,10 +267,11 @@ const NAV = {
       href: '/schedule',
       label: 'Maintenance',
       icon: 'wrench',
-      paths: ['/schedule', '/history'],
+      paths: ['/schedule', '/history', '/materials'],
       tabs: [
         { href: '/schedule', label: 'Maintenance Schedule' },
-        { href: '/history', label: 'Maintenance History' },
+        { href: '/history', label: 'Repair History' },
+        { href: '/materials', label: 'Materials Expenses' },
       ],
     },
     { href: '/reports', label: 'Reports', icon: 'chart' },
@@ -212,10 +280,12 @@ const NAV = {
       href: '/users',
       label: 'User Accounts',
       icon: 'settings',
-      paths: ['/users', '/settings/email'],
+      paths: ['/users', '/students', '/settings/email', '/settings/grade-sections'],
       tabs: [
         { href: '/users', label: 'Accounts' },
+        { href: '/students', label: 'Student Directory' },
         { href: '/users/approvals', label: 'Approvals', badge: true },
+        { href: '/settings/grade-sections', label: 'Grade & Section' },
         { href: '/settings/email', label: 'Email Settings' },
       ],
     },
@@ -231,7 +301,7 @@ const NAV = {
     DASHBOARD,
     { href: '/requests/new', label: 'Submit Request', icon: 'plus' },
     { href: '/requests', label: 'My Requests', icon: 'file' },
-    { href: '/profile', label: 'Edit Profile', icon: 'user' },
+    { href: '/profile', label: 'My Profile', icon: 'user' },
   ],
 };
 
@@ -252,7 +322,7 @@ const BOTTOM_NAV = {
   technician: [
     { href: '/', label: 'Dashboard', icon: 'home' },
     { href: '/requests', label: 'My Tasks', icon: 'clipboard' },
-    { href: '/schedule', label: 'Schedule', icon: 'calendar' },
+    { href: '/history', label: 'History', icon: 'history' },
     { href: '/notifications', label: 'Alerts', icon: 'bell', badge: true },
     { href: '/profile', label: 'Profile', icon: 'user' },
   ],
@@ -261,7 +331,7 @@ const BOTTOM_NAV = {
     { href: '/requests', label: 'My Requests', icon: 'file' },
     { href: '/requests/new', label: 'Submit Request', icon: 'plus', fab: true },
     { href: '/notifications', label: 'Alerts', icon: 'bell', badge: true },
-    { href: '/profile', label: 'Edit Profile', icon: 'user' },
+    { href: '/profile', label: 'My Profile', icon: 'user' },
   ],
 };
 
@@ -333,6 +403,10 @@ module.exports = {
   isISODate,
   fmtDate,
   fmtDateTime,
+  fmtManila,
+  formatDuration,
+  formatMoney,
+  manilaDateKey,
   timeAgo,
   toArray,
   str,
@@ -340,6 +414,7 @@ module.exports = {
   statusClass,
   statusColor,
   initials,
+  avatarUrl,
   qs,
   navFor,
   bottomNavFor,

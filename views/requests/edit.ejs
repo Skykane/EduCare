@@ -14,7 +14,7 @@
       <span class="<%= statusClass(r.status) %>"><%= r.status %></span>
     </div>
     <h1>Edit Report · <%= r.code %></h1>
-    <p class="muted">Correct any mistakes in your equipment selection, issue description, or attached photos.</p>
+    <p class="muted">Correct any mistakes in the location, category, issue description, or attached photos.</p>
   </div>
   <div class="actions">
     <a class="btn btn-light" href="/requests/<%= r.id %>"><%- icon('arrow-left') %> Back to Request</a>
@@ -34,30 +34,28 @@
   <div class="field">
     <label for="title">Issue Summary / Title <span class="req">*</span></label>
     <input type="text" id="title" name="title" value="<%= r.title || '' %>" required maxlength="150" placeholder="e.g., Projector won't turn on, Aircon leaking water">
-    <small class="field-hint">A short headline explaining what is wrong with the equipment.</small>
+    <small class="field-hint">A short headline explaining what is wrong.</small>
   </div>
 
   <div class="form-grid">
     <div class="field">
-      <label for="equipment-category">Filter by Category</label>
-      <select id="equipment-category">
-        <option value="">All categories</option>
+      <label for="edit-category">Category <span class="req">*</span></label>
+      <select id="edit-category" name="categoryId" required data-ec-select="1">
+        <option value="">Select category</option>
         <% categories.forEach(function (c) { %>
-          <option value="<%= c.id %>" <%= r.equipment && r.equipment.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option>
+          <option value="<%= c.id %>" <%= r.category && r.category.id === c.id ? 'selected' : '' %>><%= c.name %></option>
         <% }) %>
       </select>
     </div>
     <div class="field">
-      <label for="equipmentId">Equipment / Location <span class="req">*</span></label>
-      <select id="equipmentId" name="equipmentId" required>
-        <option value="">Select equipment…</option>
-        <% equipment.forEach(function (e) { var cat = categories.find(function (c) { return c.id === e.categoryId; }); %>
-          <option value="<%= e.id %>" data-category="<%= e.categoryId %>" data-category-name="<%= cat ? cat.name : '' %>" data-name="<%= e.name %>" data-code="<%= e.code %>" data-location="<%= e.location %>" <%= r.equipmentId === e.id ? 'selected' : '' %>>
-            <%= e.name %> – <%= e.location %> (<%= e.code %>)
-          </option>
+      <label for="edit-location">Room / Location <span class="req">*</span></label>
+      <select id="edit-location" name="location" required data-ec-select="1">
+        <option value="">Select room / location</option>
+        <% (typeof locations !== 'undefined' ? locations : []).forEach(function (loc) { %>
+          <option value="<%= loc %>" <%= r.location === loc ? 'selected' : '' %>><%= loc %></option>
         <% }) %>
       </select>
-      <small class="field-hint">Choose the exact machine or classroom asset needing repair.</small>
+      <small class="field-hint">Choose the room or area where the issue was reported.</small>
     </div>
   </div>
 
@@ -89,16 +87,16 @@
   <!-- Existing Photos (if any) -->
   <% if (attachments && attachments.length) { %>
   <div class="field" style="border-top:1px solid var(--border);padding-top:16px;margin-top:16px;">
-    <label>Current Attached Photos (<%= attachments.length %>)</label>
-    <p class="muted" style="margin:2px 0 10px;font-size:12.5px;">Check the box on any photo you want to remove.</p>
-    <div class="edit-attachments-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:12px;">
+    <label>Current Attached Photos (<span id="edit-att-count"><%= attachments.length %></span>)</label>
+    <p class="muted" style="margin:2px 0 10px;font-size:12.5px;">Click the <strong style="color:#dc2626;">X</strong> button on a photo to remove it. Saved photos require confirmation before permanent deletion.</p>
+    <div class="edit-attachments-grid" id="edit-att-grid" style="display:grid;grid-template-columns:repeat(auto-fill, minmax(130px, 1fr));gap:12px;">
       <% attachments.forEach(function (a) { %>
-        <div class="edit-att-card" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg);position:relative;">
-          <img src="/uploads/<%= a.filename %>" alt="" style="width:100%;height:100px;object-fit:cover;display:block;">
-          <label style="display:flex;align-items:center;gap:6px;padding:6px 8px;font-size:12px;cursor:pointer;background:var(--surface);">
-            <input type="checkbox" name="removeAttachments" value="<%= a.id %>">
-            <span style="color:var(--red);font-weight:600;"><%- icon('trash') %> Remove</span>
-          </label>
+        <div class="edit-att-card rd-photo-preview" data-attachment-id="<%= a.id %>" style="border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--bg);position:relative;">
+          <img src="/uploads/<%= a.filename %>" alt="<%= a.originalName %>" style="width:100%;height:100px;object-fit:cover;display:block;">
+          <button type="button" class="rd-photo-remove rd-saved-photo-remove" data-attachment-id="<%= a.id %>" aria-label="Remove photo <%= a.originalName %>">&times;</button>
+          <div class="rd-photo-preview-meta" style="padding:6px 8px;font-size:12px;background:var(--surface);">
+            <span class="rd-photo-preview-name" title="<%= a.originalName %>"><%= a.originalName %></span>
+          </div>
         </div>
       <% }) %>
     </div>
@@ -183,25 +181,6 @@
 
 <script>
   (function () {
-    // Category filter for equipment dropdown
-    var catSelect = document.getElementById('equipment-category');
-    var eqSelect = document.getElementById('equipmentId');
-    if (catSelect && eqSelect) {
-      catSelect.addEventListener('change', function () {
-        var catId = this.value;
-        var options = eqSelect.querySelectorAll('option');
-        options.forEach(function (opt) {
-          if (!opt.value) return;
-          var optCat = opt.getAttribute('data-category');
-          if (!catId || optCat === catId) {
-            opt.style.display = '';
-          } else {
-            opt.style.display = 'none';
-          }
-        });
-      });
-    }
-
     // Character counter for description
     var desc = document.getElementById('description');
     var count = document.getElementById('desc-count');
@@ -211,36 +190,123 @@
       });
     }
 
-    // Photo preview
+    // New photo preview with remove (X)
     var photoInput = document.getElementById('photos');
     var previewWrap = document.getElementById('new-photos-preview');
     var previewList = document.getElementById('preview-list');
     if (photoInput && previewWrap && previewList) {
-      photoInput.addEventListener('change', function () {
+      var selected = [];
+      var allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      var maxFiles = 6;
+      var maxBytes = 5 * 1024 * 1024;
+
+      function syncInput() {
+        var dt = new DataTransfer();
+        selected.forEach(function (item) { dt.items.add(item.file); });
+        photoInput.files = dt.files;
+      }
+
+      function renderPreviews() {
         previewList.innerHTML = '';
-        var files = Array.from(this.files || []);
-        if (!files.length) {
-          previewWrap.style.display = 'none';
-          return;
-        }
-        previewWrap.style.display = 'block';
-        files.forEach(function (file) {
-          if (!file.type.startsWith('image/')) return;
-          var r = new FileReader();
-          r.onload = function (e) {
-            var img = document.createElement('img');
-            img.src = e.target.result;
-            img.style.width = '70px';
-            img.style.height = '70px';
-            img.style.objectFit = 'cover';
-            img.style.borderRadius = '8px';
-            img.style.border = '1px solid var(--border)';
-            previewList.appendChild(img);
-          };
-          r.readAsDataURL(file);
+        previewWrap.style.display = selected.length ? 'block' : 'none';
+        selected.forEach(function (item, idx) {
+          var card = document.createElement('div');
+          card.className = 'rd-photo-preview';
+          card.style.width = '130px';
+
+          var img = document.createElement('img');
+          img.src = item.url;
+          img.alt = item.file.name;
+          img.loading = 'lazy';
+
+          var meta = document.createElement('div');
+          meta.className = 'rd-photo-preview-meta';
+          var name = document.createElement('span');
+          name.className = 'rd-photo-preview-name';
+          name.textContent = item.file.name;
+          name.title = item.file.name;
+          var size = document.createElement('span');
+          size.className = 'rd-photo-preview-size';
+          size.textContent = (item.file.size / (1024 * 1024)).toFixed(item.file.size >= 1024 * 1024 ? 2 : 0) + (item.file.size >= 1024 * 1024 ? ' MB' : ' KB');
+          if (item.file.size < 1024 * 1024) size.textContent = Math.max(1, Math.round(item.file.size / 1024)) + ' KB';
+          meta.appendChild(name);
+          meta.appendChild(size);
+
+          var removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'rd-photo-remove';
+          removeBtn.setAttribute('aria-label', 'Remove ' + item.file.name);
+          removeBtn.innerHTML = '&times;';
+          removeBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            URL.revokeObjectURL(item.url);
+            selected.splice(idx, 1);
+            syncInput();
+            renderPreviews();
+          });
+
+          card.appendChild(img);
+          card.appendChild(meta);
+          card.appendChild(removeBtn);
+          previewList.appendChild(card);
         });
-      });
+      }
+
+      function addFiles(fileList) {
+        Array.prototype.forEach.call(fileList || [], function (file) {
+          if (allowed.indexOf(file.type) === -1) return;
+          if (file.size > maxBytes) return;
+          if (selected.length >= maxFiles) return;
+          var exists = selected.some(function (it) { return it.file.name === file.name && it.file.size === file.size && it.file.lastModified === file.lastModified; });
+          if (exists) return;
+          selected.push({ file: file, url: URL.createObjectURL(file) });
+        });
+        syncInput();
+        renderPreviews();
+      }
+
+      photoInput.addEventListener('change', function () { addFiles(photoInput.files); photoInput.value = ''; syncInput(); });
     }
+
+    // Saved attachment delete (X) with confirmation
+    document.querySelectorAll('.rd-saved-photo-remove[data-attachment-id]').forEach(function (btn) {
+      btn.addEventListener('click', async function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var attId = btn.getAttribute('data-attachment-id');
+        if (!attId) return;
+
+        var confirmed = false;
+        if (window.ecConfirmPhotoRemove) confirmed = await window.ecConfirmPhotoRemove();
+        else if (window.ecConfirm) confirmed = await window.ecConfirm({ title: 'Remove Photo?', message: 'Are you sure you want to remove this photo? This action cannot be undone.', confirmLabel: 'Remove Photo', cancelLabel: 'Cancel', tone: 'danger', icon: 'trash' });
+        else confirmed = window.confirm('Remove this photo permanently? This action cannot be undone.');
+        if (!confirmed) return;
+
+        btn.disabled = true;
+        try {
+          var res = await fetch('/requests/<%= r.id %>/attachments/' + encodeURIComponent(attId) + '/delete', {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+          });
+          var data = await res.json().catch(function () { return {}; });
+          if (!res.ok || !data.ok) {
+            btn.disabled = false;
+            if (window.ecAlert) await window.ecAlert((data && data.error) || 'Could not remove photo.', { title: 'Could Not Remove Photo', tone: 'danger', icon: 'warning' });
+            else window.alert((data && data.error) || 'Could not remove photo.');
+            return;
+          }
+          var card = btn.closest('[data-attachment-id]');
+          if (card) card.remove();
+          var countEl = document.getElementById('edit-att-count');
+          if (countEl) countEl.textContent = String(Math.max(0, parseInt(countEl.textContent || '1', 10) - 1));
+        } catch (err) {
+          btn.disabled = false;
+          if (window.ecAlert) await window.ecAlert('Network error while removing photo.', { title: 'Connection Error', tone: 'danger', icon: 'warning' });
+          else window.alert('Network error while removing photo.');
+        }
+      });
+    });
   })();
 
   function openCancelModal() {

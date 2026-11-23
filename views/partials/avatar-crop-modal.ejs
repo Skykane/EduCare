@@ -1,0 +1,262 @@
+<!-- Profile photo crop / reposition / zoom dialog. Uses vanilla canvas so no
+     extra client dependency is required. The server receives a square image. -->
+<div id="avatar-crop-modal" class="ec-crop-backdrop" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="avatar-crop-title">
+  <div class="ec-crop-card">
+    <div class="ec-crop-head">
+      <div>
+        <h2 id="avatar-crop-title">Crop profile photo</h2>
+        <p>Drag to reposition, then zoom until your face is framed the way you want.</p>
+      </div>
+      <button type="button" class="ec-crop-close" id="avatar-crop-close" aria-label="Close crop dialog" title="Close">&times;</button>
+    </div>
+
+    <div class="ec-crop-body">
+      <div class="ec-crop-stage" id="avatar-crop-stage" aria-label="Profile photo crop preview">
+        <img id="avatar-crop-image" class="ec-crop-image" alt="Profile photo crop preview">
+        <span class="ec-crop-guide" aria-hidden="true"></span>
+      </div>
+      <p class="ec-crop-hint">Portrait, landscape, and square photos are supported. Only the area inside the circle is saved.</p>
+      <label class="ec-crop-slider">
+        <span>Zoom</span>
+        <input type="range" id="avatar-crop-zoom" min="1" max="4" step="0.001" value="1">
+        <output id="avatar-crop-zoom-value">1.0&times;</output>
+      </label>
+      <div id="avatar-crop-error" class="ec-crop-error" hidden></div>
+    </div>
+
+    <div class="ec-crop-actions">
+      <button type="button" class="btn btn-light" id="avatar-crop-cancel">Cancel</button>
+      <button type="button" class="btn btn-light" id="avatar-crop-replace">Choose another</button>
+      <button type="button" class="btn btn-primary" id="avatar-crop-save">Use this photo</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('avatar-crop-modal');
+  var stage = document.getElementById('avatar-crop-stage');
+  var image = document.getElementById('avatar-crop-image');
+  var zoom = document.getElementById('avatar-crop-zoom');
+  var zoomValue = document.getElementById('avatar-crop-zoom-value');
+  var errorBox = document.getElementById('avatar-crop-error');
+  var saveBtn = document.getElementById('avatar-crop-save');
+  var cancelBtn = document.getElementById('avatar-crop-cancel');
+  var replaceBtn = document.getElementById('avatar-crop-replace');
+  var closeBtn = document.getElementById('avatar-crop-close');
+  var fileInput = document.getElementById('modal-avatar-input');
+
+  if (!modal || !stage || !image || !zoom) return;
+
+  var OUTPUT_SIZE = 512;
+  var currentFile = null;
+  var objectUrl = null;
+  var cancelCallback = null;
+  var minScale = 1;
+  var scale = 1;
+  var offsetX = 0;
+  var offsetY = 0;
+  var viewSize = 320;
+  var dragging = false;
+  var dragStart = null;
+  var saving = false;
+
+  function showError(message) {
+    errorBox.textContent = message;
+    errorBox.hidden = false;
+  }
+
+  function clearError() {
+    errorBox.textContent = '';
+    errorBox.hidden = true;
+  }
+
+  function scaledWidth() { return image.naturalWidth * scale; }
+  function scaledHeight() { return image.naturalHeight * scale; }
+
+  function clamp() {
+    var minX = Math.min(0, viewSize - scaledWidth());
+    var minY = Math.min(0, viewSize - scaledHeight());
+    offsetX = Math.max(minX, Math.min(0, offsetX));
+    offsetY = Math.max(minY, Math.min(0, offsetY));
+  }
+
+  function apply() {
+    image.style.width = scaledWidth() + 'px';
+    image.style.height = scaledHeight() + 'px';
+    image.style.left = offsetX + 'px';
+    image.style.top = offsetY + 'px';
+  }
+
+  function updateZoomLabel() {
+    zoomValue.textContent = (scale / minScale).toFixed(1) + '×';
+  }
+
+  function centerImage() {
+    offsetX = (viewSize - scaledWidth()) / 2;
+    offsetY = (viewSize - scaledHeight()) / 2;
+    clamp();
+    apply();
+  }
+
+  function recomputeView() {
+    viewSize = stage.clientWidth || 320;
+    minScale = Math.max(viewSize / image.naturalWidth, viewSize / image.naturalHeight);
+    zoom.min = String(minScale);
+    zoom.max = String(minScale * 5);
+    zoom.step = String(Math.max(0.001, (minScale * 5 - minScale) / 400));
+    scale = minScale;
+    zoom.value = String(scale);
+    centerImage();
+    updateZoomLabel();
+  }
+
+  function closeModal() {
+    modal.style.display = 'none';
+    if (objectUrl) {
+      URL.revokeObjectURL(objectUrl);
+      objectUrl = null;
+    }
+    currentFile = null;
+    image.removeAttribute('src');
+    if (typeof cancelCallback === 'function') cancelCallback();
+    cancelCallback = null;
+  }
+
+  window.openAvatarCropper = function (file, onCancel) {
+    if (!file) return;
+    clearError();
+    cancelCallback = typeof onCancel === 'function' ? onCancel : null;
+    currentFile = file;
+    modal.style.display = 'flex';
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+    objectUrl = URL.createObjectURL(file);
+    image.onload = function () {
+      if (!image.naturalWidth || !image.naturalHeight) {
+        showError('This image could not be read. Please choose another file.');
+        return;
+      }
+      recomputeView();
+    };
+    image.onerror = function () {
+      showError('This image could not be opened. Please choose a JPG, PNG, or WEBP file.');
+    };
+    image.src = objectUrl;
+  };
+
+  zoom.addEventListener('input', function () {
+    if (!currentFile) return;
+    var next = Number(this.value);
+    if (!next || next <= 0) return;
+    var centerX = (viewSize / 2 - offsetX) / scale;
+    var centerY = (viewSize / 2 - offsetY) / scale;
+    scale = next;
+    offsetX = viewSize / 2 - centerX * scale;
+    offsetY = viewSize / 2 - centerY * scale;
+    clamp();
+    apply();
+    updateZoomLabel();
+  });
+
+  stage.addEventListener('pointerdown', function (event) {
+    if (!currentFile) return;
+    dragging = true;
+    dragStart = { x: event.clientX, y: event.clientY, ox: offsetX, oy: offsetY };
+    stage.classList.add('is-dragging');
+    if (stage.setPointerCapture) stage.setPointerCapture(event.pointerId);
+  });
+
+  stage.addEventListener('pointermove', function (event) {
+    if (!dragging || !dragStart) return;
+    offsetX = dragStart.ox + (event.clientX - dragStart.x);
+    offsetY = dragStart.oy + (event.clientY - dragStart.y);
+    clamp();
+    apply();
+  });
+
+  function endDrag() {
+    dragging = false;
+    dragStart = null;
+    stage.classList.remove('is-dragging');
+  }
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+  stage.addEventListener('lostpointercapture', endDrag);
+
+  window.addEventListener('resize', function () {
+    if (modal.style.display === 'flex' && currentFile && image.naturalWidth) recomputeView();
+  });
+
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && modal.style.display === 'flex') closeModal();
+  });
+
+  cancelBtn.addEventListener('click', closeModal);
+  closeBtn.addEventListener('click', closeModal);
+  replaceBtn.addEventListener('click', function () {
+    if (fileInput) fileInput.click();
+  });
+
+  saveBtn.addEventListener('click', function () {
+    if (!currentFile || saving) return;
+    clearError();
+    saving = true;
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+
+    var mime = currentFile.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    var ext = mime === 'image/png' ? 'png' : 'jpg';
+    var canvas = document.createElement('canvas');
+    canvas.width = OUTPUT_SIZE;
+    canvas.height = OUTPUT_SIZE;
+    var ctx = canvas.getContext('2d');
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    if (mime === 'image/jpeg') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+    }
+    var factor = OUTPUT_SIZE / viewSize;
+    ctx.drawImage(
+      image,
+      offsetX * factor,
+      offsetY * factor,
+      scaledWidth() * factor,
+      scaledHeight() * factor
+    );
+
+    canvas.toBlob(function (blob) {
+      if (!blob) {
+        saving = false;
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Use this photo';
+        showError('Your browser could not export this image. Please try another photo.');
+        return;
+      }
+      var cropped = new File([blob], 'profile-avatar.' + ext, { type: mime, lastModified: Date.now() });
+      var data = new FormData();
+      data.append('avatar', cropped);
+      fetch('/profile/avatar', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'fetch', 'Accept': 'application/json' },
+        body: data
+      })
+        .then(function (response) {
+          return response.json().catch(function () { return {}; }).then(function (body) {
+            return { ok: response.ok && body.ok !== false, body: body };
+          });
+        })
+        .then(function (result) {
+          if (!result.ok) throw new Error(result.body.message || 'The profile photo could not be saved.');
+          window.location.reload();
+        })
+        .catch(function (err) {
+          showError(err.message || 'The profile photo could not be saved. Please try again.');
+          saving = false;
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Use this photo';
+        });
+    }, mime, 0.94);
+  });
+})();
+</script>

@@ -5,54 +5,80 @@
     <a class="btn-banner-sub" href="/reports/export/workload">${icon('upload')} Export Workload</a>
   `;
 %>
-<%- include('../partials/header-banner', {
-  breadcrumb: '<a href="/">Home</a> &rsaquo; Technicians',
-  title: 'Technician Staff & Workload',
-  subtitle: 'Profiles, specializations, real-time availability, and active work orders.',
-  extraActions: techExtraActions
-}) %>
+<div class="admin-ui-page admin-ui-technicians">
+  <%- include('../partials/header-banner', {
+    breadcrumb: '<a href="/">Home</a> &rsaquo; Technicians',
+    title: 'Technician Staff & Workload',
+    subtitle: 'Profiles, specializations, real-time availability, and active work orders.',
+    extraActions: techExtraActions
+  }) %>
 
-<% if (!list.length) { %><div class="card empty">No technician accounts yet.</div><% } %>
-<div class="grid grid-3">
-  <% list.forEach(function (s) { var t = s.tech; %>
-    <div class="card tech-card" style="margin:0;<%= t.active ? '' : 'opacity:.6' %>">
-      <div class="top">
-        <div style="display:flex;gap:10px;align-items:center">
-          <% if (t.avatar) { %>
-            <span class="avatar avatar-has-img"><img src="/uploads/<%= t.avatar %>" alt="" class="avatar-img"></span>
-          <% } else { %>
-            <span class="avatar"><%= initials(t.name) %></span>
-          <% } %>
-          <div>
-            <a href="/technicians/<%= t.id %>"><strong><%= t.name %></strong></a>
-            <div class="muted" style="font-size:12px"><%= t.email %><%= t.phone ? ' · ' + t.phone : '' %></div>
-          </div>
-        </div>
-        <% if (!t.active) { %><span class="badge badge-gray">Inactive</span><% } else { %><span class="<%= statusClass(t.availability) %>"><%= t.availability %></span><% } %>
-      </div>
-      <div>
-        <% if (!s.specializations.length) { %><span class="tag">General</span><% } %>
-        <% s.specializations.forEach(function (c) { %><span class="tag"><%= c.name %></span><% }) %>
-      </div>
-      <div class="meta">
-        <div><strong><%= s.active.length %></strong><span class="muted">Active</span></div>
-        <div><strong style="<%= s.overdue ? 'color:var(--red)' : '' %>"><%= s.overdue %></strong><span class="muted">Overdue</span></div>
-        <div><strong><%= s.completedCount %></strong><span class="muted">Completed</span></div>
-        <div><strong><%= s.avgDays === null ? '—' : s.avgDays.toFixed(1) %></strong><span class="muted">Avg. days</span></div>
-      </div>
-      <% if (t.active) { %>
-      <form method="post" action="/technicians/<%= t.id %>/availability" class="filters mt">
-        <input type="hidden" name="back" value="/technicians">
-        <div class="field">
-          <select name="availability" aria-label="Availability">
-            <% C.AVAILABILITY.forEach(function (a) { %><option <%= t.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
-          </select>
-        </div>
-        <button class="btn btn-light btn-sm" type="submit">Set</button>
-        <a class="btn btn-light btn-sm" href="/users/<%= t.id %>/edit">Edit profile</a>
-      </form>
-      <% } %>
+  <% if (!list.length) { %>
+    <div class="admin-ui-card admin-ui-empty">
+      <%- icon('users') %>
+      <strong>No technician accounts yet.</strong>
+      <small>Add a technician to start tracking workload and availability.</small>
     </div>
-  <% }) %>
+  <% } else { %>
+    <div class="admin-ui-tech-grid<%= list.length === 1 ? ' is-single' : '' %>">
+      <% list.forEach(function (s) { var t = s.tech; %>
+        <article class="admin-ui-tech-card<%= t.active ? '' : ' inactive' %>">
+          <div class="admin-ui-tech-top">
+            <div class="admin-ui-tech-person">
+              <%- include('../partials/avatar', { user: t, name: t.name, size: 'md', className: 'admin-ui-tech-avatar' }) %>
+              <div>
+                <a class="admin-ui-tech-name" href="/technicians/<%= t.id %>"><%= t.name %></a>
+                <span class="admin-ui-tech-email"><%= t.email %><%= t.phone ? ' · ' + t.phone : '' %></span>
+              </div>
+            </div>
+            <% if (!t.active) { %>
+              <span class="badge badge-gray">Inactive</span>
+            <% } else { %>
+              <span class="<%= statusClass(t.availability) %>"><%= t.availability %></span>
+            <% } %>
+          </div>
+
+          <div class="admin-ui-tech-tags">
+            <% if (!s.specializations.length) { %><span class="admin-ui-tech-tag">General</span><% } %>
+            <% s.specializations.forEach(function (c) { %><span class="admin-ui-tech-tag"><%= c.name %></span><% }) %>
+          </div>
+
+          <div class="admin-ui-metrics">
+            <div class="admin-ui-metric">
+              <strong><%= s.active.length %></strong>
+              <span>Active</span>
+            </div>
+            <div class="admin-ui-metric is-red">
+              <strong><%= s.overdue %></strong>
+              <span>Overdue</span>
+            </div>
+            <div class="admin-ui-metric">
+              <strong><%= s.completedCount %></strong>
+              <span>Completed</span>
+            </div>
+            <div class="admin-ui-metric">
+              <strong><%= s.avgDays === null ? '—' : s.avgDays.toFixed(1) %></strong>
+              <span>Avg. days</span>
+            </div>
+          </div>
+
+          <% if (t.active) { %>
+            <div class="admin-ui-tech-actions">
+              <form method="post" action="/technicians/<%= t.id %>/availability" class="admin-ui-inline-form">
+                <input type="hidden" name="back" value="/technicians">
+                <select data-ec-select="1" name="availability" aria-label="Availability">
+                  <% C.AVAILABILITY.forEach(function (a) { %>
+                    <option value="<%= a %>" <%= t.availability === a ? 'selected' : '' %>><%= a %></option>
+                  <% }) %>
+                </select>
+                <button class="btn btn-light btn-sm" type="submit">Set</button>
+              </form>
+              <a class="btn btn-light btn-sm" href="/users/<%= t.id %>/edit">Edit profile</a>
+            </div>
+          <% } %>
+        </article>
+      <% }) %>
+    </div>
+  <% } %>
 </div>
 <%- include('../partials/footer') %>

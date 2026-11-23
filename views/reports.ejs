@@ -1,210 +1,930 @@
 <%- include('partials/header') %>
-<% var range = qs({ from: f.from, to: f.to }); %>
-<div class="no-print">
-  <%- include('partials/header-banner', {
-    breadcrumb: '<a href="/">Home</a> &rsaquo; Reports',
-    title: 'Maintenance Reports & Analytics',
-    subtitle: 'Comprehensive performance breakdown: ' + (f.from ? fmtDate(f.from) : 'Beginning') + ' to ' + (f.to ? fmtDate(f.to) : 'Today') + '.',
-    extraActions: `<button class="btn-banner-sub" type="button" onclick="window.print()" style="cursor:pointer;">🖨️ Print Report</button>`
-  }) %>
-</div>
+<%
+  var range = qs({ from: f.from, to: f.to });
+  var today = todayISO();
+  var preset30From = addDays(today, -29);
+  var presetMonthFrom = today.slice(0, 8) + '01';
+  var avgText = rep.summary.avgResolutionDays === null ? '—' : Number(rep.summary.avgResolutionDays).toFixed(1) + ' days';
+  var reqAvgText = rep.requestSummary.avgResolutionDays === null ? '—' : Number(rep.requestSummary.avgResolutionDays).toFixed(1) + ' days';
+%>
+<style>
+/* =========================================================
+   Maintenance Reports & Analytics — compact dashboard
+   Scoped to this page only. Presentation layer: no report
+   calculations, records, exports or print actions are changed.
+   ========================================================= */
+.reports-page, .reports-page * { text-align: left; }
 
-<div class="print-only" style="margin-bottom:12px">
-  <strong>EDUCARE: School Equipment Maintenance and Repair Management System</strong><br>
-  Generated <%= fmtDateTime(generatedAt) %> by <%= currentUser.name %>
-</div>
+/* Header: keep the maroon gradient, remove the extra height. */
+.reports-page .dash-header-banner {
+  padding: 10px 18px !important;
+  min-height: 0 !important;
+  margin-bottom: 14px !important;
+  box-shadow: none !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+.reports-page .dash-banner-watermark { display: none !important; }
+.reports-page .dash-banner-content { justify-content: space-between !important; }
+.reports-page .dash-banner-text h1 { font-size: 18px !important; }
+.reports-page .dash-banner-text p { font-size: 12px !important; margin-top: 3px !important; }
+.reports-page .dash-banner-actions { flex: 0 0 auto !important; }
+.reports-page .dash-banner-actions .btn-banner-sub { padding: 6px 13px !important; font-size: 11.5px !important; }
 
-<form class="card filters" method="get" action="/reports">
-  <div class="field"><label for="from">From</label><input type="date" id="from" name="from" value="<%= f.from %>"></div>
-  <div class="field"><label for="to">To</label><input type="date" id="to" name="to" value="<%= f.to %>"></div>
-  <div class="actions">
-    <button class="btn" type="submit">Apply</button>
-    <a class="btn btn-light" href="/reports?from=<%= addDays(todayISO(), -29) %>&to=<%= todayISO() %>">Last 30 days</a>
-    <a class="btn btn-light" href="/reports?from=<%= todayISO().slice(0, 8) %>01&to=<%= todayISO() %>">This month</a>
-    <a class="btn btn-light" href="/reports">All time</a>
-  </div>
-</form>
+/* Date range panel */
+.reports-page .reports-filter-card {
+  padding: 14px 16px !important;
+  margin-bottom: 16px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+}
+.reports-page .reports-section-label {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.reports-page .reports-filter-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.reports-page .reports-field { display: flex; flex-direction: column; min-width: 0; }
+.reports-page .reports-field label {
+  margin: 0 0 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--muted);
+  text-align: left !important;
+}
+.reports-page .reports-field input[type='date'] {
+  width: 168px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 11px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  font-size: 12.5px !important;
+  text-align: left !important;
+  box-sizing: border-box !important;
+}
+.reports-page .reports-filter-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.reports-page .reports-filter-actions .btn,
+.reports-page .reports-filter-actions .reports-preset {
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 14px !important;
+  border-radius: 8px !important;
+  font-size: 12.5px !important;
+  box-shadow: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+}
+.reports-page .reports-filter-actions .reports-preset {
+  border: 1px solid var(--border) !important;
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  text-decoration: none !important;
+}
+.reports-page .reports-filter-actions .reports-preset:hover { border-color: var(--primary) !important; color: var(--primary) !important; }
+.reports-page .reports-filter-actions .reports-preset.current {
+  border-color: var(--primary) !important;
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+  font-weight: 700 !important;
+}
+.reports-page .reports-period-note {
+  margin: 10px 0 0;
+  font-size: 11.5px;
+  color: var(--muted);
+}
 
-<!-- 1. Repair requests -->
-<div class="card">
-  <div class="card-head">
-    <h2>1. Repair Requests</h2>
-    <a class="btn btn-light btn-sm no-print" href="/reports/export/requests<%= range %>">Export CSV</a>
+/* Top summary cards */
+.reports-page .reports-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.reports-page .reports-summary-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+.reports-page .reports-summary-icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.reports-page .reports-summary-icon .ic { width: 17px; height: 17px; }
+.reports-page .reports-summary-icon.green { color: var(--green); background: var(--green-soft); }
+.reports-page .reports-summary-icon.amber { color: var(--amber); background: var(--amber-soft); }
+.reports-page .reports-summary-icon.red { color: var(--red); background: var(--red-soft); }
+.reports-page .reports-summary-icon.blue { color: var(--blue); background: var(--blue-soft); }
+.reports-page .reports-summary-icon.indigo { color: var(--indigo); background: var(--indigo-soft); }
+.reports-page .reports-summary-icon.teal { color: var(--teal); background: var(--teal-soft); }
+.reports-page .reports-summary-copy { display: flex; flex-direction: column; min-width: 0; }
+.reports-page .reports-summary-label { font-size: 11px; font-weight: 600; color: var(--muted); line-height: 1.25; }
+.reports-page .reports-summary-value { font-size: 19px; line-height: 1.2; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Report section cards */
+.reports-page .reports-card {
+  padding: 16px 18px !important;
+  margin-bottom: 16px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05) !important;
+}
+.reports-page .reports-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.reports-page .reports-card-head h2 { margin: 0; font-size: 15px; font-weight: 700; color: var(--text); }
+.reports-page .reports-card-head .reports-head-left { display: flex; align-items: center; gap: 9px; min-width: 0; flex-wrap: wrap; }
+.reports-page .reports-count-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.reports-page .reports-export {
+  height: 32px !important;
+  min-height: 32px !important;
+  padding: 0 12px !important;
+  border-radius: 8px !important;
+  font-size: 11.5px !important;
+  box-shadow: none !important;
+  text-decoration: none !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px !important;
+}
+.reports-page .reports-export .ic { width: 13px; height: 13px; }
+.reports-page .reports-subhead { margin: 18px 0 10px; font-size: 13px; font-weight: 700; color: var(--text); }
+
+/* Repair request KPIs and breakdown panels */
+.reports-page .reports-kpis {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.reports-page .reports-kpi {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+}
+.reports-page .reports-kpi-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 9px;
+  color: var(--primary);
+  background: var(--primary-soft);
+}
+.reports-page .reports-kpi-icon .ic { width: 18px; height: 18px; }
+.reports-page .reports-kpi-copy { display: flex; flex-direction: column; min-width: 0; }
+.reports-page .reports-kpi-label { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.reports-page .reports-kpi-value { font-size: 20px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+
+.reports-page .reports-panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) minmax(0, 1.2fr);
+  gap: 12px;
+  align-items: start;
+}
+.reports-page .reports-side { display: grid; gap: 12px; min-width: 0; }
+.reports-page .reports-panel {
+  min-width: 0;
+  padding: 13px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+}
+.reports-page .reports-panel-title { margin: 0 0 10px; font-size: 12.5px; font-weight: 700; color: var(--text); }
+.reports-page .reports-status-list { list-style: none; margin: 0; padding: 0; }
+.reports-page .reports-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 29px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+.reports-page .reports-status-row:last-child { border-bottom: 0; }
+.reports-page .reports-status-dot { width: 8px; height: 8px; flex: 0 0 auto; border-radius: 50%; background: var(--gray, #94a3b8); }
+.reports-page .reports-status-dot.green { background: var(--green); }
+.reports-page .reports-status-dot.amber { background: var(--amber); }
+.reports-page .reports-status-dot.blue { background: var(--blue); }
+.reports-page .reports-status-dot.red { background: var(--red); }
+.reports-page .reports-status-dot.indigo { background: var(--indigo); }
+.reports-page .reports-status-dot.teal { background: var(--teal); }
+.reports-page .reports-status-name { flex: 1; min-width: 0; font-size: 12px; color: var(--text); }
+.reports-page .reports-status-count { font-size: 13px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.reports-page .reports-mini-grid { display: grid; gap: 7px; }
+.reports-page .reports-mini-card {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: 9px;
+  background: var(--surface);
+}
+.reports-page .reports-mini-card.green { border-left-color: var(--green); }
+.reports-page .reports-mini-card.amber { border-left-color: var(--amber); }
+.reports-page .reports-mini-card.blue { border-left-color: var(--blue); }
+.reports-page .reports-mini-card.red { border-left-color: var(--red); }
+.reports-page .reports-mini-card.indigo { border-left-color: var(--indigo); }
+.reports-page .reports-mini-card.teal { border-left-color: var(--teal); }
+.reports-page .reports-mini-card.gray { border-left-color: var(--gray, #94a3b8); }
+.reports-page .reports-mini-label { flex: 1; min-width: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
+.reports-page .reports-mini-value { font-size: 17px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* Compact grid tables */
+.reports-page .reports-table-box {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.reports-page .reports-table-box .table-wrap { overflow-x: auto; }
+.app .reports-page table.reports-table {
+  width: 100% !important;
+  table-layout: fixed !important;
+  margin: 0 !important;
+  border-collapse: collapse !important;
+}
+.app .reports-page table.reports-table thead th {
+  height: 38px !important;
+  padding: 7px 9px !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  color: #fff !important;
+  background: #7d0c17 !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.18) !important;
+  white-space: normal !important;
+}
+.app .reports-page table.reports-table thead th:last-child { border-right: 0 !important; }
+.app .reports-page table.reports-table tbody td {
+  padding: 7px 9px !important;
+  font-size: 12px !important;
+  color: var(--text);
+  vertical-align: middle !important;
+  border-right: 1px solid var(--border) !important;
+  border-bottom: 1px solid var(--border) !important;
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+}
+.app .reports-page table.reports-table tbody tr:last-child > td { border-bottom: 0 !important; }
+.app .reports-page table.reports-table tbody td:last-child { border-right: 0 !important; }
+.app .reports-page table.reports-table tbody tr:nth-child(even) > td { background-color: #fbf9fa !important; }
+.app .reports-page table.reports-table tbody tr:hover > td { background-color: var(--primary-soft) !important; }
+.app .reports-page table.reports-table tbody tr[hidden] { display: none !important; }
+
+/* Column alignment — custom hooks survive table-align.js. */
+.app .reports-page table.reports-table th.rep-left,
+.app .reports-page table.reports-table td.rep-left,
+.app .reports-page table.reports-table td.rep-left .cell { text-align: left !important; justify-content: flex-start !important; }
+.app .reports-page table.reports-table th.rep-center,
+.app .reports-page table.reports-table td.rep-center,
+.app .reports-page table.reports-table td.rep-center .cell { text-align: center !important; justify-content: center !important; }
+.app .reports-page table.reports-table td.rep-left .cell,
+.app .reports-page table.reports-table td.rep-center .cell { max-width: 100% !important; }
+.reports-page .reports-cell-main { display: block; line-height: 1.35; }
+.reports-page .reports-cell-sub { display: block; margin-top: 2px; font-size: 10.5px; color: var(--muted); line-height: 1.3; }
+.reports-page .reports-cell-main strong { font-weight: 700; }
+.reports-page .reports-cell-main a { color: var(--primary); text-decoration: none; }
+.reports-page .reports-cell-main a:hover { text-decoration: underline; }
+.reports-page .reports-cell-num { font-variant-numeric: tabular-nums; font-weight: 700; }
+.reports-page .reports-table .badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 10.5px !important;
+  padding: 2px 7px !important;
+  min-height: 19px !important;
+  white-space: nowrap !important;
+  margin: 0 !important;
+}
+.reports-page .reports-table .reports-edit-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 3px;
+  color: var(--amber);
+  font-size: 11px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.reports-page .reports-table .reports-edit-link .ic { width: 12px; height: 12px; }
+.reports-page .reports-note { margin: 10px 0 0; font-size: 11.5px; color: var(--muted); }
+.reports-page .reports-empty {
+  padding: 16px !important;
+  text-align: center !important;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+/* Equipment condition cards */
+.reports-page .reports-condition-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.reports-page .reports-condition-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 12px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  text-align: center !important;
+}
+.reports-page .reports-condition-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  color: var(--green);
+  background: var(--green-soft);
+}
+.reports-page .reports-condition-icon .ic { width: 16px; height: 16px; }
+.reports-page .reports-condition-icon.amber { color: var(--amber); background: var(--amber-soft); }
+.reports-page .reports-condition-icon.blue { color: var(--blue); background: var(--blue-soft); }
+.reports-page .reports-condition-icon.red { color: var(--red); background: var(--red-soft); }
+.reports-page .reports-condition-label { font-size: 11.5px; font-weight: 600; color: var(--muted); }
+.reports-page .reports-condition-value { font-size: 21px; line-height: 1.1; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.reports-page .reports-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+
+/* Pagination */
+.reports-page .reports-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.reports-page .reports-range-text { font-size: 11.5px; color: var(--muted); }
+.reports-page .reports-pager { display: flex; align-items: center; gap: 8px; }
+.reports-page .reports-page-text { font-size: 11.5px; color: var(--muted); min-width: 74px; text-align: center; }
+.reports-page .reports-page-btn {
+  height: 30px !important;
+  min-height: 30px !important;
+  padding: 0 10px !important;
+  border-radius: 7px !important;
+  font-size: 11.5px !important;
+  box-shadow: none !important;
+}
+.reports-page .reports-page-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Responsive */
+@media (max-width: 1180px) {
+  .reports-page .reports-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .reports-page .reports-panels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reports-page .reports-category-panel { grid-column: 1 / -1; }
+}
+@media (max-width: 900px) {
+  .app .reports-page table.reports-table tbody td,
+  .app .reports-page table.reports-table tbody td .cell,
+  .app .reports-page table.reports-table tbody td::before {
+    text-align: left !important;
+    justify-content: flex-start !important;
+    align-items: flex-start !important;
+  }
+  .app .reports-page table.reports-table tbody td.rep-center .cell { justify-content: flex-start !important; }
+}
+@media (max-width: 760px) {
+  /* Keep the banner compact; the shared banner rules wrap its action full-width. */
+  .reports-page .dash-header-banner { padding: 8px 12px !important; }
+  .reports-page .dash-banner-content { flex-wrap: nowrap !important; gap: 8px !important; }
+  .reports-page .dash-banner-text { min-width: 0 !important; }
+  .reports-page .dash-banner-text h1 { font-size: 15px !important; line-height: 1.15 !important; }
+  .reports-page .dash-banner-text p { font-size: 10.5px !important; line-height: 1.25 !important; max-width: none !important; }
+  .reports-page .dash-banner-actions { width: auto !important; flex: 0 0 auto !important; }
+  .reports-page .dash-banner-actions .btn-banner-sub { padding: 5px 9px !important; font-size: 10.5px !important; }
+
+  .reports-page .reports-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reports-page .reports-condition-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reports-page .reports-kpis { grid-template-columns: 1fr; }
+  .reports-page .reports-panels { grid-template-columns: minmax(0, 1fr); }
+  .reports-page .reports-category-panel { grid-column: auto; }
+  .reports-page .reports-two-col { grid-template-columns: minmax(0, 1fr); }
+  .reports-page .reports-field input[type='date'] { width: 100% !important; }
+  .reports-page .reports-field { width: 100%; }
+  .reports-page .reports-filter-actions { width: 100%; }
+  .reports-page .reports-filter-actions .btn,
+  .reports-page .reports-filter-actions .reports-preset { flex: 1 1 auto !important; }
+  .reports-page .reports-pagination { justify-content: center; }
+}
+@media (max-width: 480px) {
+  .reports-page .reports-summary-grid { grid-template-columns: minmax(0, 1fr); }
+  .reports-page .reports-card { padding: 14px !important; }
+}
+
+/* Print: keep tables readable, repeat headers, avoid clipped columns. */
+@media print {
+  .reports-page .reports-filter-card,
+  .reports-page .no-print,
+  .reports-page .reports-pagination { display: none !important; }
+  /* Pagination hides rows on screen; printing must include every filtered record.
+     .app prefix is required to beat the screen-only scoped rules. */
+  .app .reports-page table.reports-table tbody tr[hidden] { display: table-row !important; }
+  .reports-page .reports-card { break-inside: auto !important; page-break-inside: auto !important; box-shadow: none !important; }
+  .reports-page .reports-summary-grid { grid-template-columns: repeat(5, minmax(0, 1fr)) !important; }
+  .reports-page .reports-condition-grid { grid-template-columns: repeat(4, minmax(0, 1fr)) !important; }
+  .reports-page .reports-panels { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .app .reports-page table.reports-table { table-layout: auto !important; width: 100% !important; font-size: 9.5px !important; }
+  .app .reports-page table.reports-table thead { display: table-header-group !important; }
+  .app .reports-page table.reports-table tr { break-inside: avoid !important; page-break-inside: avoid !important; }
+  .app .reports-page table.reports-table th,
+  .app .reports-page table.reports-table td { padding: 4px 5px !important; }
+  .reports-page .reports-two-col { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr) !important; }
+}
+</style>
+
+<div class="reports-page">
+  <div class="no-print">
+    <%- include('partials/header-banner', {
+      breadcrumb: '<a href="/">Home</a> &rsaquo; Reports',
+      title: 'Maintenance Reports & Analytics',
+      subtitle: (f.from ? 'From ' + fmtDate(f.from) : 'From beginning') + ' to ' + (f.to ? fmtDate(f.to) : 'today') + '. All figures below use this period unless marked as current.',
+      extraActions: `<button class="btn-banner-sub" type="button" onclick="window.print()" title="Print this report">${icon('file')} Print Report</button>`
+    }) %>
   </div>
-  <div class="stats">
-    <div class="stat"><div class="label">Total submitted</div><div class="value"><%= rep.requestSummary.total %></div></div>
-    <div class="stat"><div class="label">Avg. time to resolve</div><div class="value"><%= rep.requestSummary.avgResolutionDays === null ? '—' : rep.requestSummary.avgResolutionDays.toFixed(1) + 'd' %></div></div>
+
+  <div class="print-only" style="margin-bottom:12px">
+    <strong>EDUCARE: School Equipment Maintenance and Repair Management System</strong><br>
+    Generated <%= fmtDateTime(generatedAt) %> by <%= currentUser.name %><br>
+    Period: <%= f.from ? fmtDate(f.from) : 'Beginning' %> – <%= f.to ? fmtDate(f.to) : 'Today' %>
   </div>
-  <div class="grid grid-3">
-    <div>
-      <h3 style="margin: 0 0 12px 0;">By status</h3>
-      <% rep.requestSummary.byStatus.forEach(function (x) { %>
-        <div class="bar-row"><span><%= x.label %></span><div class="bar"><span class="<%= statusColor(x.label) %>" style="width:<%= (x.count / Math.max(rep.requestSummary.total, 1) * 100).toFixed(1) %>%"></span></div><strong class="text-right"><%= x.count %></strong></div>
-      <% }) %>
+
+  <div class="reports-filter-card no-print">
+    <div class="reports-section-label">Date Range &amp; Filters</div>
+    <form class="reports-filter-form" id="reportsFilterForm" method="get" action="/reports" data-auto-filter data-auto-results="#reports-results">
+      <div class="reports-field">
+        <label for="reportFrom">From</label>
+        <input type="date" id="reportFrom" name="from" value="<%= f.from %>">
+      </div>
+      <div class="reports-field">
+        <label for="reportTo">To</label>
+        <input type="date" id="reportTo" name="to" value="<%= f.to %>">
+      </div>
+      <div class="reports-filter-actions">
+        <a class="reports-preset<%= (!f.from && !f.to) ? '' : (f.from === preset30From && f.to === today ? ' current' : '') %>" href="/reports<%= qs({ from: preset30From, to: today }) %>" data-from="<%= preset30From %>" data-to="<%= today %>" data-filter-sync="preset-30">Last 30 Days</a>
+        <a class="reports-preset<%= (f.from === presetMonthFrom && f.to === today ? ' current' : '') %>" href="/reports<%= qs({ from: presetMonthFrom, to: today }) %>" data-from="<%= presetMonthFrom %>" data-to="<%= today %>" data-filter-sync="preset-month">This Month</a>
+        <a class="reports-preset<%= (!f.from && !f.to ? ' current' : '') %>" href="/reports" data-from="" data-to="" data-filter-sync="preset-all">All Time</a>
+      </div>
+    </form>
+    <p class="reports-period-note">Applied to repair requests, completed maintenance, and technician workload. Equipment condition is a current inventory snapshot.</p>
+  </div>
+
+  <div id="reports-results" data-auto-results>
+  <!-- Top summary -->
+  <div class="reports-summary-grid">
+    <div class="reports-summary-card">
+      <span class="reports-summary-icon"><%- icon('monitor') %></span>
+      <span class="reports-summary-copy"><span class="reports-summary-label">Total Equipment</span><strong class="reports-summary-value"><%= rep.summary.totalEquipment %></strong></span>
     </div>
-    <div>
-      <h3 style="margin: 0 0 12px 0;">By priority</h3>
-      <% rep.requestSummary.byPriority.forEach(function (x) { %>
-        <div class="bar-row"><span><%= x.label %></span><div class="bar"><span class="<%= statusColor(x.label) %>" style="width:<%= (x.count / Math.max(rep.requestSummary.total, 1) * 100).toFixed(1) %>%"></span></div><strong class="text-right"><%= x.count %></strong></div>
-      <% }) %>
-      <h3 style="margin: 18px 0 10px 0;">By type</h3>
-      <% rep.requestSummary.byType.forEach(function (x) { %>
-        <div class="bar-row"><span><%= x.label %></span><div class="bar"><span class="indigo" style="width:<%= (x.count / Math.max(rep.requestSummary.total, 1) * 100).toFixed(1) %>%"></span></div><strong class="text-right"><%= x.count %></strong></div>
-      <% }) %>
+    <div class="reports-summary-card">
+      <span class="reports-summary-icon blue"><%- icon('clipboard') %></span>
+      <span class="reports-summary-copy"><span class="reports-summary-label">Total Repair Requests</span><strong class="reports-summary-value"><%= rep.summary.totalRequests %></strong></span>
     </div>
-    <div>
-      <h3 style="margin: 0 0 12px 0;">By category</h3>
-      <div class="report-table-box">
-        <table class="report-grid-table">
+    <div class="reports-summary-card">
+      <span class="reports-summary-icon amber"><%- icon('clock') %></span>
+      <span class="reports-summary-copy"><span class="reports-summary-label">Pending Requests</span><strong class="reports-summary-value"><%= rep.summary.pendingRequests %></strong></span>
+    </div>
+    <div class="reports-summary-card">
+      <span class="reports-summary-icon green"><%- icon('check-circle') %></span>
+      <span class="reports-summary-copy"><span class="reports-summary-label">Completed Maintenance</span><strong class="reports-summary-value"><%= rep.summary.completedMaintenance %></strong></span>
+    </div>
+    <div class="reports-summary-card">
+      <span class="reports-summary-icon indigo"><%- icon('history') %></span>
+      <span class="reports-summary-copy"><span class="reports-summary-label">Average Resolution Time</span><strong class="reports-summary-value"><%= avgText %></strong></span>
+    </div>
+  </div>
+
+  <!-- 1. Repair requests -->
+  <section class="card reports-card">
+    <div class="reports-card-head">
+      <div class="reports-head-left"><h2>1. Repair Requests</h2><span class="reports-count-pill"><%= rep.requestSummary.total %> in period</span></div>
+      <a class="btn btn-light btn-sm reports-export no-print" href="/reports/export/requests<%= range %>"><%- icon('upload') %> Export CSV</a>
+    </div>
+
+    <div class="reports-kpis">
+      <div class="reports-kpi">
+        <span class="reports-kpi-icon"><%- icon('clipboard') %></span>
+        <span class="reports-kpi-copy"><span class="reports-kpi-label">Total Submitted</span><strong class="reports-kpi-value"><%= rep.requestSummary.total %></strong></span>
+      </div>
+      <div class="reports-kpi">
+        <span class="reports-kpi-icon indigo"><%- icon('clock') %></span>
+        <span class="reports-kpi-copy"><span class="reports-kpi-label">Average Time to Resolve</span><strong class="reports-kpi-value"><%= reqAvgText %></strong></span>
+      </div>
+    </div>
+
+    <div class="reports-panels">
+      <section class="reports-panel">
+        <h3 class="reports-panel-title">Request Status</h3>
+        <ul class="reports-status-list">
+          <% rep.requestSummary.byStatus.forEach(function (x) { %>
+            <li class="reports-status-row">
+              <span class="reports-status-dot <%= statusColor(x.label) %>"></span>
+              <span class="reports-status-name"><%= x.label %></span>
+              <strong class="reports-status-count"><%= x.count %></strong>
+            </li>
+          <% }) %>
+        </ul>
+      </section>
+
+      <div class="reports-side">
+        <section class="reports-panel">
+          <h3 class="reports-panel-title">Request Priority</h3>
+          <div class="reports-mini-grid">
+            <% rep.requestSummary.byPriority.slice().sort(function (a, b) { return C.PRIORITY_RANK[b.label] - C.PRIORITY_RANK[a.label]; }).forEach(function (x) { %>
+              <div class="reports-mini-card <%= statusColor(x.label) %>">
+                <span class="reports-mini-label"><%= x.label %></span>
+                <strong class="reports-mini-value"><%= x.count %></strong>
+              </div>
+            <% }) %>
+          </div>
+        </section>
+        <section class="reports-panel">
+          <h3 class="reports-panel-title">Request Type</h3>
+          <div class="reports-mini-grid">
+            <% rep.requestSummary.byType.forEach(function (x) { %>
+              <div class="reports-mini-card <%= statusColor(x.label) %>">
+                <span class="reports-mini-label"><%= x.label %></span>
+                <strong class="reports-mini-value"><%= x.count %></strong>
+              </div>
+            <% }) %>
+          </div>
+        </section>
+      </div>
+
+      <section class="reports-panel reports-category-panel">
+        <h3 class="reports-panel-title">Requests by Category</h3>
+        <div class="reports-table-box">
+          <div class="table-wrap">
+            <table class="reports-table">
+              <colgroup><col style="width:52%"><col style="width:24%"><col style="width:24%"></colgroup>
+              <thead><tr><th class="rep-center">Category</th><th class="rep-center">Total Requests</th><th class="rep-center">Completed Requests</th></tr></thead>
+              <tbody>
+                <% if (!rep.requestSummary.byCategory.length) { %><tr><td colspan="3" class="reports-empty">No requests in this period.</td></tr><% } %>
+                <% rep.requestSummary.byCategory.forEach(function (x) { %>
+                  <tr>
+                    <td class="rep-left"><span class="reports-cell-main"><%= x.label %></span></td>
+                    <td class="rep-center"><span class="reports-cell-num"><%= x.count %></span></td>
+                    <td class="rep-center"><span class="reports-cell-num"><%= x.completed %></span></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <h3 class="reports-subhead">Request List</h3>
+    <div class="reports-table-box">
+      <div class="table-wrap">
+        <table class="reports-table reports-request-table">
+          <colgroup>
+            <col style="width:19%"><col style="width:18%"><col style="width:10%"><col style="width:13%"><col style="width:12%"><col style="width:12%"><col style="width:8%"><col style="width:8%">
+          </colgroup>
           <thead>
             <tr>
-              <th class="th-cat">Category</th>
-              <th class="th-num" style="width: 85px;">Requests</th>
-              <th class="th-num" style="width: 95px;">Completed</th>
+              <th class="rep-center">Request</th><th class="rep-center">Equipment / Location</th><th class="rep-center">Priority</th><th class="rep-center">Status</th><th class="rep-center">Technician</th><th class="rep-center">Requested By</th><th class="rep-center">Target</th><th class="rep-center">Submitted</th>
             </tr>
           </thead>
           <tbody>
-            <% if (!rep.requestSummary.byCategory.length) { %>
-              <tr><td colspan="3" class="empty" style="padding: 24px 10px;">No requests.</td></tr>
-            <% } %>
-            <% rep.requestSummary.byCategory.forEach(function (x) { %>
-              <tr>
-                <td class="td-cat"><%= x.label %></td>
-                <td class="td-num"><strong><%= x.count %></strong></td>
-                <td class="td-num">
-                  <% if (x.completed > 0) { %>
-                    <span class="badge badge-green" style="font-size: 11px; padding: 2px 7px;"><%= x.completed %></span>
+            <% if (!rep.requests.length) { %><tr><td colspan="8" class="reports-empty">No repair requests submitted in this period.</td></tr><% } %>
+            <% rep.requests.forEach(function (r, idx) { %>
+              <tr data-row-index="<%= idx %>"<%= r.overdue ? ' class="row-overdue"' : '' %>>
+                <td class="rep-left">
+                  <span class="reports-cell-main"><a href="/requests/<%= r.id %>"><strong class="mono"><%= r.code %></strong></a><% if (r.type === 'Preventive') { %> <span class="badge badge-teal">PM</span><% } %></span>
+                  <span class="reports-cell-sub"><%= r.title %></span>
+                </td>
+                <td class="rep-left">
+                  <% if (r.equipment) { %>
+                    <span class="reports-cell-main"><a href="/equipment/<%= r.equipment.id %>"><%= r.equipment.name %></a></span>
+                    <span class="reports-cell-sub"><%= r.equipment.code %> · <%= r.location %></span>
                   <% } else { %>
-                    <span class="muted">0</span>
+                    <span class="reports-cell-main"><%= r.category ? r.category.name : 'General repair' %></span>
+                    <span class="reports-cell-sub"><%= r.location || '—' %></span>
                   <% } %>
                 </td>
+                <td class="rep-center"><span class="badge badge-<%= statusColor(r.effectivePriority) %>"><%= r.effectivePriority %></span></td>
+                <td class="rep-center">
+                  <span class="badge badge-<%= statusColor(r.status) %>"><%= r.status %></span>
+                  <% if (r.overdue) { %><span class="reports-cell-sub" style="color:var(--red)">Overdue</span><% } %>
+                  <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending') { %>
+                    <a class="reports-edit-link no-print" href="/requests/<%= r.id %>/edit"><%- icon('edit') %> Edit</a>
+                  <% } %>
+                </td>
+                <td class="rep-center"><span class="reports-cell-main"><%= r.technician ? r.technician.name : '—' %></span></td>
+                <td class="rep-left"><span class="reports-cell-main"><%= r.requester ? r.requester.name : '—' %></span></td>
+                <td class="rep-center"><span class="reports-cell-main"><%= r.targetDate ? fmtDate(r.targetDate) : '—' %></span></td>
+                <td class="rep-center"><span class="reports-cell-main"><%= fmtDate(r.createdAt) %></span><span class="reports-cell-sub"><%= timeAgo(r.createdAt) %></span></td>
               </tr>
             <% }) %>
           </tbody>
         </table>
       </div>
     </div>
-  </div>
-  <h3 class="mt" style="margin-top: 24px; margin-bottom: 12px;">Request list</h3>
-  <%- include('partials/request-table', { rows: rep.requests, showTech: true, showRequester: true }) %>
-</div>
+    <% if (rep.requests.length) { %>
+      <div class="reports-pagination no-print" data-pagination="reports-request-table">
+        <span class="reports-range-text" data-role="range">Showing records</span>
+        <div class="reports-pager">
+          <button type="button" class="btn btn-light reports-page-btn" data-role="prev">Previous</button>
+          <span class="reports-page-text" data-role="page">Page 1 of 1</span>
+          <button type="button" class="btn btn-light reports-page-btn" data-role="next">Next</button>
+        </div>
+      </div>
+    <% } %>
+  </section>
 
-<!-- 2. Equipment conditions -->
-<div class="card">
-  <div class="card-head">
-    <h2>2. Equipment Conditions <span class="muted" style="font-weight:400;font-size:13px">(current)</span></h2>
-    <a class="btn btn-light btn-sm no-print" href="/reports/export/equipment">Export CSV</a>
-  </div>
-  <div class="stats">
-    <% rep.conditions.byStatus.forEach(function (x) { %>
-      <div class="stat <%= statusColor(x.label) %>"><div class="label"><%= x.label %></div><div class="value"><%= x.count %></div></div>
-    <% }) %>
-  </div>
-  <div class="grid grid-2">
-    <div>
-      <h3 style="margin-bottom: 10px;">Status by category</h3>
-      <div class="report-table-box">
-        <table class="report-grid-table">
+  <!-- 2. Equipment conditions -->
+  <section class="card reports-card">
+    <div class="reports-card-head">
+      <div class="reports-head-left"><h2>2. Equipment Conditions</h2><span class="reports-count-pill">Current snapshot · <%= rep.conditions.total %> items</span></div>
+      <a class="btn btn-light btn-sm reports-export no-print" href="/reports/export/equipment<%= range %>"><%- icon('upload') %> Export CSV</a>
+    </div>
+
+    <div class="reports-condition-grid">
+      <% rep.conditions.byStatus.forEach(function (x) { %>
+        <div class="reports-condition-card">
+          <span class="reports-condition-icon <%= statusColor(x.label) %>"><%- icon(x.label === 'Operational' ? 'check-circle' : (x.label === 'Needs Repair' ? 'wrench' : (x.label === 'Under Maintenance' ? 'settings' : 'alert-circle'))) %></span>
+          <span class="reports-condition-label"><%= x.label %></span>
+          <strong class="reports-condition-value"><%= x.count %></strong>
+        </div>
+      <% }) %>
+    </div>
+
+    <div class="reports-two-col">
+      <div>
+        <h3 class="reports-subhead" style="margin-top:0">Status by Category</h3>
+        <div class="reports-table-box">
+          <div class="table-wrap">
+            <table class="reports-table">
+              <thead>
+                <tr>
+                  <th class="rep-center">Category</th>
+                  <% C.EQUIPMENT_STATUSES.forEach(function (s) { %><th class="rep-center"><%= s %></th><% }) %>
+                  <th class="rep-center">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <% if (!rep.conditions.byCategory.length) { %><tr><td colspan="<%= C.EQUIPMENT_STATUSES.length + 2 %>" class="reports-empty">No equipment categories recorded yet.</td></tr><% } %>
+                <% rep.conditions.byCategory.forEach(function (x) { %>
+                  <tr>
+                    <td class="rep-left"><span class="reports-cell-main"><%= x.label %></span></td>
+                    <% x.counts.forEach(function (n) { %><td class="rep-center"><span class="reports-cell-num"><%= n %></span></td><% }) %>
+                    <td class="rep-center"><span class="reports-cell-num"><%= x.total %></span></td>
+                  </tr>
+                <% }) %>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div>
+        <h3 class="reports-subhead" style="margin-top:0">Equipment Needing Attention</h3>
+        <% if (!rep.conditions.attention.length) { %>
+          <div class="reports-table-box" style="padding:18px;text-align:center;color:var(--muted);font-size:12.5px;">All equipment is operational.</div>
+        <% } else { %>
+          <div class="reports-table-box">
+            <div class="table-wrap">
+              <table class="reports-table">
+                <colgroup><col style="width:65%"><col style="width:35%"></colgroup>
+                <tbody>
+                  <% rep.conditions.attention.forEach(function (e) { %>
+                    <tr>
+                      <td class="rep-left">
+                        <span class="reports-cell-main"><a href="/equipment/<%= e.id %>"><%= e.code %></a> <%= e.name %></span>
+                        <span class="reports-cell-sub"><%= e.location || '—' %></span>
+                      </td>
+                      <td class="rep-center"><span class="badge badge-<%= statusColor(e.status) %>"><%= e.status %></span></td>
+                    </tr>
+                  <% }) %>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. Completed maintenance -->
+  <section class="card reports-card">
+    <div class="reports-card-head">
+      <div class="reports-head-left">
+        <h2>3. Completed Maintenance</h2>
+        <span class="reports-count-pill"><%= rep.records.length %> record<%= rep.records.length === 1 ? '' : 's' %></span>
+      </div>
+      <a class="btn btn-light btn-sm reports-export no-print" href="/reports/export/maintenance<%= range %>"><%- icon('upload') %> Export CSV</a>
+    </div>
+    <p class="reports-note" style="margin-top:0">
+      Service history only:
+      <% if (!rep.recordsByType.length) { %>no service records in this period.<% } else { %><% rep.recordsByType.forEach(function (x, i) { %><%= i ? ' · ' : '' %><%= x.count %> <%= x.label.toLowerCase() %><% }) %>.<% } %>
+      <% if (rep.summary.completedRequests) { %> Completed repair requests in this period: <%= rep.summary.completedRequests %>.<% } %>
+    </p>
+    <div class="reports-table-box">
+      <div class="table-wrap">
+        <table class="reports-table reports-maintenance-table">
+          <colgroup>
+            <col style="width:9%"><col style="width:14%"><col style="width:10%"><col style="width:19%"><col style="width:21%"><col style="width:15%"><col style="width:12%">
+          </colgroup>
           <thead>
             <tr>
-              <th class="th-cat">Category</th>
-              <% C.EQUIPMENT_STATUSES.forEach(function (s) { %>
-                <th class="th-num" style="font-size: 10.5px; padding: 10px 4px;"><%= s %></th>
-              <% }) %>
-              <th class="th-num" style="width: 65px;">Total</th>
+              <th class="rep-center">Date</th><th class="rep-center">Equipment</th><th class="rep-center">Type</th><th class="rep-center">Problem</th><th class="rep-center">Actions Performed</th><th class="rep-center">Parts Replaced</th><th class="rep-center">Technician</th>
             </tr>
           </thead>
           <tbody>
-            <% rep.conditions.byCategory.forEach(function (x) { %>
-              <tr>
-                <td class="td-cat"><%= x.label %></td>
-                <% x.counts.forEach(function (n) { %>
-                  <td class="td-num"><%= n || '·' %></td>
-                <% }) %>
-                <td class="td-num"><strong><%= x.total %></strong></td>
+            <% if (!rep.records.length) { %><tr><td colspan="7" class="reports-empty">No maintenance completed in this period.</td></tr><% } %>
+            <% rep.records.forEach(function (m, idx) { %>
+              <tr data-row-index="<%= idx %>">
+                <td class="rep-center"><span class="reports-cell-main"><%= fmtDate(m.serviceDate) %></span></td>
+                <td class="rep-left"><span class="reports-cell-main"><%= m.equipment ? m.equipment.code + ' ' + m.equipment.name : '—' %></span></td>
+                <td class="rep-center"><span class="badge badge-<%= statusColor(m.type) %>"><%= m.type %></span></td>
+                <td class="rep-left"><span class="reports-cell-main"><%= m.problem || '—' %></span></td>
+                <td class="rep-left"><span class="reports-cell-main"><%= m.actionsTaken || '—' %></span></td>
+                <td class="rep-left"><span class="reports-cell-main"><%= m.partsReplaced || '—' %></span></td>
+                <td class="rep-center"><span class="reports-cell-main"><%= m.technician ? m.technician.name : '—' %></span></td>
               </tr>
             <% }) %>
           </tbody>
         </table>
       </div>
     </div>
-    <div>
-      <h3 style="margin-bottom: 10px;">Equipment needing attention</h3>
-      <% if (!rep.conditions.attention.length) { %>
-        <p class="muted">All equipment is operational.</p>
-      <% } else { %>
-        <div class="report-table-box">
-          <table class="report-grid-table">
-            <tbody>
-              <% rep.conditions.attention.forEach(function (e) { %>
-                <tr>
-                  <td class="td-cat"><a href="/equipment/<%= e.id %>"><%= e.code %></a> <%= e.name %><span class="sub"><%= e.location %></span></td>
-                  <td class="td-num" style="width: 140px; text-align: right; padding-right: 14px;"><span class="<%= statusClass(e.status) %>"><%= e.status %></span></td>
-                </tr>
-              <% }) %>
-            </tbody>
-          </table>
+    <% if (rep.records.length) { %>
+      <div class="reports-pagination no-print" data-pagination="reports-maintenance-table">
+        <span class="reports-range-text" data-role="range">Showing records</span>
+        <div class="reports-pager">
+          <button type="button" class="btn btn-light reports-page-btn" data-role="prev">Previous</button>
+          <span class="reports-page-text" data-role="page">Page 1 of 1</span>
+          <button type="button" class="btn btn-light reports-page-btn" data-role="next">Next</button>
         </div>
-      <% } %>
+      </div>
+    <% } %>
+  </section>
+
+  <!-- 4. Technician workload -->
+  <section class="card reports-card">
+    <div class="reports-card-head">
+      <div class="reports-head-left"><h2>4. Technician Workload</h2><span class="reports-count-pill"><%= rep.workload.length %> technician<%= rep.workload.length === 1 ? '' : 's' %></span></div>
+      <a class="btn btn-light btn-sm reports-export no-print" href="/reports/export/workload<%= range %>"><%- icon('upload') %> Export CSV</a>
     </div>
+    <div class="reports-table-box">
+      <div class="table-wrap">
+        <table class="reports-table">
+          <colgroup>
+            <col style="width:19%"><col style="width:12%"><col style="width:13%"><col style="width:10%"><col style="width:13%"><col style="width:11%"><col style="width:22%">
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="rep-center">Technician</th><th class="rep-center">Availability</th><th class="rep-center">Assigned (Period)</th><th class="rep-center">Active Now</th><th class="rep-center">Completed (Period)</th><th class="rep-center">Overdue Now</th><th class="rep-center">Average Days to Complete</th>
+            </tr>
+          </thead>
+          <tbody>
+            <% if (!rep.workload.length) { %><tr><td colspan="7" class="reports-empty">No technicians.</td></tr><% } %>
+            <% rep.workload.forEach(function (w) { %>
+              <tr>
+                <td class="rep-left">
+                  <span class="reports-cell-main"><a href="/technicians/<%= w.tech.id %>"><%= w.tech.name %></a><% if (!w.tech.active) { %> <span class="badge badge-gray">Inactive</span><% } %></span>
+                  <span class="reports-cell-sub"><%= w.serviceRecords %> service record<%= w.serviceRecords === 1 ? '' : 's' %> in period</span>
+                </td>
+                <td class="rep-center"><span class="badge badge-<%= statusColor(w.tech.availability || 'Unavailable') %>"><%= w.tech.availability || '—' %></span></td>
+                <td class="rep-center"><span class="reports-cell-num"><%= w.assignedInRange %></span></td>
+                <td class="rep-center"><span class="reports-cell-num"><%= w.active %></span></td>
+                <td class="rep-center"><span class="reports-cell-num"><%= w.completed %></span></td>
+                <td class="rep-center"><span class="reports-cell-num"<%= w.overdue ? ' style="color:var(--red)"' : '' %>><%= w.overdue %></span></td>
+                <td class="rep-center"><span class="reports-cell-num"><%= w.avgDays === null ? '—' : Number(w.avgDays).toFixed(1) %></span></td>
+              </tr>
+            <% }) %>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <p class="reports-note">Completed (Period) counts repair requests. Service records are reported separately in Completed Maintenance; they are not counted here.</p>
+  </section>
   </div>
 </div>
 
-<!-- 3. Completed maintenance -->
-<div class="card">
-  <div class="card-head">
-    <h2>3. Completed Maintenance</h2>
-    <a class="btn btn-light btn-sm no-print" href="/reports/export/maintenance<%= range %>">Export CSV</a>
-  </div>
-  <p>
-    <strong><%= rep.records.length %></strong> record(s):
-    <% rep.recordsByType.forEach(function (x, i) { %><%= i ? ', ' : '' %><%= x.count %> <%= x.label.toLowerCase() %><% }) %>.
-  </p>
-  <div class="table-wrap">
-  <table class="stack-table">
-    <thead><tr><th>Date</th><th>Equipment</th><th>Type</th><th>Problem</th><th>Actions performed</th><th>Parts replaced</th><th>Technician</th></tr></thead>
-    <tbody>
-      <% if (!rep.records.length) { %><tr><td colspan="7" class="empty">No maintenance completed in this period.</td></tr><% } %>
-      <% rep.records.forEach(function (m) { %>
-        <tr>
-          <td class="nowrap"><%= fmtDate(m.serviceDate) %></td>
-          <td><%= m.equipment ? m.equipment.code + ' ' + m.equipment.name : '—' %></td>
-          <td><span class="<%= statusClass(m.type) %>"><%= m.type %></span></td>
-          <td><%= m.problem || '—' %></td>
-          <td><%= m.actionsTaken %></td>
-          <td><%= m.partsReplaced || '—' %></td>
-          <td><%= m.technician ? m.technician.name : '—' %></td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-  </div>
-</div>
+<script>
+  // Preset ranges populate the date inputs and immediately refresh every report
+  // through the same form, so all sections always use one selected period.
+  (function () {
+    var form = document.getElementById('reportsFilterForm');
+    if (!form) return;
+    Array.prototype.forEach.call(document.querySelectorAll('.reports-preset'), function (preset) {
+      preset.addEventListener('click', function (e) {
+        e.preventDefault();
+        document.getElementById('reportFrom').value = preset.getAttribute('data-from');
+        document.getElementById('reportTo').value = preset.getAttribute('data-to');
+        if (window.educareApplyFilters) window.educareApplyFilters(form);
+        else form.submit();
+      });
+    });
+  })();
 
-<!-- 4. Technician workload -->
-<div class="card">
-  <div class="card-head">
-    <h2>4. Technician Workload</h2>
-    <a class="btn btn-light btn-sm no-print" href="/reports/export/workload<%= range %>">Export CSV</a>
-  </div>
-  <div class="table-wrap">
-  <table class="stack-table">
-    <thead><tr><th>Technician</th><th>Availability</th><th class="text-right">Assigned (period)</th><th class="text-right">Active now</th><th class="text-right">Completed (period)</th><th class="text-right">Overdue now</th><th class="text-right">Avg. days to complete</th></tr></thead>
-    <tbody>
-      <% if (!rep.workload.length) { %><tr><td colspan="7" class="empty">No technicians.</td></tr><% } %>
-      <% rep.workload.forEach(function (w) { %>
-        <tr>
-          <td><a href="/technicians/<%= w.tech.id %>"><%= w.tech.name %></a><% if (!w.tech.active) { %> <span class="badge badge-gray">Inactive</span><% } %></td>
-          <td><span class="<%= statusClass(w.tech.availability) %>"><%= w.tech.availability %></span></td>
-          <td class="text-right"><%= w.assignedInRange %></td>
-          <td class="text-right"><strong><%= w.active %></strong></td>
-          <td class="text-right"><%= w.completed %></td>
-          <td class="text-right" style="<%= w.overdue ? 'color:var(--red);font-weight:700' : '' %>"><%= w.overdue %></td>
-          <td class="text-right"><%= w.avgDays === null ? '—' : w.avgDays.toFixed(1) %></td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
-  </div>
-</div>
+  // Client-side pagination over the already-filtered report rows. Rows are
+  // hidden, never removed, and the CSV exports still use the full server data.
+  // Exposed so automatically refreshed results re-bind correctly.
+  window.educareInitReportPagination = function () {
+    document.querySelectorAll('.reports-page [data-pagination]').forEach(function (bar) {
+      if (bar.getAttribute('data-pagination-ready') === '1') return;
+      var table = document.querySelector('.' + bar.getAttribute('data-pagination'));
+      if (!table) return;
+      var rows = Array.prototype.slice.call(table.querySelectorAll('tbody tr[data-row-index]'));
+      if (!rows.length) return;
+      var rangeText = bar.querySelector('[data-role="range"]');
+      var pageText = bar.querySelector('[data-role="page"]');
+      var prev = bar.querySelector('[data-role="prev"]');
+      var next = bar.querySelector('[data-role="next"]');
+      if (!rangeText || !pageText || !prev || !next) return;
+      bar.setAttribute('data-pagination-ready', '1');
+
+      var size = 10;
+      var page = 1;
+
+      function render() {
+        var total = rows.length;
+        var pages = Math.max(1, Math.ceil(total / size));
+        if (page > pages) page = pages;
+        var startIndex = (page - 1) * size;
+        var endIndex = Math.min(startIndex + size, total);
+        rows.forEach(function (row, i) { row.hidden = !(i >= startIndex && i < endIndex); });
+        rangeText.textContent = 'Showing ' + (startIndex + 1) + '–' + endIndex + ' of ' + total + ' records · ' + size + ' per page';
+        pageText.textContent = 'Page ' + page + ' of ' + pages;
+        prev.disabled = page <= 1;
+        next.disabled = page >= pages;
+      }
+
+      prev.addEventListener('click', function () { if (page > 1) { page -= 1; render(); } });
+      next.addEventListener('click', function () { if (page < Math.ceil(rows.length / size)) { page += 1; render(); } });
+      render();
+    });
+  };
+  window.educareInitReportPagination();
+</script>
+
 <%- include('partials/footer') %>

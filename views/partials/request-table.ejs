@@ -1,16 +1,17 @@
 <%# Expects: rows (enriched requests), showTech (bool), showRequester (bool) %>
-<div class="table-wrap">
+<% var isDispatchQueue = typeof dispatchQueue !== 'undefined' && dispatchQueue; %>
+<div class="table-wrap<%= isDispatchQueue ? ' dispatch-queue-table-wrap' : '' %>">
 <table>
   <thead>
     <tr>
-      <th>Request</th>
-      <th>Equipment</th>
-      <th>Priority</th>
-      <th>Status</th>
-      <% if (showTech) { %><th>Technician</th><% } %>
-      <% if (showRequester) { %><th>Requested by</th><% } %>
-      <th>Target</th>
-      <th>Submitted</th>
+      <th class="col-left">Request</th>
+      <th class="col-left">Equipment / Location</th>
+      <th class="col-center">Priority</th>
+      <th class="col-center">Status</th>
+      <% if (showTech) { %><th class="col-center">Technician</th><% } %>
+      <% if (showRequester) { %><th class="col-left">Requested by</th><% } %>
+      <th class="col-center">Target</th>
+      <th class="col-center">Submitted</th>
     </tr>
   </thead>
   <tbody>
@@ -19,32 +20,40 @@
     <% } %>
     <% rows.forEach(function (r) { %>
       <tr class="<%= r.overdue ? 'row-overdue' : '' %>">
-        <td>
+        <td class="col-left">
           <a href="/requests/<%= r.id %>"><strong class="mono"><%= r.code %></strong></a>
+          <% if (isDispatchQueue && r.category) { %><span class="request-category-badge"><%= r.category.name %></span><% } %>
           <% if (r.type === 'Preventive') { %><span class="<%= statusClass('Preventive') %>">PM</span><% } %>
           <span class="sub"><%= r.title %></span>
         </td>
-        <td>
+        <td class="col-left">
           <% if (r.equipment) { %>
-            <a href="/equipment/<%= r.equipment.id %>"><%= r.equipment.name %></a>
-            <span class="sub"><%= r.equipment.code %> · <%= r.equipment.location %></span>
-          <% } else { %>—<% } %>
+            <a href="/equipment/<%= r.equipment.id %>"><% if (isDispatchQueue) { %><strong><%= r.equipment.name %></strong><% } else { %><%= r.equipment.name %><% } %></a>
+            <span class="sub"><%= r.equipment.code %> · <%= r.location %></span>
+          <% } else { %>
+            <%= r.category ? r.category.name : 'General repair' %>
+            <span class="sub"><%= r.location || '—' %></span>
+          <% } %>
         </td>
-        <td>
+        <td class="col-center">
           <span class="<%= statusClass(r.effectivePriority) %>"><%= r.effectivePriority %></span>
           <span class="sub" title="Recommended priority score"><%= r.priority ? 'Set' : 'Auto' %> · score <%= r.rec.score %></span>
         </td>
-        <td>
+        <td class="col-center">
           <span class="<%= statusClass(r.status) %>"><%= r.status %></span>
           <% if (r.overdue) { %><span class="sub" style="color:var(--red)">Overdue</span><% } %>
           <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending') { %>
-            <span class="sub" style="margin-top:2px;"><a href="/requests/<%= r.id %>/edit" style="color:var(--amber);font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:3px;"><%- icon('edit') %>Edit</a></span>
+            <% if (isDispatchQueue) { %>
+              <span class="sub queue-edit-wrap"><a href="/requests/<%= r.id %>/edit" class="queue-edit-link"><%- icon('edit') %>Edit</a></span>
+            <% } else { %>
+              <span class="sub" style="margin-top:2px;"><a href="/requests/<%= r.id %>/edit" style="color:var(--amber);font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:3px;"><%- icon('edit') %>Edit</a></span>
+            <% } %>
           <% } %>
         </td>
-        <% if (showTech) { %><td><%= r.technician ? r.technician.name : '—' %></td><% } %>
-        <% if (showRequester) { %><td><%= r.requester ? r.requester.name : '—' %></td><% } %>
-        <td class="nowrap"><%= r.targetDate ? fmtDate(r.targetDate) : '—' %></td>
-        <td class="nowrap"><%= fmtDate(r.createdAt) %><span class="sub"><%= timeAgo(r.createdAt) %></span></td>
+        <% if (showTech) { %><td class="col-center"><%= r.technician ? r.technician.name : '—' %></td><% } %>
+        <% if (showRequester) { %><td class="col-left"><%= r.requester ? r.requester.name : '—' %></td><% } %>
+        <td class="col-center nowrap"><%= r.targetDate ? fmtDate(r.targetDate) : '—' %></td>
+        <td class="col-center nowrap"><%= fmtDate(r.createdAt) %><span class="sub"><%= timeAgo(r.createdAt) %></span></td>
       </tr>
     <% }) %>
   </tbody>

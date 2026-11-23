@@ -1,3 +1,25 @@
+<% if (typeof adminDashboard !== 'undefined' && adminDashboard) { %>
+<div class="card dispatch-side-card equipment-summary-card">
+  <div class="card-head admin-panel-head">
+    <div class="admin-panel-title">
+      <%- icon('monitor') %>
+      <h2>Equipment Status Summary</h2>
+    </div>
+    <a href="/equipment" class="btn btn-sm dispatch-head-link">View all</a>
+  </div>
+  <div class="equipment-status-list" title="Equipment by condition">
+    <% var equipmentStatusIcons = { 'Operational': 'check-circle', 'Needs Repair': 'alert', 'Under Maintenance': 'wrench', 'Out of Service': 'x-circle' }; %>
+    <% equipmentByStatus.forEach(function (s) { %>
+      <a class="equipment-status-row equipment-status-<%= statusColor(s.status) %>" href="/equipment?status=<%= encodeURIComponent(s.status) %>">
+        <span class="equipment-status-icon"><%- icon(equipmentStatusIcons[s.status] || 'monitor') %></span>
+        <span class="equipment-status-name"><%= s.status %></span>
+        <strong class="equipment-status-count"><%= s.count %></strong>
+      </a>
+    <% }) %>
+  </div>
+  <p class="equipment-total"><%= totalEquipment %> equipment item(s) in total.</p>
+</div>
+<% } else { %>
 <div class="card">
   <div class="card-head">
     <h2>Equipment Status Summary</h2>
@@ -17,3 +39,4 @@
   <% }) %>
   <p class="muted" style="margin:8px 0 0"><%= totalEquipment %> equipment item(s) in total.</p>
 </div>
+<% } %>

@@ -1,5 +1,52 @@
-<%# One request as a card. Expects: r (enriched request). Optional: showTech, showRequester, showPriority %>
+<%# One request as a card. Expects: r (enriched request). Optional: showTech, showRequester, showPriority, adminUi %>
 <% var eq = r.equipment; var catName = r.category ? r.category.name : ''; %>
+<% if (typeof adminUi !== 'undefined' && adminUi) { %>
+<a class="rcard rcard-admin<%= r.overdue ? ' overdue' : '' %>" href="/requests/<%= r.id %>">
+  <span class="rcard-thumb">
+    <% if (r.photo) { %>
+      <img src="/uploads/<%= r.photo.filename %>" alt="" loading="lazy">
+    <% } else { %>
+      <span class="rcard-ph"><%- icon(categoryIcon(catName)) %></span>
+    <% } %>
+  </span>
+  <span class="rcard-body">
+    <span class="rcard-head">
+      <span class="rcard-code"><%= r.code %></span>
+      <span class="chip chip-<%= statusColor(r.status) %>"><%- icon(statusIcon(r.status)) %><%= r.status %></span>
+    </span>
+    <span class="rcard-title"><%= r.title %></span>
+    <span class="rcard-sub"><%= eq ? eq.name : (catName || 'General repair') %><%= r.location ? ' · ' + r.location : '' %></span>
+    <span class="rcard-desc"><%= r.description || 'No description provided.' %></span>
+    <span class="rcard-facts">
+      <span class="rcard-fact">
+        <%- icon('calendar') %>
+        <strong><% var day = fmtDate(r.createdAt); %><%= day %> · <%= fmtDateTime(r.createdAt).slice(day.length).trim() %></strong>
+      </span>
+      <% if (r.targetDate) { %>
+        <span class="rcard-fact">
+          <%- icon('clock') %>
+          <strong>Target: <%= fmtDate(r.targetDate) %><% if (r.overdue) { %> · Overdue<% } %></strong>
+        </span>
+      <% } %>
+      <% if (typeof showRequester !== 'undefined' && showRequester && r.requester) { %>
+        <span class="rcard-fact"><%- icon('user') %><strong><%= r.requester.name %></strong></span>
+      <% } %>
+      <% if (typeof showTech !== 'undefined' && showTech) { %>
+        <span class="rcard-fact"><%- icon('wrench') %><strong><%= r.technician ? r.technician.name : 'Not assigned' %></strong></span>
+      <% } %>
+    </span>
+    <span class="rcard-chips">
+      <% if (typeof showPriority !== 'undefined' && showPriority) { %><span class="chip chip-<%= statusColor(r.effectivePriority) %> soft"><%= r.effectivePriority %> priority</span><% } %>
+      <% if (r.type === 'Preventive') { %><span class="chip chip-teal soft">Preventive</span><% } %>
+      <% if (r.overdue) { %><span class="chip chip-red soft"><%- icon('alert') %>Overdue</span><% } %>
+      <% if (currentUser && (currentUser.role === 'admin' || currentUser.id === r.requesterId) && r.status === 'Pending') { %>
+        <span class="chip chip-amber soft" title="Can be edited or cancelled"><%- icon('edit') %>Editable</span>
+      <% } %>
+    </span>
+  </span>
+  <span class="rcard-go"><%- icon('chevron-right') %></span>
+</a>
+<% } else { %>
 <a class="rcard<%= r.overdue ? ' overdue' : '' %>" href="/requests/<%= r.id %>">
   <span class="rcard-thumb">
     <% if (r.photo) { %>
@@ -10,11 +57,16 @@
   </span>
   <span class="rcard-body">
     <span class="rcard-title"><%= r.title %></span>
-    <span class="rcard-sub"><%= eq ? eq.name : 'Equipment removed' %><%= eq && eq.location ? ' – ' + eq.location : '' %></span>
+    <span class="rcard-sub"><%= eq ? eq.name : (catName || 'General repair') %><%= r.location ? ' – ' + r.location : '' %></span>
     <span class="rcard-meta">
       <span><%- icon('calendar') %><% var day = fmtDate(r.createdAt); %><%= day %> • <%= fmtDateTime(r.createdAt).slice(day.length).trim() %></span>
       <span class="mono"><%= r.code %></span>
     </span>
+    <% if (r.targetDate) { %>
+    <span class="rcard-meta">
+      <span><%- icon('clock') %>Target: <%= fmtDate(r.targetDate) %><% if (r.overdue) { %> <span class="badge badge-red">Overdue</span><% } %></span>
+    </span>
+    <% } %>
     <% if ((typeof showTech !== 'undefined' && showTech) || (typeof showRequester !== 'undefined' && showRequester)) { %>
     <span class="rcard-meta">
       <% if (typeof showRequester !== 'undefined' && showRequester && r.requester) { %><span><%- icon('user') %><%= r.requester.name %></span><% } %>
@@ -33,3 +85,4 @@
   </span>
   <span class="rcard-go"><%- icon('chevron-right') %></span>
 </a>
+<% } %>

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="EduCare logo">
+  <defs>
+    <linearGradient id="shield" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a11c2b"/>
+      <stop offset="0.55" stop-color="#8c1724"/>
+      <stop offset="1" stop-color="#580d16"/>
+    </linearGradient>
+  </defs>
+  <path d="M32 3 57 13v20c0 15.5-10.6 24.4-25 29C17.6 57.4 7 48.5 7 33V13Z" fill="url(#shield)"/>
+  <path d="M32 3 57 13v20c0 15.5-10.6 24.4-25 29C17.6 57.4 7 48.5 7 33V13Z" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
+  <path d="M21 33.5 28.5 41 44 24" fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

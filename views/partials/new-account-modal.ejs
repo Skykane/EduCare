@@ -24,15 +24,15 @@
         <div class="form-grid" style="gap:12px 16px;">
           <div class="field">
             <label for="modal-user-name">Full Name *</label>
-            <input type="text" id="modal-user-name" name="name" required maxlength="120" placeholder="e.g. Juan Dela Cruz">
+            <input type="text" id="modal-user-name" name="name" required maxlength="120" placeholder="Enter full name">
           </div>
           <div class="field">
             <label for="modal-user-email">Email Address *</label>
-            <input type="email" id="modal-user-email" name="email" required maxlength="200" placeholder="juan.delacruz@educare.local">
+            <input type="email" id="modal-user-email" name="email" required maxlength="200" placeholder="Enter school email address">
           </div>
           <div class="field">
             <label for="modal-user-role">Account Role *</label>
-            <select id="modal-user-role" name="role">
+            <select data-ec-select="1" id="modal-user-role" name="role">
               <% Object.keys(C.ROLES).forEach(function (k) { %>
                 <option value="<%= k %>" <%= k === 'requester' ? 'selected' : '' %>><%= C.ROLES[k] %></option>
               <% }) %>
@@ -51,11 +51,11 @@
           </div>
           <div class="field" id="modal-student-id-field">
             <label for="modal-user-studentId">Student ID</label>
-            <input type="text" id="modal-user-studentId" name="studentId" placeholder="e.g. 2024-00101" maxlength="50">
+            <input type="text" id="modal-user-studentId" name="studentId" placeholder="Enter student ID" maxlength="50">
           </div>
           <div class="field">
             <label for="modal-user-address">Address</label>
-            <input type="text" id="modal-user-address" name="address" placeholder="e.g. 142 San Agustin St., Pasig City" maxlength="250">
+            <input type="text" id="modal-user-address" name="address" placeholder="Enter complete address" maxlength="250">
           </div>
           <div class="field">
             <label for="modal-user-phone">Phone</label>
@@ -76,7 +76,7 @@
           </div>
           <div class="field" style="max-width:260px;margin-top:12px;margin-bottom:0;">
             <label for="modal-user-availability">Availability</label>
-            <select id="modal-user-availability" name="availability">
+            <select data-ec-select="1" id="modal-user-availability" name="availability">
               <% C.AVAILABILITY.forEach(function (a) { %><option value="<%= a %>" <%= a === 'Available' ? 'selected' : '' %>><%= a %></option><% }) %>
             </select>
           </div>

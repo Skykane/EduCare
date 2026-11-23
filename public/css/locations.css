@@ -1,0 +1,377 @@
+/* =====================================================================
+   Location Management table alignment
+   Scoped to the Locations page. Presentation only: no records, counts,
+   routes or calculations live here.
+   ===================================================================== */
+
+.locations-page .app .locations-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+/* ---------- Wide screens: fixed, aligned table columns ---------- */
+@media (min-width: 1201px) {
+  .locations-page .app .locations-table-wrap {
+    overflow-x: hidden;
+  }
+
+  .locations-page .app table.locations-table {
+    table-layout: fixed;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .locations-page .app table.locations-table col.loc-col-name { width: 22%; }
+  .locations-page .app table.locations-table col.loc-col-health { width: 16%; }
+  .locations-page .app table.locations-table col.loc-col-status { width: 10%; }
+  .locations-page .app table.locations-table col.loc-col-total { width: 6%; }
+  .locations-page .app table.locations-table col.loc-col-actions { width: 20%; }
+
+  /* Keep the shared 46px header rhythm even when a label wraps to two lines. */
+  .locations-page .app table.locations-table thead,
+  .locations-page .app table.locations-table thead tr {
+    height: 46px !important;
+  }
+
+  .locations-page .app table.locations-table th {
+    height: 46px !important;
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+    font-size: 10px !important;
+    line-height: 1.15 !important;
+    letter-spacing: 0.2px !important;
+    overflow: hidden;
+  }
+}
+
+/* Header and body cells share one box model and one divider grid. */
+.locations-page .app table.locations-table th,
+.locations-page .app table.locations-table td {
+  box-sizing: border-box;
+  padding: 6px 10px;
+  vertical-align: middle !important;
+}
+
+.locations-page .app table.locations-table th {
+  border-right: 1px solid var(--tbl-head-border);
+  border-bottom: 1px solid var(--tbl-head-border);
+}
+
+.locations-page .app table.locations-table td {
+  border-right: 1px solid var(--tbl-divider);
+  border-bottom: 1px solid var(--tbl-divider);
+}
+
+.locations-page .app table.locations-table th:first-child,
+.locations-page .app table.locations-table td:first-child { padding-left: 14px; }
+
+.locations-page .app table.locations-table th:last-child,
+.locations-page .app table.locations-table td:last-child {
+  padding-right: 14px;
+  border-right: 0;
+}
+
+.locations-page .app table.locations-table tbody tr { height: 44px; }
+
+.locations-page .app table.locations-table tbody td {
+  height: 44px;
+  font-size: 12.5px;
+  line-height: 1.35;
+}
+
+/* Every column except the location name is centered. */
+.locations-page .app table.locations-table th.loc-name-cell,
+.locations-page .app table.locations-table td.loc-name-cell,
+.locations-page .app table.locations-table td.loc-name-cell .loc-name,
+.locations-page .app table.locations-table td.loc-name-cell .loc-name-text {
+  text-align: left !important;
+  justify-content: flex-start !important;
+}
+
+.locations-page .app table.locations-table th.loc-health-cell,
+.locations-page .app table.locations-table td.loc-health-cell,
+.locations-page .app table.locations-table th.loc-status-cell,
+.locations-page .app table.locations-table td.loc-status-cell,
+.locations-page .app table.locations-table th.loc-total-cell,
+.locations-page .app table.locations-table td.loc-total-cell,
+.locations-page .app table.locations-table th.loc-actions-cell,
+.locations-page .app table.locations-table td.loc-actions-cell {
+  text-align: center !important;
+  justify-content: center !important;
+}
+
+/* ---------- Location names ---------- */
+.locations-page .app table.locations-table .loc-name {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px;
+  width: 100%;
+  max-width: 100%;
+  max-height: 32px;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.locations-page .app table.locations-table .loc-name:hover { color: var(--primary); }
+
+.locations-page .app table.locations-table .loc-pin {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+}
+
+.locations-page .app table.locations-table .loc-pin .ic { width: 14px; height: 14px; }
+
+.locations-page .app table.locations-table .loc-name-text {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  line-height: 1.15;
+}
+
+/* ---------- Health readiness ---------- */
+.locations-page .app table.locations-table .loc-health {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px;
+  width: 100%;
+  max-width: 150px;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.locations-page .app table.locations-table .loc-progress {
+  display: block;
+  flex: 1 1 90px;
+  height: 8px;
+  min-width: 48px;
+  max-width: 104px;
+  overflow: hidden;
+  background: var(--border);
+  border-radius: 999px;
+}
+
+.locations-page .app table.locations-table .loc-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+}
+
+.locations-page .app table.locations-table .loc-percent {
+  flex: 0 0 42px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+.locations-page .app table.locations-table .loc-health.is-good .loc-progress-fill,
+.locations-page .app table.locations-table .loc-health.is-good .loc-percent { color: var(--green); }
+.locations-page .app table.locations-table .loc-health.is-good .loc-progress-fill { background: var(--green); }
+
+.locations-page .app table.locations-table .loc-health.is-warn .loc-progress-fill { background: var(--gold); }
+.locations-page .app table.locations-table .loc-health.is-warn .loc-percent { color: #d97706; }
+
+.locations-page .app table.locations-table .loc-health.is-low .loc-progress-fill,
+.locations-page .app table.locations-table .loc-health.is-low .loc-percent { color: var(--red); }
+.locations-page .app table.locations-table .loc-health.is-low .loc-progress-fill { background: var(--red); }
+
+/* ---------- Counts and totals ---------- */
+.locations-page .app table.locations-table .loc-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.locations-page .app table.locations-table .loc-empty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  color: var(--muted);
+  opacity: 0.55;
+  font-size: 12.5px;
+  line-height: 1;
+}
+
+.locations-page .app table.locations-table .loc-total {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 22px;
+  font-size: 13px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Action buttons ---------- */
+.locations-page .app table.locations-table .loc-actions {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 6px;
+  width: 100%;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  white-space: nowrap;
+}
+
+.locations-page .app table.locations-table .loc-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  min-height: 28px;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 11.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.locations-page .app table.locations-table .loc-view-btn {
+  width: 82px;
+  min-width: 82px;
+}
+
+.locations-page .app table.locations-table .loc-edit-btn {
+  width: 30px;
+  min-width: 30px;
+  padding: 0;
+}
+
+.locations-page .app table.locations-table .loc-action-btn .ic { width: 13px; height: 13px; }
+
+/* ---------- Narrower screens: aligned record cards, no cramped columns ---------- */
+@media (max-width: 1200px) {
+  .locations-page .app .locations-table-wrap {
+    overflow: visible;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .locations-page .app table.locations-table,
+  .locations-page .app table.locations-table tbody,
+  .locations-page .app table.locations-table tbody tr {
+    display: block;
+    width: 100%;
+  }
+
+  .locations-page .app table.locations-table thead { display: none; }
+
+  .locations-page .app table.locations-table tbody tr {
+    height: auto;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--tbl-surface);
+  }
+
+  .locations-page .app table.locations-table tbody tr:nth-child(even),
+  .locations-page .app table.locations-table tbody tr:nth-child(even) > td {
+    background: var(--tbl-zebra) !important;
+  }
+
+  .locations-page .app table.locations-table tbody td {
+    display: flex;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 12px !important;
+    height: auto;
+    padding: 6px 0;
+    border: 0;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .locations-page .app table.locations-table tbody td::before {
+    content: attr(data-label);
+    flex: 0 0 40%;
+    width: 40%;
+    max-width: 40%;
+    color: var(--muted);
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    text-align: left;
+  }
+
+  /* app.js wraps every value in .cell — let it share the row with its label. */
+  .locations-page .app table.locations-table tbody td .cell {
+    display: flex !important;
+    flex: 1 1 auto;
+    width: auto !important;
+    max-width: none !important;
+    min-width: 0;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    text-align: right !important;
+  }
+
+  .locations-page .app table.locations-table tbody td:first-child .cell {
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
+
+  .locations-page .app table.locations-table tbody td:first-child {
+    display: block;
+    padding: 4px 0 8px;
+    margin-bottom: 4px;
+    text-align: left !important;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .locations-page .app table.locations-table tbody td:first-child::before { display: none; }
+
+  .locations-page .app table.locations-table .loc-name { width: auto; }
+
+  .locations-page .app table.locations-table .loc-health,
+  .locations-page .app table.locations-table .loc-actions {
+    width: auto;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    justify-content: flex-end !important;
+  }
+
+  .locations-page .app table.locations-table .loc-count,
+  .locations-page .app table.locations-table .loc-empty,
+  .locations-page .app table.locations-table .loc-total {
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .locations-page .app table.locations-table .loc-view-btn { flex: 1 1 auto; }
+}

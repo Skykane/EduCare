@@ -1,398 +1,237 @@
 <%- include('partials/header') %>
 
+<!-- Page-scoped root: declared in the template so the layout never depends on
+     a route-local class (a long-running Node process can cache the old route). -->
+<div class="profile-page">
+
 <%
-  var profileExtraActions = '';
-  if (currentUser.role === 'requester') {
-    profileExtraActions = `<a class="btn-banner-sub" href="/requests">${icon('file')} My Requests</a>`;
-  } else if (currentUser.role === 'technician') {
-    profileExtraActions = `<a class="btn-banner-sub" href="/technicians/${currentUser.id}">${icon('wrench')} Technician Profile</a>`;
+  // All values shown here come from the logged-in account. Every optional value
+  // has a fallback so a missing field can never crash the whole profile page.
+  function poText(value, fallback) {
+    return (value === undefined || value === null || value === '') ? fallback : String(value);
   }
+
+  var isActive = !!currentUser.active;
+  var userCode = 'USR-' + String(currentUser.id || '').padStart(4, '0');
+  var student = (typeof studentInfo !== 'undefined' && studentInfo) ? studentInfo : null;
+  var isStudentAccount = currentUser.role === 'requester';
+  // Student identity, grade and section come from the shared Student Directory
+  // record. The account fields remain the source for contact/account details.
+  var displayName = isStudentAccount && student
+    ? poText(student.fullName || student.name, currentUser.name)
+    : poText(currentUser.name, 'Unnamed account');
+  var displayEmail = poText(currentUser.email, 'Not provided');
+  var displayPhone = poText(currentUser.phone, 'Not provided');
+  var displayAddress = poText(currentUser.address || (student && student.address), 'Not provided');
+  var displayDepartment = poText(currentUser.department, 'Not specified');
+  var displayStudentId = isStudentAccount
+    ? poText((student && student.studentId) || currentUser.studentId, 'Not assigned')
+    : '';
+  var displayGradeLevel = isStudentAccount
+    ? poText((student && student.gradeLevel) || currentUser.gradeLevel, 'Not specified')
+    : '';
+  var displaySection = isStudentAccount
+    ? poText((student && student.section) || currentUser.section, 'None assigned')
+    : '';
+  var roleLabel = isStudentAccount && currentUser.accountKind === 'teacher' ? 'Teacher'
+    : isStudentAccount ? 'Student' : (typeof C !== 'undefined' && C.ROLES && C.ROLES[currentUser.role])
+    ? C.ROLES[currentUser.role] : poText(currentUser.role, 'Account');
+
+  // Older cached route versions may not pass these locals; derive safe defaults.
+  var scopeText = (typeof activityScope !== 'undefined' && activityScope) ? activityScope
+    : (currentUser.role === 'technician' ? 'Requests assigned to you'
+      : currentUser.role === 'admin' ? 'System-wide request activity across all accounts'
+        : 'Requests you submitted');
+  var activityStats = (typeof stats !== 'undefined' && stats) ? stats
+    : { total: 0, pending: 0, approved: 0, completed: 0 };
+
+  var editAction = `<button type="button" class="btn-banner-sub" data-open-profile-modal>${icon('edit')} Edit Profile</button>`;
 %>
 <%- include('partials/header-banner', {
-  title: 'Edit Profile',
-  subtitle: 'Manage your personal information, department details, and account security.',
-  extraActions: profileExtraActions
+  title: 'My Profile',
+  subtitle: 'Your identity, account details, and request activity at a glance.',
+  extraActions: editAction
 }) %>
 
-<!-- Profile Hero Identity Banner -->
-<div class="profile-hero-card">
-  <div class="profile-hero-banner">
-    <div class="profile-hero-watermark"><%- icon('shield') %></div>
-  </div>
-  <div class="profile-hero-content">
-    <div class="profile-hero-user">
-      <div class="profile-hero-avatar-box">
-        <label for="hero-avatar-input" class="profile-hero-avatar-wrap" title="Click to choose a photo" aria-label="Change Profile Photo">
-          <% if (currentUser.avatar) { %>
-            <img src="/uploads/<%= currentUser.avatar %>" alt="<%= currentUser.name %>" class="profile-hero-avatar-img" id="hero-avatar-preview">
-          <% } else { %>
-            <span class="profile-hero-avatar" id="hero-avatar-fallback"><%= initials(currentUser.name) %></span>
-          <% } %>
-          <span class="profile-avatar-hover-overlay">
-            <%- icon('camera') %>
-            <span class="overlay-text">Change</span>
+<!-- SECTION 1: PROFILE HEADER -->
+<section class="po-hero" aria-label="Profile header">
+  <div class="po-hero-body">
+    <div class="po-identity">
+      <%- include('partials/avatar', {
+        user: currentUser,
+        name: displayName,
+        size: 'xl',
+        showStatus: true,
+        className: 'profile-hero-avatar'
+      }) %>
+      <div class="po-identity-text">
+        <div class="po-name-row">
+          <h2><%= displayName %></h2>
+          <span class="po-role-badge"><%- icon('shield') %> <%= roleLabel %></span>
+          <span class="badge <%= isActive ? 'badge-green' : 'badge-red' %>">
+            <%- icon(isActive ? 'check-circle' : 'x-circle') %> <%= isActive ? 'Active' : 'Inactive' %>
           </span>
-        </label>
-
-        <!-- Camera Badge Button (Click to upload) -->
-        <label for="hero-avatar-input" class="profile-hero-cam-badge" title="Change profile photo" aria-label="Change profile photo">
-          <%- icon('camera') %>
-        </label>
-
-        <!-- Active Status Indicator -->
-        <span class="profile-active-dot" title="Active Account"></span>
-
-        <!-- Quick Remove Photo Button (shown when user has an avatar) -->
-        <% if (currentUser.avatar) { %>
-          <button type="button" class="profile-hero-remove-badge" id="btn-hero-remove" title="Remove profile photo" aria-label="Remove profile photo">
-            <%- icon('x') %>
-          </button>
-        <% } %>
-
-        <!-- Hidden Form for Instant Avatar Upload & Removal -->
-        <form id="hero-avatar-form" method="post" action="/profile/avatar" enctype="multipart/form-data" style="display:none;">
-          <input type="file" id="hero-avatar-input" name="avatar" accept="image/jpeg,image/png,image/gif,image/webp">
-          <input type="hidden" name="removeAvatar" id="hero-remove-avatar" value="0">
-        </form>
-      </div>
-      <div class="profile-hero-details">
-        <div class="profile-hero-name-row">
-          <h2><%= currentUser.name %></h2>
-          <span class="badge badge-crimson"><%= C.ROLES[currentUser.role] %></span>
-          <span class="badge badge-green"><%- icon('check-circle') %> Active</span>
         </div>
-        <div class="profile-hero-sub-row">
-          <span class="profile-chip"><%- icon('mail') %> <%= currentUser.email %></span>
-          <% if (typeof studentInfo !== 'undefined' && studentInfo) { %>
-            <span class="profile-chip"><%- icon('id-card') %> ID: <%= studentInfo.studentId %></span>
-            <span class="profile-chip"><%- icon('award') %> <%= studentInfo.gradeLevel %> - <%= studentInfo.section %></span>
-            <span class="profile-chip"><%- icon('calendar') %> S.Y. <%= studentInfo.schoolYear || '2024-2025' %></span>
-          <% } else if (currentUser.department) { %>
-            <span class="profile-chip"><%- icon('building') %> <%= currentUser.department %></span>
-          <% } %>
-          <% if (currentUser.phone) { %>
-            <span class="profile-chip"><%- icon('phone') %> <%= currentUser.phone %></span>
-          <% } %>
-          <% if (currentUser.address || (typeof studentInfo !== 'undefined' && studentInfo && studentInfo.address)) { %>
-            <span class="profile-chip profile-chip-address" title="<%= currentUser.address || studentInfo.address %>"><%- icon('map-pin') %> <%= currentUser.address || studentInfo.address %></span>
+        <div class="po-identity-chips">
+          <span class="po-id-chip"><%- icon('id-card') %> User ID <strong class="po-mono"><%= userCode %></strong></span>
+          <% if (isStudentAccount) { %>
+            <span class="po-id-chip"><%- icon('award') %> Student ID <strong class="po-mono"><%= displayStudentId %></strong></span>
           <% } %>
         </div>
       </div>
     </div>
-
-    <% if (typeof stats !== 'undefined' && stats) { %>
-      <div class="profile-stats-bar">
-        <div class="profile-stat-box">
-          <span class="stat-num"><%= stats.total %></span>
-          <span class="stat-txt">Total Requests</span>
-        </div>
-        <div class="profile-stat-box stat-pending">
-          <span class="stat-num"><%= stats.pending %></span>
-          <span class="stat-txt"><%= currentUser.role === 'technician' ? 'Assigned' : 'Pending' %></span>
-        </div>
-        <div class="profile-stat-box stat-completed">
-          <span class="stat-num"><%= stats.completed %></span>
-          <span class="stat-txt">Completed</span>
-        </div>
+    <div class="po-profile-actions">
+      <div class="po-department-box">
+        <span class="po-department-label"><%- icon('building') %> Department / Office / Club</span>
+        <strong><%= displayDepartment %></strong>
       </div>
-    <% } %>
+    </div>
   </div>
+</section>
+
+<div class="po-detail-grid">
+  <!-- SECTION 2: PERSONAL INFORMATION -->
+  <section class="card po-panel po-info-panel" aria-labelledby="po-info-title">
+    <div class="po-panel-head">
+      <span class="po-panel-icon"><%- icon('user') %></span>
+      <div>
+        <h3 id="po-info-title">Personal Information</h3>
+        <p>Read-only details from your account</p>
+      </div>
+    </div>
+    <dl class="po-info-list">
+      <div class="po-info-row">
+        <dt><span class="po-info-icon"><%- icon('user') %></span><span class="po-info-label">Full Name</span></dt>
+        <dd><%= displayName %></dd>
+      </div>
+      <% if (isStudentAccount) { %>
+        <div class="po-info-row">
+          <dt><span class="po-info-icon"><%- icon('id-card') %></span><span class="po-info-label">Student ID</span></dt>
+          <dd class="po-mono"><%= displayStudentId %></dd>
+        </div>
+      <% } %>
+      <div class="po-info-row">
+        <dt><span class="po-info-icon"><%- icon('mail') %></span><span class="po-info-label">Email Address</span></dt>
+        <dd><%= displayEmail %></dd>
+      </div>
+      <div class="po-info-row">
+        <dt><span class="po-info-icon"><%- icon('phone') %></span><span class="po-info-label">Phone Number</span></dt>
+        <dd><%= displayPhone %></dd>
+      </div>
+      <div class="po-info-row">
+        <dt><span class="po-info-icon"><%- icon('map-pin') %></span><span class="po-info-label">Address</span></dt>
+        <dd><%= displayAddress %></dd>
+      </div>
+      <% if (isStudentAccount) { %>
+        <div class="po-info-row">
+          <dt><span class="po-info-icon"><%- icon('cap') %></span><span class="po-info-label">Grade Level</span></dt>
+          <dd><%= displayGradeLevel %></dd>
+        </div>
+        <div class="po-info-row">
+          <dt><span class="po-info-icon"><%- icon('layers') %></span><span class="po-info-label">Section</span></dt>
+          <dd><%= displaySection %></dd>
+        </div>
+      <% } else { %>
+        <div class="po-info-row">
+          <dt><span class="po-info-icon"><%- icon('building') %></span><span class="po-info-label">Department / Office / Club</span></dt>
+          <dd><%= displayDepartment %></dd>
+        </div>
+      <% } %>
+    </dl>
+  </section>
+
+  <!-- SECTION 3: ACCOUNT INFORMATION -->
+  <section class="po-account-panel" aria-labelledby="po-account-title">
+    <div class="po-panel-head po-account-head">
+      <span class="po-panel-icon"><%- icon('shield') %></span>
+      <div>
+        <h3 id="po-account-title">Account Information</h3>
+        <p>Your account registration and access details</p>
+      </div>
+    </div>
+    <div class="po-account-grid">
+      <article class="po-mini-card">
+        <span class="po-mini-icon po-tone-<%= isActive ? 'green' : 'red' %>"><%- icon('shield') %></span>
+        <div class="po-mini-body">
+          <span class="po-mini-label">Account Status</span>
+          <span class="badge <%= isActive ? 'badge-green' : 'badge-red' %>"><%= isActive ? 'Active' : 'Inactive' %></span>
+        </div>
+      </article>
+      <article class="po-mini-card">
+        <span class="po-mini-icon po-tone-blue"><%- icon('calendar') %></span>
+        <div class="po-mini-body">
+          <span class="po-mini-label">Date Registered</span>
+          <strong class="po-mini-value"><%= currentUser.createdAt ? fmtDate(currentUser.createdAt) : '—' %></strong>
+          <% if (currentUser.createdAt) { %><span class="po-mini-sub"><%= timeAgo(currentUser.createdAt) %></span><% } %>
+        </div>
+      </article>
+      <article class="po-mini-card">
+        <span class="po-mini-icon po-tone-amber"><%- icon('clock') %></span>
+        <div class="po-mini-body">
+          <span class="po-mini-label">Last Login</span>
+          <strong class="po-mini-value"><%= currentUser.lastLoginAt ? fmtDateTime(currentUser.lastLoginAt) : 'Never' %></strong>
+          <% if (currentUser.lastLoginAt) { %><span class="po-mini-sub"><%= timeAgo(currentUser.lastLoginAt) %></span><% } %>
+        </div>
+      </article>
+      <article class="po-mini-card">
+        <span class="po-mini-icon po-tone-maroon"><%- icon('user-check') %></span>
+        <div class="po-mini-body">
+          <span class="po-mini-label">Account Role</span>
+          <strong class="po-mini-value"><%= roleLabel %></strong>
+          <span class="po-mini-sub"><%= userCode %></span>
+        </div>
+      </article>
+    </div>
+  </section>
 </div>
 
-<!-- Main Forms Grid -->
-<div class="profile-grid">
-  <!-- Card 1: Personal Details -->
-  <div class="card profile-card card-floating">
-    <div class="profile-card-header">
-      <div class="profile-card-icon"><%- icon('user') %></div>
-      <div>
-        <h3>Personal Details</h3>
-        <p>Update your personal information and contact details</p>
-      </div>
+<!-- SECTION 4: ACCOUNT ACTIVITY -->
+<section class="card po-panel po-activity-panel" aria-labelledby="po-activity-title">
+  <div class="po-panel-head">
+    <span class="po-panel-icon"><%- icon('chart') %></span>
+    <div>
+      <h3 id="po-activity-title">Account Activity</h3>
+      <p><%= scopeText %></p>
     </div>
-
-    <form method="post" action="/profile" class="profile-form">
-      <% if (typeof studentInfo !== 'undefined' && studentInfo) { %>
-        <!-- Verified High School Student Record (Official Database · Read-Only) -->
-        <div class="verified-student-card">
-          <div class="verified-card-header">
-            <div class="verified-title-group">
-              <span class="verified-icon-badge"><%- icon('shield') %></span>
-              <div>
-                <strong>Verified High School Student Record</strong>
-                <small>Official registrar record &bull; Read-only</small>
-              </div>
-            </div>
-            <span class="badge badge-green"><%- icon('check-circle') %> Database Verified</span>
-          </div>
-
-          <div class="verified-tiles-grid">
-            <div class="verified-tile">
-              <div class="vt-icon"><%- icon('id-card') %></div>
-              <div class="vt-data">
-                <span class="vt-label">Student ID Number</span>
-                <span class="vt-val"><%= studentInfo.studentId %></span>
-              </div>
-              <span class="vt-lock" title="Read-only registrar record"><%- icon('lock') %></span>
-            </div>
-
-            <div class="verified-tile">
-              <div class="vt-icon"><%- icon('award') %></div>
-              <div class="vt-data">
-                <span class="vt-label">Grade / Year Level</span>
-                <span class="vt-val"><%= studentInfo.gradeLevel %></span>
-              </div>
-              <span class="vt-lock" title="Read-only registrar record"><%- icon('lock') %></span>
-            </div>
-
-            <div class="verified-tile">
-              <div class="vt-icon"><%- icon('building') %></div>
-              <div class="vt-data">
-                <span class="vt-label">Section & Strand</span>
-                <span class="vt-val"><%= studentInfo.section %><% if (studentInfo.track) { %> · <%= studentInfo.track %><% } %></span>
-              </div>
-              <span class="vt-lock" title="Read-only registrar record"><%- icon('lock') %></span>
-            </div>
-
-            <div class="verified-tile">
-              <div class="vt-icon"><%- icon('calendar') %></div>
-              <div class="vt-data">
-                <span class="vt-label">School Year</span>
-                <span class="vt-val"><%= studentInfo.schoolYear || '2024-2025' %></span>
-              </div>
-              <span class="vt-lock" title="Read-only registrar record"><%- icon('lock') %></span>
-            </div>
-          </div>
-        </div>
-      <% } %>
-
-      <!-- Editable Personal Information Grid -->
-      <div class="profile-fields-grid">
-        <div class="field">
-          <label for="name">Full Name <span class="req">*</span></label>
-          <div class="input-icon-wrap">
-            <span class="field-icon"><%- icon('user') %></span>
-            <input type="text" id="name" name="name" value="<%= currentUser.name %>" required maxlength="120" placeholder="e.g. Nicole Santos">
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="email">School Email Address <span class="badge badge-sm badge-gray"><%- icon('lock') %> Read-only</span></label>
-          <div class="input-icon-wrap">
-            <span class="field-icon"><%- icon('mail') %></span>
-            <input type="email" id="email" value="<%= currentUser.email %>" disabled class="input-readonly">
-            <span class="field-icon-right"><%- icon('lock') %></span>
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="phone">Phone Number <span class="field-tag">11 digits</span></label>
-          <div class="input-icon-wrap">
-            <span class="field-icon"><%- icon('phone') %></span>
-            <input type="tel" id="phone" name="phone" value="<%= currentUser.phone || '' %>" maxlength="11" pattern="[0-9]{11}" inputmode="numeric" placeholder="09171234567" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 11)">
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="department">Department / Office / Club <span class="field-tag">Editable</span></label>
-          <div class="input-icon-wrap">
-            <span class="field-icon"><%- icon('building') %></span>
-            <input type="text" id="department" name="department" value="<%= currentUser.department || '' %>" maxlength="150" placeholder="e.g. Student Council, Grade 12 - STEM A">
-          </div>
-        </div>
-
-        <div class="field field-full">
-          <label for="address">Address <span class="field-tag">Residential / Home</span></label>
-          <div class="input-icon-wrap">
-            <span class="field-icon"><%- icon('map-pin') %></span>
-            <input type="text" id="address" name="address" value="<%= currentUser.address || (typeof studentInfo !== 'undefined' && studentInfo && studentInfo.address) || '' %>" maxlength="250" placeholder="House / Street, Barangay, City / Municipality">
-          </div>
-        </div>
-      </div>
-
-      <% if (currentUser.role === 'technician') { %>
-        <div class="field" style="margin-top: 6px;">
-          <label>My Specializations & Technical Skills <span class="field-tag">Prioritized</span></label>
-          <p class="muted" style="margin: 2px 0 8px; font-size: 12px;">Tasks in selected equipment categories will be prioritized for you.</p>
-          <div class="spec-grid">
-            <% (typeof categories !== 'undefined' ? categories : []).forEach(function (c) { var on = (currentUser.specializations || []).includes(c.id); %>
-              <label class="spec-item <%= on ? 'checked' : '' %>">
-                <input type="checkbox" name="specializations" value="<%= c.id %>" <%= on ? 'checked' : '' %> onchange="this.closest('.spec-item').classList.toggle('checked', this.checked)">
-                <strong><%= c.name %></strong>
-              </label>
-            <% }) %>
-          </div>
-        </div>
-      <% } %>
-
-      <div class="profile-card-footer">
-        <button class="btn btn-primary" type="submit">
-          <%- icon('check') %> Save Changes
-        </button>
-      </div>
-    </form>
   </div>
-
-  <!-- Card 2: Security & Password -->
-  <div class="card profile-card card-floating">
-    <div class="profile-card-header">
-      <div class="profile-card-icon profile-icon-security"><%- icon('shield') %></div>
-      <div>
-        <h3>Account Security</h3>
-        <p>Change your password to keep your account safe</p>
+  <div class="po-activity-grid">
+    <article class="po-stat-card po-tone-maroon">
+      <div class="po-stat-top">
+        <span class="po-stat-icon"><%- icon('file') %></span>
+        <span class="po-stat-label">Total Requests</span>
       </div>
-    </div>
-
-    <% if (currentUser.role === 'technician') { %>
-      <form method="post" action="/technicians/<%= currentUser.id %>/availability" class="technician-avail-card">
-        <input type="hidden" name="back" value="/profile">
-        <div class="avail-header">
-          <strong><%- icon('wrench') %> Technician Availability</strong>
-          <span class="avail-current <%= statusClass(currentUser.availability) %>"><%= currentUser.availability %></span>
-        </div>
-        <div class="avail-row">
-          <select name="availability" aria-label="Availability">
-            <% C.AVAILABILITY.forEach(function (a) { %><option <%= currentUser.availability === a ? 'selected' : '' %>><%= a %></option><% }) %>
-          </select>
-          <button class="btn btn-light btn-sm" type="submit">Update Availability</button>
-        </div>
-      </form>
-    <% } %>
-
-    <form method="post" action="/profile/password" class="profile-form" id="password-form">
-      <% if (flash && (flash.msg.toLowerCase().includes('password') || flash.msg.toLowerCase().includes('current'))) { %>
-        <div class="alert alert-<%= flash.type %>" style="margin-bottom: 14px; display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 13px;">
-          <%- icon(flash.type === 'success' ? 'check-circle' : 'alert-circle') %>
-          <span><%= flash.msg %></span>
-        </div>
-      <% } %>
-
-      <div class="field">
-        <label for="current_password">Current Password <span class="req">*</span></label>
-        <div class="input-icon-wrap">
-          <span class="field-icon"><%- icon('lock') %></span>
-          <input type="password" id="current_password" name="current" required autocomplete="current-password" placeholder="Enter current password">
-          <button type="button" class="btn-toggle-pw" data-target="current_password" title="Show / hide password" aria-label="Toggle password visibility"><%- icon('eye') %></button>
-        </div>
+      <strong class="po-stat-value"><%= poText(activityStats.total, 0) %></strong>
+      <span class="po-stat-hint">All requests in this view</span>
+    </article>
+    <article class="po-stat-card po-tone-amber">
+      <div class="po-stat-top">
+        <span class="po-stat-icon"><%- icon('clock') %></span>
+        <span class="po-stat-label">Pending Requests</span>
       </div>
-
-      <div class="profile-fields-grid">
-        <div class="field">
-          <label for="new_password">New Password <span class="req">*</span></label>
-          <div class="input-icon-wrap">
-            <span class="field-icon"><%- icon('lock') %></span>
-            <input type="password" id="new_password" name="password" required minlength="8" autocomplete="new-password" placeholder="At least 8 chars">
-            <button type="button" class="btn-toggle-pw" data-target="new_password" title="Show / hide password" aria-label="Toggle password visibility"><%- icon('eye') %></button>
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="confirm_password">Confirm Password <span class="req">*</span></label>
-          <div class="input-icon-wrap">
-            <span class="field-icon"><%- icon('lock') %></span>
-            <input type="password" id="confirm_password" name="confirm" required minlength="8" autocomplete="new-password" placeholder="Repeat new password">
-            <button type="button" class="btn-toggle-pw" data-target="confirm_password" title="Show / hide password" aria-label="Toggle password visibility"><%- icon('eye') %></button>
-          </div>
-        </div>
+      <strong class="po-stat-value"><%= poText(activityStats.pending, 0) %></strong>
+      <span class="po-stat-hint"><%= currentUser.role === 'technician' ? 'Awaiting your action' : 'Awaiting review' %></span>
+    </article>
+    <article class="po-stat-card po-tone-blue">
+      <div class="po-stat-top">
+        <span class="po-stat-icon"><%- icon('check-circle') %></span>
+        <span class="po-stat-label">Approved Requests</span>
       </div>
-
-      <div class="pw-strength-container" id="pw-meter-wrap" style="display:none">
-        <div class="pw-strength-bar">
-          <div class="pw-strength-fill" id="pw-meter-fill"></div>
-        </div>
-        <div class="pw-strength-text">
-          <span>Password Strength:</span>
-          <strong id="pw-strength-label">Enter password</strong>
-        </div>
+      <strong class="po-stat-value"><%= poText(activityStats.approved, 0) %></strong>
+      <span class="po-stat-hint">Cleared to proceed</span>
+    </article>
+    <article class="po-stat-card po-tone-green">
+      <div class="po-stat-top">
+        <span class="po-stat-icon"><%- icon('check') %></span>
+        <span class="po-stat-label">Completed Requests</span>
       </div>
-
-      <!-- Compact Password Security Checklist -->
-      <div class="pw-rules-compact">
-        <div class="pw-rules-headline">
-          <%- icon('shield') %> <span>Security Requirements</span>
-        </div>
-        <div class="pw-rules-grid">
-          <div class="pw-rule-chip" id="rule-length">
-            <span class="pw-rule-icon"><%- icon('check') %></span>
-            <span>At least 8 chars</span>
-          </div>
-          <div class="pw-rule-chip" id="rule-letters">
-            <span class="pw-rule-icon"><%- icon('check') %></span>
-            <span>Letters (A-Z, a-z)</span>
-          </div>
-          <div class="pw-rule-chip" id="rule-number">
-            <span class="pw-rule-icon"><%- icon('check') %></span>
-            <span>Numbers / symbols</span>
-          </div>
-          <div class="pw-rule-chip" id="rule-match">
-            <span class="pw-rule-icon"><%- icon('check') %></span>
-            <span>Passwords match</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="profile-card-footer">
-        <button class="btn btn-primary" type="submit" id="btn-change-password">
-          <%- icon('lock') %> Update Password
-        </button>
-      </div>
-    </form>
+      <strong class="po-stat-value"><%= poText(activityStats.completed, 0) %></strong>
+      <span class="po-stat-hint">Successfully resolved</span>
+    </article>
   </div>
-</div>
+</section>
 
-<script>
-  (function () {
-    var avatarInput = document.getElementById('hero-avatar-input');
-    var avatarForm = document.getElementById('hero-avatar-form');
-    var removeAvatar = document.getElementById('hero-remove-avatar');
-    var btnRemove = document.getElementById('btn-hero-remove');
-    var avatarPreview = document.getElementById('hero-avatar-preview');
-    var avatarFallback = document.getElementById('hero-avatar-fallback');
+<%- include('partials/profile-edit-modal') %>
 
-    if (avatarInput && avatarForm) {
-      avatarInput.addEventListener('change', function () {
-        var file = this.files && this.files[0];
-        if (!file) return;
-
-        // Check file size (max 5 MB)
-        if (file.size > 5 * 1024 * 1024) {
-          alert('Photo size exceeds 5 MB. Please choose a smaller image.');
-          avatarInput.value = '';
-          return;
-        }
-
-        // Live preview before redirect
-        var reader = new FileReader();
-        reader.onload = function (e) {
-          if (avatarPreview) {
-            avatarPreview.src = e.target.result;
-          } else if (avatarFallback) {
-            avatarFallback.style.display = 'none';
-            var newImg = document.createElement('img');
-            newImg.src = e.target.result;
-            newImg.className = 'profile-hero-avatar-img';
-            newImg.id = 'hero-avatar-preview';
-            avatarFallback.parentNode.insertBefore(newImg, avatarFallback);
-          }
-        };
-        reader.readAsDataURL(file);
-
-        // Auto-submit the upload form to save immediately
-        avatarForm.submit();
-      });
-    }
-
-    if (btnRemove && avatarForm && removeAvatar) {
-      btnRemove.addEventListener('click', function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (confirm('Are you sure you want to remove your profile photo?')) {
-          removeAvatar.value = '1';
-          avatarForm.submit();
-        }
-      });
-    }
-  })();
-</script>
+</div><!-- /.profile-page -->
 
 <%- include('partials/footer') %>

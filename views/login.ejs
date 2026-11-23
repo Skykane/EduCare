@@ -1,27 +1,33 @@
 <%- include('partials/auth-top', { title: 'Log In' }) %>
-<% if (notice) { %><div class="auth-alert success"><%= notice %></div><% } %>
-<% if (error) { %><div class="auth-alert error"><%= error %></div><% } %>
-<form method="post" action="/login" class="auth-form">
-  <input type="hidden" name="next" value="<%= next %>">
-  <div class="input-icon">
-    <%- include('partials/auth-icons', { icon: 'mail' }) %>
-    <label for="email" class="visually-hidden">Email Address or Student ID</label>
-    <input type="text" id="email" name="email" value="<%= email %>" placeholder="Email Address or Student ID" required autofocus autocomplete="username">
+<div class="auth-scroll">
+  <div class="auth-form-heading">
+    <h2 class="auth-title">Welcome back</h2>
+    <p class="auth-sub">Sign in to continue.</p>
   </div>
-  <div class="input-icon">
-    <%- include('partials/auth-icons', { icon: 'lock' }) %>
-    <label for="password" class="visually-hidden">Password</label>
-    <input type="password" id="password" name="password" placeholder="Password" required autocomplete="current-password">
-    <button type="button" class="eye" data-toggle-password="password" aria-label="Show password"><%- include('partials/auth-icons', { icon: 'eye' }) %></button>
-  </div>
-  <div class="auth-row">
-    <label><input type="checkbox" name="remember" value="1" <%= remember ? 'checked' : '' %>> Remember me</label>
-    <a href="/forgot-password">Forgot Password?</a>
-  </div>
-  <button class="auth-btn" type="submit">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M3 12h12M10 7l5 5-5 5"/></svg>
-    Log In
-  </button>
-</form>
+  <% if (notice) { %><div class="auth-alert success"><%= notice %></div><% } %>
+  <% if (error) { %><div class="auth-alert error"><%= error %></div><% } %>
+  <form method="post" action="/login" class="auth-form login-form">
+    <input type="hidden" name="next" value="<%= next %>">
+    <div class="input-icon">
+      <%- include('partials/auth-icons', { icon: 'mail' }) %>
+      <label for="email" class="visually-hidden">Email Address or Student ID</label>
+      <input type="text" id="email" name="email" value="<%= email %>" placeholder="Email Address or Student ID" required autofocus autocomplete="username">
+    </div>
+    <div class="input-icon">
+      <%- include('partials/auth-icons', { icon: 'lock' }) %>
+      <label for="password" class="visually-hidden">Password</label>
+      <input type="password" id="password" name="password" placeholder="Password" required autocomplete="current-password">
+      <button type="button" class="eye" data-toggle-password="password" aria-label="Show password"><%- include('partials/auth-icons', { icon: 'eye' }) %></button>
+    </div>
+    <div class="auth-row">
+      <label><input type="checkbox" name="remember" value="1" <%= remember ? 'checked' : '' %>> Remember me</label>
+      <a href="/forgot-password">Forgot Password?</a>
+    </div>
+    <button class="auth-btn" type="submit">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M3 12h12M10 7l5 5-5 5"/></svg>
+      Log In
+    </button>
+  </form>
+</div>
 <p class="auth-foot">Don't have an account? &nbsp;<a href="/register">Register here</a></p>
 <%- include('partials/auth-bottom') %>

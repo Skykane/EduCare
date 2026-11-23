@@ -1,0 +1,398 @@
+/* =====================================================================
+   EDUCARE UNIFIED TABLE DESIGN SYSTEM
+   ---------------------------------------------------------------------
+   Single source of truth for every table in every module and role.
+   Loaded after style.css so it overrides legacy per-module table rules.
+   Markup, columns, links and actions are untouched — presentation only.
+   ===================================================================== */
+:root {
+  --tbl-divider: #e2e5ec;
+  --tbl-head-bg: #7d0c17;
+  --tbl-head-border: rgba(255, 255, 255, 0.18);
+  --tbl-head-ink: #ffffff;
+  --tbl-surface: #ffffff;
+  --tbl-text: #222630;
+  --tbl-muted: #6b7280;
+  --tbl-zebra: #fbf7f8;
+  --tbl-hover: #fdf0f2;
+  --tbl-soft: #8c1724;
+  --tbl-soft-bg: #fdecef;
+  --tbl-radius: 12px;
+  --tbl-cell-pad: 12px 14px;
+}
+
+[data-theme="dark"] {
+  --tbl-divider: #2c3346;
+  --tbl-head-bg: #5c0d16;
+  --tbl-head-border: rgba(255, 255, 255, 0.12);
+  --tbl-head-ink: #ffffff;
+  --tbl-surface: #181c26;
+  --tbl-text: #e2e8f0;
+  --tbl-muted: #96a1b5;
+  --tbl-zebra: #1c2230;
+  --tbl-hover: #2a1b24;
+  --tbl-soft: #f87171;
+  --tbl-soft-bg: rgba(201, 59, 74, 0.16);
+}
+
+/* ---------------------------------------------------------------------
+   1. Containers — one border radius and one border treatment everywhere
+   --------------------------------------------------------------------- */
+.app .table-wrap,
+.app .report-table-box,
+.app .email-history-table-box,
+.app .equipment-table-wrap,
+.app .adm-table-wrap,
+.app .account-approval-table-wrap,
+.app .dispatch-queue-table-wrap {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  background: var(--tbl-surface);
+  border: 1px solid var(--tbl-divider);
+  border-radius: var(--tbl-radius);
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.05);
+}
+
+/* A second box around a table should not double the frame. */
+.app .email-history-table-box > .table-wrap {
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.app table {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  border-collapse: collapse;
+  border-spacing: 0;
+  table-layout: auto;
+  color: var(--tbl-text);
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------------
+   2. Headers — deep maroon, fixed rhythm, white text
+   --------------------------------------------------------------------- */
+.app table thead,
+.app table thead tr {
+  height: 46px;
+}
+
+.app table th,
+.app table thead tr > th,
+.app .table-wrap table thead th,
+.app .report-table-box table thead th,
+.app .report-grid-table th {
+  height: 46px;
+  padding: var(--tbl-cell-pad);
+  background: var(--tbl-head-bg);
+  color: var(--tbl-head-ink);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: 0.55px;
+  text-transform: uppercase;
+  text-align: left;
+  vertical-align: middle;
+  white-space: nowrap;
+  border-right: 1px solid var(--tbl-head-border);
+  border-bottom: 1px solid var(--tbl-head-border);
+  border-radius: 0;
+}
+
+.app table th:last-child,
+.app .table-wrap table thead th:last-child,
+.app .report-grid-table th:last-child {
+  border-right: 0;
+}
+
+.app table th:first-child,
+.app .table-wrap table thead th:first-child,
+.app table td:first-child { padding-left: 16px; }
+.app table th:last-child,
+.app .table-wrap table thead th:last-child,
+.app table td:last-child { padding-right: 16px; }
+
+/* Header content wrappers stay aligned with the header text. */
+.app table th > span,
+.app table th > div {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+.app table th.col-center > span,
+.app table th.col-center > div { justify-content: center; }
+
+/* ---------------------------------------------------------------------
+   3. Body — dividers, padding, zebra striping and hover
+   --------------------------------------------------------------------- */
+.app table td,
+.app .report-grid-table td {
+  padding: var(--tbl-cell-pad);
+  /* Opaque cells block legacy row-level hover/zebra fills from showing through. */
+  background-color: var(--tbl-surface);
+  color: var(--tbl-text);
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+  border-right: 1px solid var(--tbl-divider);
+  border-bottom: 1px solid var(--tbl-divider);
+}
+
+.app table td:last-child,
+.app .report-grid-table td:last-child { border-right: 0; }
+
+/* Keep the last horizontal rule consistent with every other row. */
+.app table tbody tr:last-child > td,
+.app .report-grid-table tbody tr:last-child > td {
+  border-bottom: 1px solid var(--tbl-divider);
+}
+
+.app table tbody tr,
+.app table tbody tr:nth-child(even),
+.app table tbody tr:hover,
+.app .report-grid-table tbody tr,
+.app .report-grid-table tbody tr:hover {
+  background-color: transparent;
+}
+
+.app table tbody tr:nth-child(even) > td,
+.app .report-grid-table tbody tr:nth-child(even) > td {
+  background-color: var(--tbl-zebra);
+}
+
+.app table tbody tr:hover > td,
+.app .report-grid-table tbody tr:hover > td {
+  background-color: var(--tbl-hover);
+}
+
+/* Secondary line inside a cell. */
+.app table td .sub,
+.app table td > .cell .sub {
+  display: block;
+  margin-top: 3px;
+  color: var(--tbl-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+/* Empty states span the full table and stay centered. */
+.app table td.empty,
+.app table td.full-cell {
+  text-align: center;
+  color: var(--tbl-muted);
+  padding: 32px 16px;
+}
+
+/* Overdue rows keep their red marker without touching cell alignment. */
+.app table tr.row-overdue > td:first-child { box-shadow: inset 3px 0 0 var(--red); }
+
+/* ---------------------------------------------------------------------
+   4. Column alignment — header and data always match
+   --------------------------------------------------------------------- */
+.app table th.col-left,
+.app table td.col-left,
+.app .report-grid-table th.col-left,
+.app .report-grid-table td.col-left,
+.app .report-grid-table .th-cat,
+.app .report-grid-table .td-cat { text-align: left; }
+
+.app table th.col-center,
+.app table td.col-center,
+.app .report-grid-table th.col-center,
+.app .report-grid-table td.col-center,
+.app .report-grid-table .th-num,
+.app .report-grid-table .td-num { text-align: center; }
+
+/* app.js wraps cell contents in .cell — keep the wrapper aligned too. */
+.app table td.col-center > .cell,
+.app table td.col-center .cell { text-align: center; }
+.app table td.col-left > .cell,
+.app table td.col-left .cell { text-align: left; }
+
+/* Center badges, buttons, icons and action/avatar groups in centered cells. */
+.app table td.col-center > .badge,
+.app table td.col-center > .btn,
+.app table td.col-center > .row-actions,
+.app table td.col-center > form,
+.app table td.col-center > .cell > .badge,
+.app table td.col-center > .cell > .btn,
+.app table td.col-center > .cell > .row-actions,
+.app table td.col-center > .cell > form {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.app table td.col-center .row-actions,
+.app table td.col-center .account-approval-actions,
+.app table td.col-center .adm-requester,
+.app table td.col-center .dispatch-tech-row,
+.app table td.col-center .eq-media,
+.app table td.col-center .account-approval-student-id,
+.app table td.col-center .account-approval-role {
+  justify-content: center;
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Numeric / code columns read better with tabular figures. */
+.app table td .mono,
+.app table td .adm-req-code,
+.app table td .account-approval-student-id {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------
+   5. Status badges — one size, semantic colours preserved
+   --------------------------------------------------------------------- */
+.app table .badge,
+.app table .chip,
+.app table .sev-chip-1,
+.app table .sev-chip-2,
+.app table .sev-chip-3,
+.app table .sev-chip-4 {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 22px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.app table .badge-crimson {
+  background: var(--tbl-soft-bg);
+  color: var(--tbl-soft);
+}
+
+/* ---------------------------------------------------------------------
+   6. Responsive — stacked record cards, no clipped columns
+   --------------------------------------------------------------------- */
+@media (min-width: 761px) {
+  /* Legacy minimum widths forced desktop overflow; the system uses auto layout. */
+  .app .table-wrap table,
+  .app .report-table-box table,
+  .app table.stack-table.equipment-table,
+  .app .dispatch-queue-card table { min-width: 0; }
+}
+
+@media (max-width: 760px) {
+  .app .table-wrap,
+  .app .report-table-box,
+  .app .email-history-table-box,
+  .app .equipment-table-wrap,
+  .app .adm-table-wrap {
+    overflow: visible;
+    background: transparent;
+    border: 0;
+    box-shadow: none;
+  }
+
+  .app table.stack-table,
+  .app table.stack-table tbody,
+  .app table.stack-table tbody tr,
+  .app table.stack-table tbody td {
+    display: block;
+    width: 100%;
+  }
+
+  .app table.stack-table thead { display: none; }
+
+  .app table.stack-table tbody tr {
+    margin-bottom: 10px;
+    padding: 8px 12px;
+    background: var(--tbl-surface);
+    border: 1px solid var(--tbl-divider);
+    border-radius: 10px;
+  }
+
+  .app table.stack-table tbody tr.row-overdue { border-left: 4px solid var(--red); }
+  .app table.stack-table tbody tr.row-overdue > td:first-child { box-shadow: none; }
+
+  .app table.stack-table tbody tr:nth-child(even) > td,
+  .app table.stack-table tbody tr:hover > td {
+    background-color: transparent;
+  }
+
+  .app table.stack-table tbody td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 7px 0;
+    border: 0;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .app table.stack-table tbody td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    max-width: 42%;
+    padding-top: 2px;
+    color: var(--tbl-muted);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+    text-align: left;
+  }
+
+  .app table.stack-table tbody td[data-label=""]::before { display: none; }
+
+  .app table.stack-table tbody td[data-label=""] {
+    justify-content: stretch;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--tbl-divider);
+  }
+
+  .app table.stack-table tbody td[data-label=""] > .cell {
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .app table.stack-table tbody td[data-label=""] .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  /* The first field and full-width cells become row headings in card view. */
+  .app table.stack-table tbody td:first-child,
+  .app table.stack-table tbody td.full-cell {
+    display: block;
+    padding: 4px 0 8px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--tbl-divider);
+    text-align: left;
+  }
+
+  .app table.stack-table tbody td:first-child::before,
+  .app table.stack-table tbody td.full-cell::before { display: none; }
+
+  .app table.stack-table tbody td.empty { text-align: center; }
+  .app table.stack-table td > .cell { min-width: 0; }
+  .app table.stack-table td.nowrap { white-space: normal; }
+}
+
+@media (max-width: 420px) {
+  .app table.stack-table tbody tr { padding: 8px 10px; }
+  .app table.stack-table tbody td { font-size: 12.5px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app table tbody tr { transition: none; }
+}

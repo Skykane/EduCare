@@ -14,9 +14,10 @@ function runAutomatedChecks() {
   const admins = adminIds();
   let sent = 0;
 
-  // Preventive maintenance due soon / overdue.
+  // Preventive maintenance due soon / overdue. Equipment without recorded
+  // maintenance has no due date, so it must not generate reminder messages.
   for (const s of allSchedules(today)) {
-    if (s.status === 'Scheduled' || s.openTask) continue;
+    if (!['Overdue', 'Due Soon'].includes(s.status) || s.openTask) continue;
     const eq = s.equipment;
     const msg =
       s.status === 'Overdue'

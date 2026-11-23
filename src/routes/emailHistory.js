@@ -14,6 +14,16 @@ router.get('/', (req, res) => {
   const status = str(req.query.status, 20).toLowerCase();
   const allLogs = (db.all('outgoingEmails') || []).slice().reverse();
 
+  // Display-only summary counts derived from the same log records used below.
+  // Filtering, sorting and clearing behavior are intentionally unchanged.
+  const summary = allLogs.reduce((acc, m) => {
+    const status = String(m.status || '').toLowerCase();
+    if (status === 'delivered') acc.delivered += 1;
+    else if (status === 'failed') acc.failed += 1;
+    else if (status === 'pending' || status === 'simulated') acc.pending += 1;
+    return acc;
+  }, { total: allLogs.length, delivered: 0, failed: 0, pending: 0 });
+
   const outgoingEmails = allLogs.filter((m) => {
     if (status && (m.status || '').toLowerCase() !== status) return false;
     if (q && ![m.to, m.subject, m.from].some((v) => (v || '').toLowerCase().includes(q))) return false;
@@ -24,6 +34,7 @@ router.get('/', (req, res) => {
     title: 'Outgoing Email History',
     outgoingEmails,
     totalCount: allLogs.length,
+    summary,
     f: { q, status },
   });
 });

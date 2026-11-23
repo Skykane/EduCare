@@ -15,8 +15,9 @@ function loadUser(req, res, next) {
     user = null;
     req.session.userId = null;
   }
-  // Enforce student verification: only officially registered students can access requester sessions
-  if (user && user.role === 'requester') {
+  // Teacher requesters use email/password only. Student requesters must still
+  // match an official Student Directory record.
+  if (user && user.role === 'requester' && user.accountKind !== 'teacher') {
     const { verifyStudentRegistration } = require('./services/studentVerification');
     const verification = verifyStudentRegistration(user.studentId);
     if (!verification.allowed) {
@@ -25,7 +26,7 @@ function loadUser(req, res, next) {
       if (req.session) {
         req.session.flash = {
           type: 'error',
-          msg: verification.reason || 'Access Denied: You are not an officially registered student of this high school.',
+          msg: verification.reason || 'Access Denied: You are not a registered member of the institution.',
         };
       }
     }
@@ -53,12 +54,18 @@ function loadUser(req, res, next) {
   res.locals.getEquipment = (id) => (id ? db.find('equipment', id) : null);
   res.locals.allEquipment = () => db.all('equipment').slice().sort((a, b) => a.code.localeCompare(b.code));
   res.locals.allCategories = () => db.all('categories');
-  res.locals.allLocations = () => [...new Set([...(C.HIGH_SCHOOL_LOCATIONS || []), ...db.all('equipment').map((e) => e.location).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+  res.locals.allLocations = () => [...new Set([...(C.CAMPUS_LOCATIONS || []), ...db.all('equipment').map((e) => e.location).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
   next();
 }
 
 function requireLogin(req, res, next) {
   if (!req.user) return res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
+  // A temporary password must be replaced before the rest of the app is accessible.
+  if (req.user.mustChangePassword) {
+    const pathOnly = String(req.originalUrl || req.url || '').split('?')[0];
+    const allowed = ['/profile/change-password', '/profile/password'];
+    if (!allowed.includes(pathOnly)) return res.redirect('/profile/change-password');
+  }
   next();
 }
 

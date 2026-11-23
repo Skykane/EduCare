@@ -1,0 +1,86 @@
+<%- include('../partials/header') %>
+
+<div class="students-page">
+  <a class="sd-back-link" href="/students"><%- icon('arrow-left') %> Back to Student Directory</a>
+
+  <%- include('../partials/header-banner', {
+    title: editing ? 'Edit Student Record' : 'Add Student Record',
+    subtitle: editing
+      ? 'Update directory information. Linked accounts are synchronized automatically.'
+      : 'Add an official student record to the shared EduCare Student Directory.'
+  }) %>
+
+  <% if (errors && errors.length) { %>
+    <div class="alert alert-error"><ul><% errors.forEach(function (e) { %><li><%= e %></li><% }) %></ul></div>
+  <% } %>
+
+  <form method="post" action="<%= editing ? '/students/' + editing.id : '/students' %>" class="card sd-form-card">
+    <div class="card-head">
+      <h2><%= editing ? 'Student Information' : 'New Student Information' %></h2>
+    </div>
+    <div class="sd-form-grid">
+      <div class="field">
+        <label for="sd-student-id">Student ID <span class="req">*</span></label>
+        <input type="text" id="sd-student-id" name="studentId" value="<%= values.studentId || '' %>" required maxlength="50" placeholder="STU-2026-0013" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="sd-full-name">Full Name <span class="req">*</span></label>
+        <input type="text" id="sd-full-name" name="fullName" value="<%= values.fullName || '' %>" required maxlength="120" placeholder="e.g. Irish Kane Joyce Patac" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="sd-grade-section">Grade &amp; Section <span class="req">*</span></label>
+        <select id="sd-grade-section" name="gradeSection" required data-ec-select="1">
+          <option value="">Select Grade &amp; Section</option>
+          <% var gsGroups = (typeof groupedSectionOptions !== 'undefined' && groupedSectionOptions.length) ? groupedSectionOptions : []; %>
+          <% if (gsGroups.length) { %>
+            <% gsGroups.forEach(function (group) { %>
+              <optgroup label="<%= group.group %>">
+                <% group.options.forEach(function (option) { %>
+                  <option value="<%= option.value %>" <%= values.gradeSection === option.value ? 'selected' : '' %>><%= option.label %></option>
+                <% }) %>
+              </optgroup>
+            <% }) %>
+          <% } else { %>
+            <% sectionOptions.forEach(function (option) { %>
+              <option value="<%= option.value %>" <%= values.gradeSection === option.value ? 'selected' : '' %>><%= option.label %></option>
+            <% }) %>
+          <% } %>
+        </select>
+        <small class="muted">Only configured, active Grade 7&ndash;12 sections are available.</small>
+      </div>
+      <div class="field">
+        <label for="sd-school-year">Academic Year <span class="req">*</span></label>
+        <input type="text" id="sd-school-year" name="schoolYear" value="<%= values.schoolYear || '2026' %>" required maxlength="20" placeholder="2026">
+      </div>
+      <div class="field">
+        <label for="sd-status">Status</label>
+        <select data-ec-select="1" id="sd-status" name="status">
+          <% statuses.forEach(function (status) { %>
+            <option value="<%= status %>" <%= values.status === status ? 'selected' : '' %>><%= status %></option>
+          <% }) %>
+        </select>
+      </div>
+      <div class="field">
+        <label for="sd-lrn">LRN <span class="hint">(optional)</span></label>
+        <input type="text" id="sd-lrn" name="lrn" value="<%= values.lrn || '' %>" maxlength="50" placeholder="Learner Reference Number">
+      </div>
+      <div class="field">
+        <label for="sd-email">Directory Email <span class="hint">(optional)</span></label>
+        <input type="email" id="sd-email" name="email" value="<%= values.email || '' %>" maxlength="200" placeholder="student@example.com">
+      </div>
+      <div class="field">
+        <label for="sd-track">Track <span class="hint">(optional)</span></label>
+        <input type="text" id="sd-track" name="track" value="<%= values.track || '' %>" maxlength="80" placeholder="e.g. General, STEM, ICT">
+      </div>
+      <div class="field full">
+        <label for="sd-address">Address <span class="hint">(optional)</span></label>
+        <textarea id="sd-address" name="address" rows="2" maxlength="250" placeholder="Student address"><%= values.address || '' %></textarea>
+      </div>
+    </div>
+    <div class="sd-form-actions">
+      <button class="btn btn-primary" type="submit"><%- icon(editing ? 'check' : 'plus') %> <%= editing ? 'Save Changes' : 'Add Student' %></button>
+      <a class="btn btn-light" href="/students">Cancel</a>
+    </div>
+  </form>
+</div><!-- /.students-page -->
+<%- include('../partials/footer') %>

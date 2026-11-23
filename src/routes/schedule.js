@@ -11,13 +11,17 @@ const activity = require('../services/activity');
 const router = express.Router();
 router.use(requireRole('admin', 'technician'));
 
+const VALID_STATUSES = ['Overdue', 'Due Soon', 'Scheduled', 'No maintenance recorded'];
+
 router.get('/', (req, res) => {
-  const status = ['Overdue', 'Due Soon', 'Scheduled'].includes(req.query.status) ? req.query.status : '';
+  const status = VALID_STATUSES.includes(req.query.status) ? req.query.status : '';
   const schedules = allSchedules();
   const counts = {
     Overdue: schedules.filter((s) => s.status === 'Overdue').length,
     'Due Soon': schedules.filter((s) => s.status === 'Due Soon').length,
     Scheduled: schedules.filter((s) => s.status === 'Scheduled').length,
+    'No maintenance recorded': schedules.filter((s) => s.status === 'No maintenance recorded').length,
+    All: schedules.length,
   };
   const unscheduled = db.where('equipment', (e) => !Number(e.maintenanceIntervalDays));
   res.render('schedule', {
@@ -48,18 +52,21 @@ router.post('/:equipmentId/task', requireRole('admin'), (req, res) => {
     flash(req, 'warning', `A preventive task (${s.openTask.code}) is already open for this equipment.`);
     return res.redirect(`/requests/${s.openTask.id}`);
   }
+  const historyText = s.hasHistory
+    ? `Due ${fmtDate(s.nextDue)} (${s.basedOn.toLowerCase()}: ${fmtDate(s.base)}).`
+    : 'No recorded maintenance history; set a target date during dispatch.';
   const r = db.insert('requests', {
     code: nextCode('requests', 'REQ'),
     equipmentId: eq.id,
     requesterId: req.user.id,
     title: `Preventive maintenance: ${eq.name}`,
-    description: `Scheduled preventive maintenance every ${s.interval} day(s). Due ${fmtDate(s.nextDue)} (${s.basedOn.toLowerCase()}: ${fmtDate(s.base)}). ${str((req.body || {}).note, 500)}`.trim(),
+    description: `Scheduled preventive maintenance every ${s.interval} day(s). ${historyText} ${str((req.body || {}).note, 500)}`.trim(),
     severity: s.status === 'Overdue' ? 3 : 2,
     type: 'Preventive',
     status: 'Pending',
     priority: null,
     technicianId: null,
-    targetDate: s.nextDue >= todayISO() ? s.nextDue : null,
+    targetDate: s.nextDue && s.nextDue >= todayISO() ? s.nextDue : null,
     assignedAt: null,
     startedAt: null,
     completedAt: null,

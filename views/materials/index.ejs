@@ -1,0 +1,88 @@
+<%- include('../partials/header') %>
+<% if (typeof detail === 'undefined') { var detail = null; } %>
+<div class="admin-ui-page">
+  <%- include('../partials/header-banner', {
+    breadcrumb: 'Maintenance',
+    title: detail ? 'Repair Material Details' : 'Materials Expenses',
+    subtitle: detail ? (detail.request ? detail.request.code + ' · ' + (detail.equipment ? detail.equipment.name : [detail.request.location].filter(Boolean).join('')) : 'Repair materials') : 'All material costs recorded by maintenance personnel, calculated from stored prices and quantities.',
+  }) %>
+
+  <% if (detail) { %>
+    <section class="card admin-ui-card">
+      <div class="card-body detail-grid">
+        <div><span class="eyebrow"><%= detail.equipment ? 'Equipment' : 'Location / Category' %></span><strong><%= detail.equipment ? detail.equipment.name : ([detail.request.location, detail.request.categoryId].filter(Boolean).join(' · ') || 'General repair') %></strong></div>
+        <div><span class="eyebrow">Assigned Personnel</span><strong><%= detail.technician ? detail.technician.name : '—' %></strong></div>
+        <div><span class="eyebrow">Elapsed Repair Time</span><strong><%= detail.elapsedLabel %></strong></div>
+        <div><span class="eyebrow">Repair Status</span><span class="badge badge-blue"><%= detail.request.status %></span></div>
+        <div><span class="eyebrow">Verification</span><span class="badge badge-amber"><%= detail.request.verificationStatus || 'Not Submitted' %></span></div>
+        <div><span class="eyebrow">Reported</span><strong><%= fmtManila(detail.request.reportedAt || detail.request.createdAt) %></strong></div>
+      </div>
+    </section>
+    <p style="margin:14px 0"><a class="btn btn-sm btn-primary" href="/requests/<%= detail.request.id %>#materials"><%- icon('clipboard') %> View Full Repair</a></p>
+  <% } else { %>
+    <form method="get" action="/materials" class="filter-bar card admin-ui-card" data-ec-filter-form>
+      <div class="filter-bar-grid">
+        <label>Period
+          <select name="range" data-ec-select="1">
+            <option value="all" <%= f.range === 'all' ? 'selected' : '' %>>All time</option>
+            <option value="today" <%= f.range === 'today' ? 'selected' : '' %>>Today</option>
+            <option value="week" <%= f.range === 'week' ? 'selected' : '' %>>Weekly (last 7 days)</option>
+            <option value="month" <%= f.range === 'month' ? 'selected' : '' %>>Monthly</option>
+            <option value="year" <%= f.range === 'year' ? 'selected' : '' %>>Yearly</option>
+            <option value="custom" <%= f.range === 'custom' ? 'selected' : '' %>>Custom range</option>
+          </select>
+        </label>
+        <label>From <input type="date" name="from" value="<%= f.from %>"></label>
+        <label>To <input type="date" name="to" value="<%= f.to %>"></label>
+        <label>Search <input type="text" name="q" value="<%= f.q %>" placeholder="Material or Repair ID"></label>
+        <button type="submit" class="btn btn-primary"><%- icon('search') %> Apply</button>
+      </div>
+    </form>
+  <% } %>
+
+  <section class="card admin-ui-card" style="margin-top:16px">
+    <div class="card-body">
+      <div class="expense-total"><span>Overall Materials Expenses</span><strong><%= totalLabel %></strong></div>
+
+      <% if (!rows.length) { %>
+        <p class="empty-state">No material records found for the selected period.</p>
+      <% } else { %>
+        <div class="table-responsive">
+          <table class="data-table">
+            <thead><tr>
+              <th>Repair ID</th><th>Equipment / Location</th><th>Material</th><th>Quantity</th><th>Unit</th>
+              <th>Unit Price</th><th>Subtotal</th><th>Recorded</th><th>Recorded By</th><th>Proof</th><th></th>
+            </tr></thead>
+            <tbody>
+              <% rows.forEach(function (m) { %>
+                <tr>
+                  <td><a href="/requests/<%= m.requestId %>#materials"><%= m.request ? m.request.code : ('Repair #' + m.requestId) %></a></td>
+                  <td><%= m.equipment ? m.equipment.name : (m.request && m.request.location ? m.request.location : 'General repair') %></td>
+                  <td><strong><%= m.materialName %></strong><br><span class="muted"><%= m.purpose %></span></td>
+                  <td><%= (m.quantityScaled / 1000).toLocaleString('en-PH', { maximumFractionDigits: 3 }) %></td>
+                  <td><%= m.unit %></td>
+                  <td><%= m.priceLabel %></td>
+                  <td><strong><%= m.subtotalLabel %></strong></td>
+                  <td><%= fmtManila(m.createdAt) %></td>
+                  <td><%= m.recordedByUser ? m.recordedByUser.name : '—' %></td>
+                  <td><% if (m.proof) { %><a href="/uploads/<%= encodeURIComponent(m.proof.filename) %>" target="_blank" rel="noopener"><img class="proof-thumb" src="/uploads/<%= encodeURIComponent(m.proof.filename) %>" alt="Material proof" loading="lazy"></a><% } else { %>—<% } %></td>
+                  <td><a class="btn btn-xs btn-secondary" href="/materials/<%= m.requestId %>">Details</a></td>
+                </tr>
+              <% }); %>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="mobile-expense-list">
+          <% rows.forEach(function (m) { %>
+            <a class="workflow-row" href="/materials/<%= m.requestId %>">
+              <span><strong><%= m.materialName %></strong><br><span class="muted"><%= m.request ? m.request.code : '' %> · <%= fmtManila(m.createdAt) %></span></span>
+              <strong><%= m.subtotalLabel %></strong>
+            </a>
+          <% }); %>
+        </div>
+      <% } %>
+    </div>
+  </section>
+</div>
+<%- include('../partials/footer') %>

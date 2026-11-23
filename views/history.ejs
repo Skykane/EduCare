@@ -4,78 +4,138 @@
   if (currentUser.role === 'admin') {
     histExtraActions = `<a class="btn-banner-sub" href="/reports/export/maintenance${qs({ from: f.from, to: f.to })}">${icon('upload')} Export CSV</a>`;
   }
+  var histTabs = [
+    { href: '/schedule', label: 'Maintenance Schedule' },
+    { href: '/history', label: 'Maintenance History' }
+  ];
 %>
-<%- include('partials/header-banner', {
-  breadcrumb: '<a href="/">Home</a> &rsaquo; Maintenance History',
-  title: 'Maintenance Service History',
-  subtitle: 'History log of ' + rows.length + ' completed equipment repairs and checkups.',
-  extraActions: histExtraActions
-}) %>
+<div class="admin-ui-page admin-ui-history">
+  <%- include('partials/header-banner', {
+    breadcrumb: '<a href="/">Home</a> &rsaquo; Maintenance History',
+    title: 'Maintenance Service History',
+    subtitle: 'History log of ' + rows.length + ' completed equipment repairs and checkups.',
+    extraActions: histExtraActions,
+    sectionTabs: histTabs,
+    tabActive: histTabs[1]
+  }) %>
 
-<form class="card filters" method="get" action="/history">
-  <div class="field wide"><label for="q">Search</label><input type="search" id="q" name="q" value="<%= f.q %>" placeholder="Problem, action, part, equipment"></div>
-  <div class="field">
-    <label for="equipmentId">Equipment</label>
-    <select id="equipmentId" name="equipmentId">
-      <option value="">All</option>
-      <% equipment.forEach(function (e) { %><option value="<%= e.id %>" <%= f.equipmentId === e.id ? 'selected' : '' %>><%= e.code %> – <%= e.name %></option><% }) %>
-    </select>
-  </div>
-  <div class="field">
-    <label for="categoryId">Category</label>
-    <select id="categoryId" name="categoryId">
-      <option value="">All</option>
-      <% categories.forEach(function (c) { %><option value="<%= c.id %>" <%= f.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
-    </select>
-  </div>
-  <div class="field">
-    <label for="location">Location</label>
-    <select id="location" name="location">
-      <option value="">All</option>
-      <% locations.forEach(function (l) { %><option <%= f.location === l ? 'selected' : '' %>><%= l %></option><% }) %>
-    </select>
-  </div>
-  <% if (currentUser.role !== 'technician') { %>
-  <div class="field">
-    <label for="technicianId">Technician</label>
-    <select id="technicianId" name="technicianId">
-      <option value="">All</option>
-      <% technicians.forEach(function (t) { %><option value="<%= t.id %>" <%= f.technicianId === t.id ? 'selected' : '' %>><%= t.name %></option><% }) %>
-    </select>
-  </div>
-  <% } %>
-  <div class="field">
-    <label for="type">Type</label>
-    <select id="type" name="type">
-      <option value="">All</option>
-      <% C.REQUEST_TYPES.forEach(function (t) { %><option <%= f.type === t ? 'selected' : '' %>><%= t %></option><% }) %>
-    </select>
-  </div>
-  <div class="field"><label for="from">Service date from</label><input type="date" id="from" name="from" value="<%= f.from %>"></div>
-  <div class="field"><label for="to">to</label><input type="date" id="to" name="to" value="<%= f.to %>"></div>
-  <div class="actions"><button class="btn" type="submit">Filter</button><a class="btn btn-light" href="/history">Clear</a></div>
-</form>
+  <form class="admin-ui-filter-card history-filter-card" method="get" action="/history" data-auto-filter data-auto-results="#history-results">
+    <div class="history-filter-main">
+      <div class="admin-ui-field history-field-search">
+        <label for="q">Search</label>
+        <span class="search-input">
+          <span class="search-input-icon"><%- icon('search') %></span>
+          <input type="search" id="q" name="q" value="<%= f.q %>" placeholder="Problem, action, part, equipment">
+        </span>
+      </div>
+      <div class="admin-ui-field">
+        <label for="equipmentId">Equipment</label>
+        <select data-ec-select="1" id="equipmentId" name="equipmentId">
+          <option value="">All</option>
+          <% equipment.forEach(function (e) { %><option value="<%= e.id %>" <%= f.equipmentId === e.id ? 'selected' : '' %>><%= e.code %> – <%= e.name %></option><% }) %>
+        </select>
+      </div>
+      <div class="admin-ui-field">
+        <label for="categoryId">Category</label>
+        <select data-ec-select="1" id="categoryId" name="categoryId">
+          <option value="">All</option>
+          <% categories.forEach(function (c) { %><option value="<%= c.id %>" <%= f.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
+        </select>
+      </div>
+      <div class="admin-ui-field">
+        <label for="location">Location</label>
+        <select data-ec-select="1" id="location" name="location">
+          <option value="">All</option>
+          <% locations.forEach(function (l) { %><option <%= f.location === l ? 'selected' : '' %>><%= l %></option><% }) %>
+        </select>
+      </div>
+      <% if (currentUser.role !== 'technician') { %>
+      <div class="admin-ui-field">
+        <label for="technicianId">Technician</label>
+        <select data-ec-select="1" id="technicianId" name="technicianId">
+          <option value="">All</option>
+          <% technicians.forEach(function (t) { %><option value="<%= t.id %>" <%= f.technicianId === t.id ? 'selected' : '' %>><%= t.name %></option><% }) %>
+        </select>
+      </div>
+      <% } %>
+      <div class="admin-ui-field">
+        <label for="type">Type</label>
+        <select data-ec-select="1" id="type" name="type">
+          <option value="">All</option>
+          <% C.REQUEST_TYPES.forEach(function (t) { %><option <%= f.type === t ? 'selected' : '' %>><%= t %></option><% }) %>
+        </select>
+      </div>
+    </div>
 
-<div class="card">
-  <div class="table-wrap">
-  <table class="stack-table">
-    <thead><tr><th>Service date</th><th>Equipment</th><th>Type</th><th>Problem identified</th><th>Actions performed</th><th>Parts replaced</th><th>Technician</th><th>Result</th></tr></thead>
-    <tbody>
-      <% if (!rows.length) { %><tr><td colspan="8" class="empty">No maintenance records match your filters.</td></tr><% } %>
-      <% rows.forEach(function (m) { %>
-        <tr>
-          <td class="nowrap"><%= fmtDate(m.serviceDate) %><% if (m.request) { %><span class="sub"><a href="/requests/<%= m.request.id %>" class="mono"><%= m.request.code %></a></span><% } %></td>
-          <td><% if (m.equipment) { %><a href="/equipment/<%= m.equipment.id %>"><%= m.equipment.name %></a><span class="sub"><%= m.equipment.code %> · <%= m.equipment.location %></span><% } else { %>—<% } %></td>
-          <td><span class="<%= statusClass(m.type) %>"><%= m.type %></span></td>
-          <td><%= m.problem || '—' %></td>
-          <td><%= m.actionsTaken %><% if (m.remarks) { %><span class="sub"><%= m.remarks %></span><% } %></td>
-          <td><%= m.partsReplaced || '—' %></td>
-          <td><%= m.technician ? m.technician.name : '—' %></td>
-          <td><span class="<%= statusClass(m.resultingStatus) %>"><%= m.resultingStatus %></span></td>
-        </tr>
-      <% }) %>
-    </tbody>
-  </table>
+    <div class="history-filter-secondary">
+      <div class="admin-ui-field">
+        <label for="from">Service Date From</label>
+        <input type="date" id="from" name="from" value="<%= f.from %>">
+      </div>
+      <div class="admin-ui-field">
+        <label for="to">Service Date To</label>
+        <input type="date" id="to" name="to" value="<%= f.to %>">
+      </div>
+      <div class="history-action-cell">
+        <a class="btn btn-light" href="/history" data-filter-clear><%- icon('x') %> Clear</a>
+      </div>
+    </div>
+  </form>
+
+  <div id="history-results" data-auto-results>
+  <section class="admin-ui-card history-card">
+    <div class="admin-ui-card-head">
+      <div>
+        <h2>Service records (<%= rows.length %>)</h2>
+        <p class="admin-ui-muted">Completed preventive checkups and corrective repairs, newest first.</p>
+      </div>
+    </div>
+    <div class="admin-ui-table-box history-table-box">
+      <table class="stack-table admin-ui-table history-table">
+        <thead>
+          <tr>
+            <th class="au-center">Service Date</th>
+            <th class="au-center">Equipment / Location</th>
+            <th class="au-center">Type</th>
+            <th class="au-center">Problem Identified</th>
+            <th class="au-center">Actions Performed</th>
+            <th class="au-center">Parts Replaced</th>
+            <th class="au-center">Technician</th>
+            <th class="au-center">Result</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% if (!rows.length) { %><tr><td colspan="8" class="empty">No maintenance records match your filters.</td></tr><% } %>
+          <% rows.forEach(function (m) { %>
+            <tr>
+              <td class="au-center nowrap"><%= fmtDate(m.serviceDate) %><% if (m.request) { %><span class="sub"><a href="/requests/<%= m.request.id %>" class="mono"><%= m.request.code %></a></span><% } %></td>
+              <td class="au-left">
+                <% if (m.equipment) { %>
+                  <a href="/equipment/<%= m.equipment.id %>"><%= m.equipment.name %></a>
+                  <span class="sub"><%= m.equipment.code %> · <%= m.location %></span>
+                <% } else { %>
+                  <%= m.category ? m.category.name : 'General repair' %>
+                  <span class="sub"><%= m.location || '—' %></span>
+                <% } %>
+              </td>
+              <td class="au-center"><span class="<%= statusClass(m.type) %>"><%= m.type %></span></td>
+              <td class="au-left history-description"><%= m.problem || '—' %></td>
+              <td class="au-left history-description"><%= m.actionsTaken %><% if (m.remarks) { %><span class="sub"><%= m.remarks %></span><% } %></td>
+              <td class="au-center"><%= m.partsReplaced || '—' %></td>
+              <td class="au-center">
+                <% if (m.technician) { %>
+                  <div class="ec-identity">
+                    <%- include('partials/avatar', { user: m.technician, name: m.technician.name, size: 'xs' }) %>
+                  </div>
+                <% } else { %>—<% } %>
+              </td>
+              <td class="au-center"><span class="<%= statusClass(m.resultingStatus) %>"><%= m.resultingStatus %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    </div>
+  </section>
   </div>
 </div>
 <%- include('partials/footer') %>

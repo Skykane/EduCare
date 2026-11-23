@@ -1,0 +1,253 @@
+/* =====================================================================
+   EDUCARE GLOBAL TYPOGRAPHY SYSTEM
+   ---------------------------------------------------------------------
+   One font family and one semantic size/weight scale for every module,
+   role, theme and viewport. Loaded last so the :not(#ec-type-lock)
+   specificity guards keep these declarations authoritative over legacy
+   page-scoped rules. Only type properties are set; layout, colour and
+   behaviour are untouched.
+   ===================================================================== */
+
+:root {
+  --ec-font: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
+
+  --ec-fs-page-title: 24px;
+  --ec-fw-page-title: 700;
+  --ec-lh-page-title: 1.25;
+  --ec-ls-page-title: -0.01em;
+
+  --ec-fs-section-title: 20px;
+  --ec-fw-section-title: 600;
+  --ec-lh-section-title: 1.3;
+  --ec-ls-section-title: -0.005em;
+
+  --ec-fs-card-title: 18px;
+  --ec-fw-card-title: 600;
+  --ec-lh-card-title: 1.35;
+  --ec-ls-card-title: 0;
+
+  --ec-fs-body: 14px;
+  --ec-fw-body: 400;
+  --ec-lh-body: 1.5;
+  --ec-ls-body: 0;
+
+  --ec-fw-label: 500;
+  --ec-fw-important: 600;
+
+  --ec-fs-table-head: 14px;
+  --ec-fw-table-head: 600;
+  --ec-lh-table: 1.45;
+
+  --ec-fw-button: 600;
+  --ec-lh-control: 1.4;
+
+  --ec-fs-helper: 13px;
+  --ec-fw-helper: 400;
+
+  --ec-fs-badge: 12px;
+  --ec-fw-badge: 600;
+  --ec-lh-badge: 1.2;
+}
+
+/* ----------------------------------------------------------------------
+   0. Baseline — shared family and body defaults (single source of truth).
+   ---------------------------------------------------------------------- */
+html:not(#ec-type-lock):not(#ec-type-lock),
+body:not(#ec-type-lock):not(#ec-type-lock) {
+  font-family: var(--ec-font) !important;
+  font-size: var(--ec-fs-body) !important;
+  font-weight: var(--ec-fw-body) !important;
+  line-height: var(--ec-lh-body) !important;
+  letter-spacing: var(--ec-ls-body) !important;
+}
+
+body *:not(#ec-type-lock):not(#ec-type-lock) {
+  font-family: var(--ec-font) !important;
+  letter-spacing: var(--ec-ls-body) !important;
+}
+
+/* ----------------------------------------------------------------------
+   1. Page titles
+   ---------------------------------------------------------------------- */
+:is(h1, .page-title, .auth-brand, .auth-title, .hero-name, .page-heading):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-page-title) !important;
+  font-weight: var(--ec-fw-page-title) !important;
+  line-height: var(--ec-lh-page-title) !important;
+  letter-spacing: var(--ec-ls-page-title) !important;
+}
+
+/* ----------------------------------------------------------------------
+   2. Section headings
+   ---------------------------------------------------------------------- */
+:is(h2:not(.auth-title), .section-title, .panel-title, .reports-panel-title,
+    .email-card-head-title, .add-category-title, .page-subtitle):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-section-title) !important;
+  font-weight: var(--ec-fw-section-title) !important;
+  line-height: var(--ec-lh-section-title) !important;
+  letter-spacing: var(--ec-ls-section-title) !important;
+}
+
+/* ----------------------------------------------------------------------
+   3. Card headings / subsection titles
+   ---------------------------------------------------------------------- */
+:is(h3, h4, h5, h6, .card-title, .subsection-title, .form-section-title,
+    .maintenance-section-title, .pm-section-title, .reports-subhead,
+    .email-status-title, .brand-text strong,
+    .card-head h2, .rd-card-head h2, .card > h2, .card > h3,
+    .modal h2, .modal h3, .dialog h2, .dialog h3,
+    .panel h2, .panel h3, .profile-modal-card h2,
+    .rd-doc-section-head h3):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-card-title) !important;
+  font-weight: var(--ec-fw-card-title) !important;
+  line-height: var(--ec-lh-card-title) !important;
+  letter-spacing: var(--ec-ls-card-title) !important;
+}
+
+/* Text nested in a heading inherits that heading's type. */
+:is(h1, h2, h3, h4, h5, h6, .page-title, .card-title, .section-title, .auth-title, .hero-name, .page-heading) *:not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+}
+
+/* ----------------------------------------------------------------------
+   4. Body text / paragraphs / descriptions
+   ---------------------------------------------------------------------- */
+:is(p, li, dd, dt, td, th, span, div, a, small, legend, figcaption):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  /* baseline handles most; this keeps semantic elements on the body scale */
+}
+
+/* Important values */
+:is(strong, b, .value, [class$="-value"], .rd-request-id, .rd-request-equip,
+    .istat-num, .stat-value, .score .num, .num):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-weight: var(--ec-fw-important) !important;
+}
+
+/* ----------------------------------------------------------------------
+   5. Form labels
+   ---------------------------------------------------------------------- */
+:is(label, .label, .form-label, .field-label, .auth-field-label, .rd-dl-label span):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-body) !important;
+  font-weight: var(--ec-fw-label) !important;
+  line-height: var(--ec-lh-control) !important;
+  letter-spacing: var(--ec-ls-body) !important;
+}
+
+/* ----------------------------------------------------------------------
+   6. Inputs / selects / textareas / input values
+   ---------------------------------------------------------------------- */
+:is(input, select, textarea, .form-control, option):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-body) !important;
+  font-weight: var(--ec-fw-body) !important;
+  line-height: var(--ec-lh-control) !important;
+  letter-spacing: var(--ec-ls-body) !important;
+}
+
+::placeholder {
+  font-size: var(--ec-fs-body) !important;
+  font-weight: var(--ec-fw-body) !important;
+  line-height: var(--ec-lh-control) !important;
+}
+
+/* ----------------------------------------------------------------------
+   7. Buttons / navigation / controls
+   ---------------------------------------------------------------------- */
+:is(button, .btn, input[type="button"], input[type="submit"], input[type="reset"],
+    .bn-item, .section-tabs a, .admin-ui-pills a, [role="button"],
+    .sidebar nav a, .sidebar nav a .label, .nav-link):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-body) !important;
+  font-weight: var(--ec-fw-button) !important;
+  line-height: var(--ec-lh-control) !important;
+  letter-spacing: var(--ec-ls-body) !important;
+}
+
+:is(button, .btn, [role="button"], .sidebar nav a) *:not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+}
+
+/* ----------------------------------------------------------------------
+   8. Table headers and data
+   ---------------------------------------------------------------------- */
+:is(th, [role="columnheader"]):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-table-head) !important;
+  font-weight: var(--ec-fw-table-head) !important;
+  line-height: var(--ec-lh-control) !important;
+  letter-spacing: var(--ec-ls-body) !important;
+}
+
+:is(td, [role="cell"]):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-body) !important;
+  font-weight: var(--ec-fw-body) !important;
+  line-height: var(--ec-lh-table) !important;
+  letter-spacing: var(--ec-ls-body) !important;
+}
+
+:is(th, td) *:not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: inherit !important;
+  font-weight: inherit !important;
+  line-height: inherit !important;
+  letter-spacing: inherit !important;
+}
+
+/* ----------------------------------------------------------------------
+   9. Helper text / descriptions / metadata
+   ---------------------------------------------------------------------- */
+:is(.muted, .hint, .field-hint, .help-text, .helper-text, .description,
+    .subtitle, .sub, .admin-ui-muted, .auth-row, .auth-note, .pw-rule,
+    small, .rd-card-sub, .rd-upload-hint, .rd-photo-picker-meta,
+    .rd-photo-preview-size, .rd-banner-sub, .student-help-popover__sub):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-helper) !important;
+  font-weight: var(--ec-fw-helper) !important;
+  line-height: var(--ec-lh-control) !important;
+  letter-spacing: var(--ec-ls-body) !important;
+}
+
+/* Metadata/timestamps - keep readable at helper size */
+:is(time, [class*="time"], [class*="date"], [class*="meta"],
+    [class*="stat-label"], [class*="summary-label"], [class*="kpi-label"],
+    [class*="mini-label"], [class*="info-label"]):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-helper) !important;
+  font-weight: var(--ec-fw-body) !important;
+  line-height: var(--ec-lh-control) !important;
+  letter-spacing: var(--ec-ls-body) !important;
+}
+
+/* ----------------------------------------------------------------------
+   10. Badges / tags / chips / pills / status labels
+   ---------------------------------------------------------------------- */
+:is(.badge, .tag, .chip, .pill,
+    [class*="badge"], [class*="pill"], [class*="chip"],
+    [class*="tag"], [class*="count"], [class*="status"]):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: var(--ec-fs-badge) !important;
+  font-weight: var(--ec-fw-badge) !important;
+  line-height: var(--ec-lh-badge) !important;
+  letter-spacing: 0.01em !important;
+}
+
+:is(td, th) :is(.badge, .tag, .chip, .pill):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* ----------------------------------------------------------------------
+   11. Display numbers / KPI values - preserve intentional component sizing
+      while keeping the typography system's weight/family.
+   ---------------------------------------------------------------------- */
+:is(.istat-num, .rd-request-id, .rd-request-equip, .rd-priority-num,
+    .score .num, .stat-value, .kpi-value, .metric-value,
+    .ec-avatar__fallback, .ec-avatar, .brand-logo):not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  font-size: revert !important;
+  line-height: revert !important;
+  letter-spacing: revert !important;
+}
+
+/* ----------------------------------------------------------------------
+   12. Accessibility & wrapping safeguards
+   ---------------------------------------------------------------------- */
+dd:not(#ec-type-lock):not(#ec-type-lock):not(#ec-type-lock) {
+  overflow-wrap: anywhere;
+}

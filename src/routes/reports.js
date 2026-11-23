@@ -81,9 +81,23 @@ function buildReport(f) {
         completed: doneInRange.length,
         overdue: all.filter((r) => r.overdue).length,
         avgDays: avg(doneInRange.filter((r) => r.assignedAt).map((r) => daysBetween(r.assignedAt, r.completedAt))),
+        // Display-only context: service records are a separate data source from
+        // repair-request assignments and must not be folded into "completed".
+        serviceRecords: records.filter((m) => m.technicianId === t.id).length,
       };
     })
     .sort((a, b) => b.active - a.active || b.completed - a.completed);
+
+  // Display-only figures for the top cards. Every value is derived from the
+  // same already-filtered collections used by the report tables below.
+  const summary = {
+    totalEquipment: equipment.length,
+    totalRequests: requests.length,
+    pendingRequests: requests.filter((r) => r.status === 'Pending').length,
+    completedRequests: requestSummary.byStatus.find((s) => s.label === 'Completed').count,
+    completedMaintenance: records.length,
+    avgResolutionDays: requestSummary.avgResolutionDays,
+  };
 
   return {
     requests,
@@ -92,6 +106,7 @@ function buildReport(f) {
     records,
     recordsByType: C.REQUEST_TYPES.map((t) => ({ label: t, count: records.filter((m) => m.type === t).length })),
     workload,
+    summary,
   };
 }
 
@@ -112,6 +127,7 @@ router.get('/export/:type', (req, res) => {
       rows = rep.requests.map((r) => [r.code, fmtDate(r.createdAt), r.equipment && r.equipment.code, r.equipment && r.equipment.name, r.category && r.category.name, r.equipment && r.equipment.location, r.title, r.type, C.SEVERITIES[r.severity], r.effectivePriority, r.rec.score, r.status, name(r.requester), name(r.technician), r.targetDate ? fmtDate(r.targetDate) : '', r.completedAt ? fmtDate(r.completedAt) : '']);
       break;
     case 'equipment':
+      // Equipment is a current inventory snapshot, not a period-based report.
       headers = ['Equipment ID', 'Name', 'Model', 'Serial Number', 'Category', 'Department', 'Location', 'Acquisition Date', 'Condition', 'Importance', 'Last Maintenance'];
       rows = db.all('equipment').map((e) => [e.code, e.name, e.model, e.serialNumber, name(db.find('categories', e.categoryId)), e.department, e.location, e.acquisitionDate ? fmtDate(e.acquisitionDate) : '', e.status, C.IMPORTANCE[e.importance], e.lastMaintenanceDate ? fmtDate(e.lastMaintenanceDate) : '']);
       break;
@@ -126,8 +142,9 @@ router.get('/export/:type', (req, res) => {
     default:
       return res.status(404).render('error', { title: 'Not found', message: 'Unknown report type.' });
   }
+  const fileRange = f.from && f.to ? `${f.from}-to-${f.to}` : (f.from ? `from-${f.from}` : (f.to ? `to-${f.to}` : todayISO()));
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-  res.setHeader('Content-Disposition', `attachment; filename="educare-${req.params.type}-${todayISO()}.csv"`);
+  res.setHeader('Content-Disposition', `attachment; filename="educare-${req.params.type}-${fileRange}.csv"`);
   res.send(toCSV(headers, rows));
 });
 

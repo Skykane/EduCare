@@ -1,12 +1,318 @@
 <%- include('../partials/header') %>
 
+<style>
+/* =========================================================
+   Pending Account Approvals — compact, left-aligned redesign
+   Scoped to this page only. Approval logic is untouched.
+   ========================================================= */
+
+/* Override the global centred-alignment layer for this page. */
+.account-approvals-page .dash-header-banner,
+.account-approvals-page .dash-banner-content,
+.account-approvals-page .dash-banner-text,
+.account-approvals-page .dash-banner-text h1,
+.account-approvals-page .dash-banner-text p,
+.account-approvals-page .account-approval-card,
+.account-approvals-page .account-approval-head,
+.account-approvals-page .account-approval-title,
+.account-approvals-page .account-approval-copy,
+.account-approvals-page .account-approval-copy h2,
+.account-approvals-page .account-approval-copy p,
+.account-approvals-page .card-head,
+.account-approvals-page .card-head h2,
+.account-approvals-page .pending-details-card,
+.account-approvals-page .pending-details-head h3,
+.account-approvals-page .pending-details-body,
+.account-approvals-page .pending-detail-row {
+  text-align: left !important;
+}
+.app .account-approvals-page table th,
+.app .account-approvals-page table td,
+.app .account-approvals-page table td .cell {
+  text-align: left !important;
+}
+.app .account-approvals-page table .account-approval-actions,
+.app .account-approvals-page table .account-approval-student-id,
+.app .account-approvals-page table .account-approval-role,
+.app .account-approvals-page table .badge,
+.app .account-approvals-page table .inline-form,
+.app .account-approvals-page table form {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  justify-content: flex-start !important;
+  text-align: left !important;
+}
+
+/* --- Page header ------------------------------------------------------ */
+.account-approvals-page .dash-header-banner {
+  box-shadow: none !important;
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+.account-approvals-page .dash-banner-watermark { display: none !important; }
+.account-approvals-page .dash-banner-actions { margin-left: auto; justify-content: flex-end; }
+/* Section tabs: full-width, left aligned, matching Equipment Inventory. */
+.app .account-approvals-page .section-tabs {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0;
+  box-sizing: border-box !important;
+  margin: 0 0 14px !important;
+  padding: 5px 10px !important;
+  gap: 5px !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  overflow-x: auto !important;
+  background: var(--gray-soft) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+}
+.app .account-approvals-page .section-tabs a {
+  flex: 0 0 auto;
+  padding: 7px 14px !important;
+  min-height: 0 !important;
+  border-radius: 7px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+}
+.app .account-approvals-page .section-tabs a:hover { color: var(--text) !important; text-decoration: none; }
+.app .account-approvals-page .section-tabs a.active {
+  background: #ffffff !important;
+  color: var(--primary) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* --- Compact cards ---------------------------------------------------- */
+.account-approvals-page .account-approval-card,
+.account-approvals-page .card:not(.account-approval-card) {
+  padding: 18px 20px !important;
+  border-radius: 12px !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06) !important;
+  margin-bottom: 16px !important;
+}
+.account-approvals-page .card-head {
+  padding: 0 0 12px !important;
+  margin-bottom: 12px !important;
+  border-bottom: 1px solid var(--border);
+  justify-content: space-between !important;
+}
+
+/* --- Waiting for Admin Approval section ------------------------------- */
+.account-approvals-page .account-approval-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.account-approvals-page .account-approval-title {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 0;
+}
+.account-approvals-page .account-approval-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.account-approvals-page .account-approval-icon .ic { width: 19px; height: 19px; }
+.account-approvals-page .account-approval-copy {
+  padding-left: 0 !important;
+  border-left: 0 !important;
+  min-width: 0;
+}
+.account-approvals-page .account-approval-copy h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.account-approvals-page .account-approval-copy p {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--muted);
+}
+.account-approvals-page .account-approval-status {
+  padding: 4px 10px;
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+.account-approvals-page .account-approval-status .ic { width: 14px; height: 14px; }
+
+/* --- Compact empty state ---------------------------------------------- */
+.account-approvals-page .empty-state.account-approval-empty {
+  padding: 20px 16px 18px;
+  margin: 0;
+  min-height: 0;
+  gap: 0;
+  border: 1px dashed rgba(16, 185, 129, 0.38);
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.05);
+}
+.account-approvals-page .empty-state.account-approval-empty .empty-ic {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: var(--green);
+  box-shadow: 0 1px 3px rgba(16, 185, 129, 0.16);
+  margin: 0 auto 10px;
+}
+.account-approvals-page .empty-state.account-approval-empty .empty-ic .ic { width: 21px; height: 21px; }
+.account-approvals-page .empty-state.account-approval-empty strong {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+}
+.account-approvals-page .empty-state.account-approval-empty p {
+  margin: 5px 0 14px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  max-width: 480px;
+}
+.account-approvals-page .empty-state.account-approval-empty .btn {
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  box-shadow: none !important;
+}
+
+/* --- Pending registrations table -------------------------------------- */
+.account-approvals-page .table-wrap.account-approval-table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: none;
+  background: var(--surface);
+  overflow-x: auto;
+}
+.account-approvals-page .approval-col-name { width: 16%; }
+.account-approvals-page .approval-col-email { width: 19%; }
+.account-approvals-page .approval-col-role { width: 12%; }
+.account-approvals-page .approval-col-department { width: 14%; }
+.account-approvals-page .approval-col-registered { width: 12%; }
+.account-approvals-page .approval-col-actions { width: 27%; }
+.app .account-approvals-page .account-approval-table th {
+  padding: 9px 10px;
+  font-size: 10.5px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  color: #fff;
+}
+.app .account-approvals-page .account-approval-table td {
+  padding: 9px 10px;
+  font-size: 12px;
+}
+.account-approvals-page .account-approval-table td strong { font-size: 12.5px; }
+.account-approvals-page .account-approval-student-id { margin-top: 4px; padding: 2px 7px; font-size: 10px; }
+.account-approvals-page .account-approval-role { padding: 4px 8px; font-size: 10.5px; }
+.account-approvals-page .account-approval-actions { gap: 5px; flex-wrap: wrap; }
+.account-approvals-page .account-approval-actions form { flex: 1 1 auto; min-width: 0; }
+.account-approvals-page .account-approval-actions .btn {
+  flex: 1 1 auto;
+  padding: 5px 8px;
+  font-size: 10.5px;
+  border-radius: 7px;
+  box-shadow: none !important;
+}
+
+/* --- Registration details modal --------------------------------------- */
+.account-approvals-page .pending-details-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 130;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.account-approvals-page .pending-details-card { max-width: 440px; width: 100%; margin: 0; }
+.account-approvals-page .pending-details-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.account-approvals-page .pending-details-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.account-approvals-page .pending-details-head h3 .ic { width: 17px; height: 17px; color: var(--primary); }
+.account-approvals-page .pending-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 12.5px;
+}
+.account-approvals-page .pending-detail-row:last-child { border-bottom: 0; }
+.account-approvals-page .pending-detail-row span { flex: 0 0 120px; color: var(--muted); }
+.account-approvals-page .pending-detail-row strong { flex: 1 1 auto; font-weight: 700; word-break: break-word; }
+.account-approvals-page .pending-details-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+
+/* --- Responsive ------------------------------------------------------- */
+@media (max-width: 900px) {
+  .app .account-approvals-page table.stack-table tbody td,
+  .app .account-approvals-page table.stack-table tbody td::before,
+  .app .account-approvals-page table.stack-table tbody td .cell {
+    text-align: left !important;
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+  }
+}
+@media (max-width: 640px) {
+  .account-approvals-page .empty-state.account-approval-empty { padding: 14px 14px 12px; }
+  .account-approvals-page .empty-state.account-approval-empty .empty-ic { margin-bottom: 8px; }
+  .account-approvals-page .empty-state.account-approval-empty p { margin: 4px 0 11px; }
+  .account-approvals-page .account-approval-head { align-items: flex-start; }
+  .account-approvals-page .account-approval-title { align-items: flex-start; }
+  .account-approvals-page .account-approval-icon { width: 34px; height: 34px; }
+  .account-approvals-page .account-approval-copy h2 { font-size: 14px; }
+  .account-approvals-page .account-approval-status { padding: 3px 8px; font-size: 10px; }
+  .account-approvals-page .pending-detail-row { flex-direction: column; gap: 2px; }
+  .account-approvals-page .pending-detail-row span { flex: 0 0 auto; }
+}
+@media (max-width: 380px) {
+  .account-approvals-page .section-tabs a { padding: 7px 9px !important; font-size: 12.5px !important; }
+  /* Keep the shared topbar from forcing horizontal scroll on this page only. */
+  .app:has(.account-approvals-page) .topbar { gap: 8px; padding-left: 12px; padding-right: 12px; }
+  .app:has(.account-approvals-page) .brand-mini { display: none; }
+}
+</style>
+
 <%
   var appExtraActions = `
     <a class="btn-banner-sub" href="/users/new" onclick="if(window.openNewAccountModal){openNewAccountModal();return false;}">${icon('plus')} New Account</a>
   `;
 %>
+
+<div class="account-approvals-page">
 <%- include('../partials/header-banner', {
-  breadcrumb: '<a href="/">Home</a> &rsaquo; <a href="/users">User Accounts</a> &rsaquo; Approvals',
   title: 'Pending Account Approvals',
   subtitle: 'Review, verify student IDs, and approve or reject incoming user registrations.',
   extraActions: appExtraActions
@@ -39,47 +345,77 @@
   <% } else { %>
     <div class="table-wrap account-approval-table-wrap">
       <table class="stack-table account-approval-table">
+        <colgroup>
+          <col class="approval-col-name">
+          <col class="approval-col-email">
+          <col class="approval-col-role">
+          <col class="approval-col-department">
+          <col class="approval-col-registered">
+          <col class="approval-col-actions">
+        </colgroup>
         <thead>
           <tr>
-            <th><span><%- icon('user') %> Name / Student ID</span></th>
-            <th><span><%- icon('mail') %> Email</span></th>
-            <th><span><%- icon('layers') %> Requested Role</span></th>
-            <th><span><%- icon('cap') %> Department / Grade</span></th>
-            <th><span><%- icon('calendar') %> Registered</span></th>
-            <th class="text-right"><span><%- icon('check-circle') %> Decision</span></th>
+            <th class="col-left"><span><%- icon('user') %> Name / Student ID</span></th>
+            <th class="col-left"><span><%- icon('mail') %> Email</span></th>
+            <th class="col-center"><span><%- icon('layers') %> Requested Role</span></th>
+            <th class="col-left"><span><%- icon('cap') %> Department / Grade</span></th>
+            <th class="col-center"><span><%- icon('calendar') %> Registered</span></th>
+            <th class="col-center"><span><%- icon('check-circle') %> Decision</span></th>
           </tr>
         </thead>
         <tbody>
           <% pendingUsers.forEach(function (pu) { %>
             <tr>
-              <td data-label="Name / ID">
-                <strong><%= pu.name %></strong>
-                <% if (pu.studentId) { %>
-                  <span class="sub mono account-approval-student-id">
-                    <%- icon('id-card') %> ID: <%= pu.studentId %>
+              <td data-label="Name / ID" class="col-left">
+                <div class="ec-identity ec-identity--table">
+                  <%- include('../partials/avatar', { user: pu, name: pu.name, size: 'sm' }) %>
+                  <span class="ec-identity__text">
+                    <strong class="ec-identity__name"><%= pu.name %></strong>
+                    <% if (pu.studentId) { %>
+                      <span class="sub mono account-approval-student-id ec-identity__meta">
+                        <%- icon('id-card') %> ID: <%= pu.studentId %>
+                      </span>
+                    <% } %>
                   </span>
-                <% } %>
+                </div>
               </td>
-              <td data-label="Email"><%= pu.email %></td>
-              <td data-label="Requested Role">
+              <td data-label="Email" class="col-left"><%= pu.email %></td>
+              <td data-label="Requested Role" class="col-center">
                 <span class="badge account-approval-role">
                   <%= C.ROLES[pu.role] %>
                 </span>
               </td>
-              <td data-label="Department / Grade"><%= pu.department || '—' %></td>
-              <td data-label="Registered" class="nowrap"><%= pu.createdAt ? timeAgo(pu.createdAt) : 'Recently' %></td>
-              <td data-label="" class="nowrap text-right">
+              <td data-label="Department / Grade" class="col-left">
+                <% if (pu.role === 'requester' && (pu.gradeLevel || pu.section)) { %>
+                  <%= pu.gradeLevel || '—' %>
+                  <span class="sub" style="display:block;margin-top:2px;font-size:11px;line-height:1.35;color:var(--muted);">Section: <%= pu.section || 'None assigned' %></span>
+                <% } else { %>
+                  <%= pu.department || '—' %>
+                <% } %>
+              </td>
+              <td data-label="Registered" class="col-center nowrap"><%= pu.createdAt ? timeAgo(pu.createdAt) : 'Recently' %></td>
+              <td data-label="" class="col-center nowrap">
                 <div class="account-approval-actions">
+                  <button class="btn btn-sm btn-light js-view-pending" type="button"
+                    data-id="<%= pu.id %>"
+                    data-name="<%= pu.name %>"
+                    data-email="<%= pu.email %>"
+                    data-student-id="<%= pu.studentId || '—' %>"
+                    data-role="<%= C.ROLES[pu.role] %>"
+                    data-department="<%= pu.department || '—' %>"
+                    data-grade-level="<%= pu.gradeLevel || '' %>"
+                    data-section="<%= pu.section || '' %>"
+                    data-registered="<%= pu.createdAt ? fmtDateTime(pu.createdAt) : 'Recently' %>">
+                    <%- icon('eye') %> View Details
+                  </button>
                   <form method="post" action="/users/<%= pu.id %>/approve" class="inline-form" data-confirm="Approve and activate account for <%= pu.name %> (<%= C.ROLES[pu.role] %>)?">
                     <button class="btn btn-sm btn-success" type="submit">
                       <%- icon('check') %> Approve
                     </button>
                   </form>
-                  <form method="post" action="/users/<%= pu.id %>/reject" class="inline-form" data-confirm="Reject registration for <%= pu.name %>?">
-                    <button class="btn btn-sm btn-danger" type="submit">
-                      <%- icon('x') %> Reject
-                    </button>
-                  </form>
+                  <button class="btn btn-sm btn-danger js-reject-account" type="button" data-id="<%= pu.id %>" data-name="<%= pu.name %>">
+                    <%- icon('x') %> Reject
+                  </button>
                 </div>
               </td>
             </tr>
@@ -101,25 +437,30 @@
       <table class="stack-table">
         <thead>
           <tr>
-            <th>User</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Decision Status</th>
-            <th>Date</th>
+            <th class="col-left">User</th>
+            <th class="col-left">Email</th>
+            <th class="col-center">Role</th>
+            <th class="col-center">Decision Status</th>
+            <th class="col-center">Date</th>
           </tr>
         </thead>
         <tbody>
           <% recentDecisions.forEach(function (u) { %>
             <tr>
-              <td data-label="User">
-                <strong><%= u.name %></strong>
-                <% if (u.studentId) { %>
-                  <span class="sub mono" style="font-size: 11px; display: block; color: var(--muted);"><%= u.studentId %></span>
-                <% } %>
+              <td data-label="User" class="col-left">
+                <div class="ec-identity ec-identity--table">
+                  <%- include('../partials/avatar', { user: u, name: u.name, size: 'sm' }) %>
+                  <span class="ec-identity__text">
+                    <strong class="ec-identity__name"><%= u.name %></strong>
+                    <% if (u.studentId) { %>
+                      <span class="sub mono ec-identity__meta" style="font-size: 11px;"><%= u.studentId %></span>
+                    <% } %>
+                  </span>
+                </div>
               </td>
-              <td data-label="Email"><%= u.email %></td>
-              <td data-label="Role"><span class="badge"><%= C.ROLES[u.role] %></span></td>
-              <td data-label="Status">
+              <td data-label="Email" class="col-left"><%= u.email %></td>
+              <td data-label="Role" class="col-center"><span class="badge"><%= C.ROLES[u.role] %></span></td>
+              <td data-label="Status" class="col-center">
                 <% if (u.approvalStatus === 'approved') { %>
                   <span class="badge badge-green" style="display: inline-flex; align-items: center; gap: 4px;"><%- icon('check') %> Approved</span>
                 <% } else if (u.approvalStatus === 'rejected') { %>
@@ -128,7 +469,7 @@
                   <span class="badge"><%= u.approvalStatus %></span>
                 <% } %>
               </td>
-              <td data-label="Date" class="nowrap"><%= u.updatedAt ? fmtDateTime(u.updatedAt) : '—' %></td>
+              <td data-label="Date" class="col-center nowrap"><%= u.updatedAt ? fmtDateTime(u.updatedAt) : '—' %></td>
             </tr>
           <% }) %>
         </tbody>
@@ -137,4 +478,66 @@
   </div>
 <% } %>
 
+<!-- Registration Details Modal (page-local, no backend changes) -->
+<div id="pending-details-modal" class="pending-details-backdrop" style="display:none;">
+  <div class="pending-details-card card">
+    <div class="pending-details-head">
+      <h3><%- icon('eye') %> Registration Details</h3>
+      <button type="button" class="btn-link" id="pending-details-close" aria-label="Close" style="font-size:18px;cursor:pointer;">✕</button>
+    </div>
+    <div class="pending-details-body">
+      <div class="pending-detail-row"><span>Full Name</span><strong id="pd-name">—</strong></div>
+      <div class="pending-detail-row"><span>Email</span><strong id="pd-email">—</strong></div>
+      <div class="pending-detail-row"><span>Student ID</span><strong id="pd-student-id">—</strong></div>
+      <div class="pending-detail-row"><span>Requested Role</span><strong id="pd-role">—</strong></div>
+      <div class="pending-detail-row"><span>Department / Grade</span><strong id="pd-department">—</strong></div>
+      <div class="pending-detail-row"><span>Grade Level</span><strong id="pd-grade-level">—</strong></div>
+      <div class="pending-detail-row"><span>Section</span><strong id="pd-section">—</strong></div>
+      <div class="pending-detail-row"><span>Registered</span><strong id="pd-registered">—</strong></div>
+    </div>
+    <div class="pending-details-actions">
+      <button type="button" class="btn btn-light" id="pending-details-done">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var modal = document.getElementById('pending-details-modal');
+  if (!modal) return;
+  function set(id, value) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = value || '—';
+  }
+  function openPendingDetails(btn) {
+    set('pd-name', btn.getAttribute('data-name'));
+    set('pd-email', btn.getAttribute('data-email'));
+    set('pd-student-id', btn.getAttribute('data-student-id'));
+    set('pd-role', btn.getAttribute('data-role'));
+    set('pd-department', btn.getAttribute('data-department'));
+    set('pd-grade-level', btn.getAttribute('data-grade-level'));
+    set('pd-section', btn.getAttribute('data-section'));
+    set('pd-registered', btn.getAttribute('data-registered'));
+    modal.style.display = 'flex';
+  }
+  function closePendingDetails() { modal.style.display = 'none'; }
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('.js-view-pending').forEach(function (btn) {
+      btn.addEventListener('click', function () { openPendingDetails(btn); });
+    });
+    var close = document.getElementById('pending-details-close');
+    var done = document.getElementById('pending-details-done');
+    if (close) close.addEventListener('click', closePendingDetails);
+    if (done) done.addEventListener('click', closePendingDetails);
+    modal.addEventListener('click', function (e) { if (e.target === modal) closePendingDetails(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && modal.style.display === 'flex') closePendingDetails();
+    });
+  });
+})();
+</script>
+
+</div><!-- /.account-approvals-page -->
+
+<%- include('../partials/reject-account-modal') %>
 <%- include('../partials/footer') %>

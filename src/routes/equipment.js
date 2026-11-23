@@ -15,7 +15,7 @@ const router = express.Router();
 const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 const distinct = (field) => {
   if (field === 'location') {
-    return [...new Set([...(C.HIGH_SCHOOL_LOCATIONS || []), ...db.all('equipment').map((e) => e[field]).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
+    return [...new Set([...(C.CAMPUS_LOCATIONS || []), ...db.all('equipment').map((e) => e[field]).filter(Boolean)])].sort((a, b) => a.localeCompare(b));
   }
   return [...new Set(db.all('equipment').map((e) => e[field]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
 };
@@ -36,8 +36,8 @@ function parseEquipment(b, file = null, existing = null) {
     department: str(b.department, 150),
     location: str(b.location, 150),
     acquisitionDate: isISODate(b.acquisitionDate) ? b.acquisitionDate : null,
-    status: C.EQUIPMENT_STATUSES.includes(b.status) ? b.status : 'Operational',
-    importance: clamp(int(b.importance, 3), 1, 5),
+    status: str(b.status, 40),
+    importance: int(b.importance, null),
     maintenanceIntervalDays: clamp(int(b.maintenanceIntervalDays, 0), 0, 3650),
     lastMaintenanceDate: isISODate(b.lastMaintenanceDate) ? b.lastMaintenanceDate : null,
     notes: str(b.notes, 2000),
@@ -52,6 +52,12 @@ function validate(e, id = null) {
   if (!e.categoryId || !db.find('categories', e.categoryId)) errors.push('Please choose a category.');
   if (!e.department) errors.push('Department is required.');
   if (!e.location) errors.push('Location is required.');
+  else if (!(C.CAMPUS_LOCATIONS || []).includes(e.location)) {
+    const existingLoc = id ? (db.find('equipment', id) || {}).location : '';
+    if (e.location !== existingLoc) errors.push('Please choose an approved campus location.');
+  }
+  if (!C.EQUIPMENT_STATUSES.includes(e.status)) errors.push('Please choose a condition.');
+  if (!e.importance || e.importance < 1 || e.importance > 5) errors.push('Please choose an importance level.');
   if (e.code && db.all('equipment').some((x) => x.code === e.code && x.id !== id)) errors.push(`Equipment ID ${e.code} is already used.`);
   if (e.serialNumber && db.all('equipment').some((x) => x.serialNumber && x.serialNumber.toLowerCase() === e.serialNumber.toLowerCase() && x.id !== id))
     errors.push(`Serial number ${e.serialNumber} is already recorded.`);
@@ -79,7 +85,7 @@ router.get('/', (req, res) => {
     location: str(req.query.location, 150),
     department: str(req.query.department, 150),
     status: str(req.query.status, 40),
-    pm: str(req.query.pm, 20),
+    pm: str(req.query.pm, 40),
   };
   const today = todayISO();
   const q = f.q.toLowerCase();
@@ -101,6 +107,7 @@ router.get('/', (req, res) => {
   rows.sort((a, b) => a.code.localeCompare(b.code));
   res.render('equipment/index', {
     title: 'Equipment',
+    pageClass: 'equipment-management-page',
     rows,
     f,
     categories: db.all('categories'),

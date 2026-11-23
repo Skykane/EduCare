@@ -1,0 +1,385 @@
+/* =====================================================================
+   EDUCARE — UNIVERSAL CENTERED ALIGNMENT
+   ---------------------------------------------------------------------
+   Loaded after style.css, tables.css, auth.css and theme-toggle.css.
+   Presentation only: no colors, dimensions, data or business logic change.
+   Every rule is intentionally scoped to content surfaces so page shells,
+   sidebars and large containers keep their usable layout.
+   ===================================================================== */
+
+/* ---------------------------------------------------------------------
+   1. CONTENT SURFACES
+   Center text inside its own space without centering whole page layouts.
+   --------------------------------------------------------------------- */
+.app .content,
+.app .content .card,
+.app .content .modal-card,
+.app .content .submit-modal-card,
+.app .content .profile-modal-card,
+.app .content .adm-panel,
+.app .content .istat,
+.app .content .stat,
+.app .content .empty-state,
+.auth,
+.auth .auth-card {
+  text-align: center !important;
+}
+
+/* ---------------------------------------------------------------------
+   2. HEADINGS, TITLES, LABELS AND SECTION TEXT
+   --------------------------------------------------------------------- */
+.app .dash-header-banner,
+.app .dash-banner-content,
+.app .dash-banner-text,
+.app .page-head,
+.app .page-head h1,
+.app .page-head h2,
+.app .card h1,
+.app .card h2,
+.app .card h3,
+.app .card h4,
+.app .card-title,
+.app .section-title,
+.app .card-head,
+.app .card-head h1,
+.app .card-head h2,
+.app .card-head h3,
+.app .modal-head,
+.app .modal-title,
+.app .submit-modal-header,
+.app .submit-modal-header h1,
+.app .submit-modal-header h2,
+.app .submit-modal-header h3,
+.app .adm-panel-head,
+.app .adm-panel-title,
+.auth .auth-card h1,
+.auth .auth-card h2,
+.auth .auth-form-heading,
+.auth .auth-title,
+.auth .auth-subtitle {
+  text-align: center !important;
+}
+
+.app .card-head,
+.app .adm-panel-head,
+.app .submit-modal-header,
+.app .modal-head {
+  justify-content: center !important;
+}
+
+/* Flex/grid headings keep their icon and text group centered. */
+.app .content h1,
+.app .content h2,
+.app .content h3,
+.app .content h4,
+.auth h1,
+.auth h2,
+.auth h3 {
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* Keep close buttons available at the edge while the title stays centered. */
+.app .submit-modal-header > div:first-child,
+.app .modal-head > div:first-child {
+  margin-left: auto !important;
+  margin-right: auto !important;
+  text-align: center !important;
+}
+
+.app .submit-modal-header > div:first-child > div,
+.app .modal-head > div:first-child > div {
+  justify-content: center !important;
+  width: 100%;
+}
+
+/* ---------------------------------------------------------------------
+   3. TABLES — every header, value, icon and action in every module
+   --------------------------------------------------------------------- */
+.app table,
+.app table th,
+.app table td,
+.app table thead th,
+.app table tbody td,
+.app .report-grid-table th,
+.app .report-grid-table td,
+.app table th.col-left,
+.app table td.col-left,
+.app table th.col-center,
+.app table td.col-center,
+.app .report-grid-table .th-cat,
+.app .report-grid-table .td-cat,
+.app table td.empty,
+.app table td.full-cell,
+.app table td .cell,
+.app table td.col-left .cell,
+.app table td.col-center .cell {
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* Headers wrap cleanly instead of clipping; values wrap instead of overlapping. */
+.app table th,
+.app table td,
+.app table td .cell {
+  white-space: normal !important;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+/* Composite cell groups (icon + text, code + title) stay centered as a unit. */
+.app table .adm-req-top,
+.app table .cell > a[style*='inline-flex'],
+.app table .cell > a[style*='inline-flex'] > span {
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+/* Center grouped controls, badges, media and inline forms inside cells. */
+.app table .row-actions,
+.app table .account-approval-actions,
+.app table .adm-requester,
+.app table .dispatch-tech-row,
+.app table .eq-media,
+.app table .account-approval-student-id,
+.app table .account-approval-role,
+.app table .priority-summary,
+.app table .badge,
+.app table .chip,
+.app table .sev-chip-1,
+.app table .sev-chip-2,
+.app table .sev-chip-3,
+.app table .sev-chip-4,
+.app table .inline-form,
+.app table form,
+.app table .btn,
+.app table .icon-btn,
+.app table svg,
+.app table .ic {
+  margin-left: auto !important;
+  margin-right: auto !important;
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+  float: none !important;
+}
+
+/* Mobile card layout: stack the copied field label above its centered value. */
+@media (max-width: 900px) {
+  .app table.stack-table tbody td,
+  .app table.stack-table tbody td::before,
+  .app table.stack-table tbody td:first-child,
+  .app table.stack-table tbody td.full-cell,
+  .app table.stack-table tbody td .cell {
+    text-align: center !important;
+    justify-content: center !important;
+    align-items: center !important;
+  }
+
+  .app table.stack-table tbody td {
+    flex-direction: column !important;
+    gap: 2px !important;
+  }
+
+  .app table.stack-table tbody td::before {
+    width: 100% !important;
+    max-width: 100% !important;
+    flex: 0 0 auto !important;
+  }
+
+  .app table.stack-table tbody td > .cell {
+    max-width: 100% !important;
+  }
+}
+
+/* ---------------------------------------------------------------------
+   4. FORMS, FIELDS, DROPDOWNS, PLACEHOLDERS AND BUTTONS
+   --------------------------------------------------------------------- */
+.app .field > label,
+.app .field > .label,
+.app .form-grid label,
+.app label,
+.auth label {
+  text-align: center !important;
+  display: block;
+}
+
+.app input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']),
+.app select,
+.app textarea,
+.auth input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']),
+.auth select,
+.auth textarea {
+  text-align: center !important;
+}
+
+.app input::placeholder,
+.app textarea::placeholder,
+.auth input::placeholder,
+.auth textarea::placeholder {
+  text-align: center !important;
+}
+
+.app select option,
+.auth select option {
+  text-align: center !important;
+}
+
+.app .actions,
+.app .form-actions,
+.app .checks,
+.app .wizard-nav,
+.app .submit-modal-footer,
+.app .profile-card-footer,
+.app .role-cards-grid,
+.auth .actions,
+.auth .auth-actions {
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+}
+
+.app .counter,
+.auth .counter {
+  text-align: center !important;
+}
+
+.app .btn,
+.auth .btn {
+  justify-content: center !important;
+  align-items: center !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* Center the inline icon+label groups used by checks and action buttons. */
+.app .checks label,
+.app .btn,
+.app .tab-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* ---------------------------------------------------------------------
+   5. DASHBOARD CARDS, STATS, PANELS AND CHART-LIKE BLOCKS
+   --------------------------------------------------------------------- */
+.app .istat,
+.app .istat-inline-content,
+.app .istat-top-line,
+.app .istat-sub,
+.app .stat,
+.app .stat .label,
+.app .stat .value,
+.app .stat .sub,
+.app .adm-stat,
+.app .adm-stat-body,
+.app .adm-stat-num,
+.app .adm-stat-label,
+.app .adm-stat-note,
+.app .priority-summary,
+.app .empty-state,
+.app .empty-state strong,
+.app .rec-list .pts,
+.app .adm-load-num,
+.app .adm-maint-due {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+.app .istat-ic,
+.app .adm-stat-ic,
+.app .empty-ic,
+.app .stat .icon {
+  display: inline-grid !important;
+  place-items: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.app [style*='align-items:flex-start'],
+.app [style*='align-items: flex-start'] {
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+/* ---------------------------------------------------------------------
+   6. MODALS AND DETAIL PANELS
+   --------------------------------------------------------------------- */
+.app .modal-backdrop,
+.app .submit-modal-backdrop {
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+.app .modal-card,
+.app .submit-modal-card,
+.app .profile-modal-card,
+.app .submit-modal-body,
+.app .submit-modal-body .field,
+.app .submit-modal-body [style*='display:grid'] > div,
+.app .submit-modal-body [style*='display: grid'] > div,
+.app .modal-body,
+.app .detail-grid > div {
+  text-align: center !important;
+}
+
+.app .submit-modal-body .stepper,
+.app .submit-modal-body .stepper li,
+.app .submit-modal-body .step-name {
+  justify-content: center !important;
+  text-align: center !important;
+}
+
+/* ---------------------------------------------------------------------
+   7. TABS, BADGES, CHIPS AND MISC DATA DISPLAYS
+   --------------------------------------------------------------------- */
+.app .section-tabs {
+  justify-content: center !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.app .section-tabs a,
+.app .tab-badge,
+.app .badge,
+.app .chip,
+.app .sev-chip-1,
+.app .sev-chip-2,
+.app .sev-chip-3,
+.app .sev-chip-4,
+.app .pill,
+.app .status {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
+  vertical-align: middle !important;
+}
+
+/* ---------------------------------------------------------------------
+   8. AUTH PAGES (shared by Administrator, Technician and Student login)
+   --------------------------------------------------------------------- */
+.auth .auth-card,
+.auth .auth-card p,
+.auth .auth-alert,
+.auth .role-card,
+.auth .role-card-info {
+  text-align: center !important;
+}
+
+.auth .role-cards-grid {
+  align-items: stretch !important;
+}
+
+@media (max-width: 360px) {
+  .auth .role-card-info {
+    text-align: center !important;
+  }
+}

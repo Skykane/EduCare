@@ -1,0 +1,314 @@
+/* Shared circular profile-picture system.
+   Loaded last in header.ejs so every role gets identical geometry regardless
+   of older, page-specific avatar rules. */
+
+/* Outer wrapper stays unclipped so the status dot can sit on the edge and
+   extend slightly beyond it. The inner media wrapper is the clipped circle. */
+.ec-avatar {
+  --ec-size: 44px;
+  --ec-status-size: max(9px, calc(var(--ec-size) * 0.2));
+  width: var(--ec-size);
+  height: var(--ec-size);
+  flex: 0 0 var(--ec-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-sizing: border-box;
+  border-radius: 50%;
+  overflow: visible;
+  vertical-align: middle;
+  line-height: 1;
+  color: var(--primary);
+}
+
+.ec-avatar [hidden] { display: none !important; }
+
+.ec-avatar--xs { --ec-size: 24px; font-size: 9px; }
+.ec-avatar--sm { --ec-size: 32px; font-size: 11px; }
+.ec-avatar--md { --ec-size: 44px; font-size: 14px; }
+.ec-avatar--lg { --ec-size: 56px; font-size: 18px; }
+.ec-avatar--xl { --ec-size: 76px; font-size: 25px; }
+
+.ec-avatar__media {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: 50%;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--primary-soft), rgba(148, 163, 184, 0.18));
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.ec-avatar__img,
+.ec-avatar__fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  box-sizing: border-box;
+}
+
+.ec-avatar__img {
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  background: transparent;
+}
+
+.ec-avatar__fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  user-select: none;
+}
+
+.ec-avatar__status {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: var(--ec-status-size);
+  height: var(--ec-status-size);
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-sizing: content-box;
+  z-index: 10;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.35);
+}
+
+.ec-avatar__status.is-active { background: #22c55e; }
+.ec-avatar__status.is-inactive { background: #ef4444; }
+
+/* Identity rows: avatar never overlaps name/role/status text. */
+.ec-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.ec-identity__text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ec-identity__name,
+.ec-identity__meta {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ec-identity__name { font-weight: 700; }
+.ec-identity__meta { color: var(--muted); font-size: 12px; }
+.ec-identity .users-name,
+.ec-identity .sd-primary { font-weight: 700; }
+
+.ec-identity--table .ec-identity__name,
+.ec-identity--table .users-name,
+.ec-identity--table .sd-primary { max-width: 240px; }
+
+/* Sidebar account card. The outer wrapper stays transparent and unclipped;
+   the inner media circle carries the translucent sidebar treatment. */
+.sidebar .who .avatar.ec-avatar {
+  --ec-size: 40px;
+  width: var(--ec-size);
+  height: var(--ec-size);
+  flex: 0 0 var(--ec-size);
+  display: inline-flex;
+  background: transparent;
+  border: 0;
+  color: #fff;
+  overflow: visible;
+}
+.sidebar .who .avatar.ec-avatar .ec-avatar__media {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+.sidebar .who .ec-avatar__fallback { color: #fff; }
+
+/* Page-specific avatar placements. */
+
+.pm-avatar-preview.ec-avatar {
+  --ec-size: 56px;
+  border: 0;
+  background: transparent;
+}
+.pm-avatar-preview.ec-avatar .ec-avatar__media {
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.app .admin-ui-page .admin-ui-tech-avatar.ec-avatar {
+  --ec-size: 44px;
+  width: var(--ec-size);
+  height: var(--ec-size);
+  flex: 0 0 var(--ec-size);
+  display: inline-flex;
+  overflow: visible;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+.app .admin-ui-page .admin-ui-tech-avatar.ec-avatar .ec-avatar__media {
+  background: var(--primary-soft);
+  border-color: transparent;
+  color: var(--primary);
+}
+
+.profile-hero-avatar.ec-avatar {
+  --ec-size: 76px;
+  width: var(--ec-size);
+  height: var(--ec-size);
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  letter-spacing: normal;
+}
+
+.adm-avatar.ec-avatar { --ec-size: 26px; }
+.adm-tech-row .adm-avatar.ec-avatar { --ec-size: 32px; }
+.adm-over-tech { gap: 10px; }
+.notif-owner { margin-bottom: 14px; }
+.sd-account-identity { margin-bottom: 16px; }
+.timeline .when { display: flex; align-items: center; gap: 10px; }
+.au-center .ec-identity { justify-content: center; }
+.form-floating-wrap .page-head .ec-avatar { vertical-align: middle; }
+
+/* Crop dialog */
+.ec-crop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.ec-crop-card {
+  width: min(420px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: var(--surface);
+  color: var(--text, #0f172a);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+}
+
+.ec-crop-head,
+.ec-crop-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 18px;
+}
+
+.ec-crop-head { border-bottom: 1px solid var(--border); }
+.ec-crop-actions { border-top: 1px solid var(--border); flex-wrap: wrap; justify-content: flex-end; }
+.ec-crop-head h2 { margin: 0; font-size: 16px; font-weight: 800; }
+.ec-crop-head p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+
+.ec-crop-close {
+  border: 0;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.ec-crop-body { padding: 18px; }
+
+.ec-crop-stage {
+  width: 320px;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  position: relative;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #0f172a;
+  cursor: grab;
+  touch-action: none;
+  box-shadow: 0 0 0 1px var(--border), 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+.ec-crop-stage.is-dragging { cursor: grabbing; }
+
+.ec-crop-image {
+  position: absolute;
+  display: block;
+  max-width: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
+}
+
+.ec-crop-guide {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.25);
+  pointer-events: none;
+}
+
+.ec-crop-hint {
+  margin: 12px 0 10px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.ec-crop-slider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+.ec-crop-slider input { flex: 1; min-width: 0; }
+.ec-crop-slider output { min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+
+.ec-crop-error {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.1);
+  color: #b91c1c;
+  font-size: 12px;
+}
+
+.ec-crop-actions .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+@media (max-width: 640px) {
+  .ec-avatar--xl,
+  .profile-hero-avatar.ec-avatar { --ec-size: 68px; font-size: 22px; }
+  .ec-identity--table .ec-identity__name,
+  .ec-identity--table .users-name,
+  .ec-identity--table .sd-primary { max-width: 160px; }
+  .ec-crop-head,
+  .ec-crop-body,
+  .ec-crop-actions { padding: 12px; }
+  .ec-crop-stage { width: min(280px, 100%); }
+  .ec-crop-actions .btn { flex: 1 1 auto; }
+}

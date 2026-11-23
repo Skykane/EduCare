@@ -38,7 +38,7 @@ router.post('/', (req, res) => {
     secure: b.secure === '1' || b.secure === 'on',
     user: str(b.user, 200).trim(),
     pass: passToSave,
-    fromName: str(b.fromName, 120) || 'EduCare - St. Anthony CST',
+    fromName: str(b.fromName, 120) || 'EduCare',
     fromEmail: str(b.fromEmail || b.user, 200).trim(),
     adminEmail: str(b.adminEmail, 200).trim() || 'admin@educare.local',
     notifyOnRegistration: b.notifyOnRegistration === '1' || b.notifyOnRegistration === 'on',

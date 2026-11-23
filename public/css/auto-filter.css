@@ -1,0 +1,60 @@
+/* Automatic filtering feedback — shared by every module. */
+
+.auto-filter-loading {
+  position: relative;
+  min-height: 96px;
+}
+
+.auto-filter-loading > *:not(.auto-filter-overlay) {
+  opacity: 0.45;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.auto-filter-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--surface, #fff) 55%, transparent);
+  color: var(--muted, #6b7280);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auto-filter-spinner {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  border: 2px solid var(--border, #e5e7eb);
+  border-top-color: var(--primary, #8c171e);
+  border-radius: 50%;
+  animation: auto-filter-spin 700ms linear infinite;
+}
+
+@keyframes auto-filter-spin {
+  to { transform: rotate(360deg); }
+}
+
+.auto-filter-validation {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 9px;
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--red, #dc2626);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.auto-filter-validation[hidden] {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auto-filter-spinner { animation-duration: 1.6s; }
+}

@@ -1,0 +1,343 @@
+/* =====================================================================
+   My Profile — scoped redesign.
+   Loaded after style.css, alignment.css and equipment-management-header.css.
+   Only .profile-page is affected. Presentation only: every value shown on
+   the page still comes from the logged-in account.
+   ===================================================================== */
+
+/* ---------- Page header: maroon banner (shared partial) ----------
+   Title/subtitle left, Edit Profile right, inside one full-width bar.
+   Metrics intentionally mirror the Equipment Inventory header. */
+.app .profile-page .dash-header-banner {
+  padding: 11px 18px !important;
+  min-height: 0 !important;
+  margin-bottom: 14px !important;
+  border-radius: 12px !important;
+  box-shadow: 0 4px 14px rgba(88, 13, 22, 0.22) !important;
+  text-align: left !important;
+}
+.app .profile-page .dash-banner-watermark { display: none !important; }
+.app .profile-page .dash-banner-content {
+  display: flex !important;
+  flex-wrap: nowrap;
+  justify-content: space-between !important;
+  align-items: center !important;
+  gap: 14px;
+  text-align: left !important;
+}
+.app .profile-page .dash-banner-text {
+  min-width: 220px;
+  flex: 1 1 auto;
+  text-align: left !important;
+}
+.app .profile-page .dash-banner-text h1 {
+  margin: 0 0 2px !important;
+  font-size: 18px !important;
+  line-height: 1.25 !important;
+  text-align: left !important;
+}
+.app .profile-page .dash-banner-text p {
+  margin: 0 !important;
+  font-size: 12px !important;
+  line-height: 1.4 !important;
+  text-align: left !important;
+}
+.app .profile-page .dash-banner-actions {
+  width: auto;
+  flex: 0 0 auto !important;
+  justify-content: flex-end !important;
+  flex-wrap: wrap !important;
+  text-align: right !important;
+}
+.app .profile-page .btn-banner-sub {
+  height: 34px !important;
+  min-height: 34px !important;
+  padding: 0 13px !important;
+  border-radius: 8px !important;
+  font-size: 11.5px !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+}
+
+/* Section tabs, if a page ever supplies them, sit below the header. */
+.app .profile-page .section-tabs {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0;
+  box-sizing: border-box !important;
+  margin: 0 0 14px !important;
+  padding: 5px 10px !important;
+  gap: 5px !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  align-items: center !important;
+  overflow-x: auto !important;
+  background: var(--gray-soft) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 10px !important;
+}
+.app .profile-page .section-tabs a {
+  flex: 0 0 auto;
+  padding: 7px 14px !important;
+  border-radius: 7px !important;
+  font-size: 12.5px !important;
+  font-weight: 700 !important;
+  text-align: center !important;
+  white-space: nowrap !important;
+  background: transparent !important;
+  color: var(--muted) !important;
+}
+.app .profile-page .section-tabs a.active {
+  background: var(--surface) !important;
+  color: var(--primary) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* ---------- Profile summary card ----------
+   Clean white card with a single maroon accent, no decorative banner. */
+.app .profile-page .po-hero {
+  position: relative;
+  margin-bottom: 14px;
+  padding: 18px 20px;
+  overflow: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--primary);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  text-align: left !important;
+}
+.app .profile-page .po-hero-cover { display: none; }
+.app .profile-page .po-hero-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  align-items: center;
+  gap: 18px;
+  padding: 0;
+}
+.app .profile-page .po-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.app .profile-page .po-avatar-frame {
+  width: 76px;
+  height: 76px;
+  flex: 0 0 76px;
+  margin-top: 0;
+  border: 2px solid var(--primary-soft);
+  background: var(--primary);
+  box-shadow: none;
+}
+.app .profile-page .po-avatar-img { border: 0; }
+.app .profile-page .po-avatar-fallback { font-size: 26px; }
+.app .profile-page .po-avatar-status {
+  right: 0;
+  bottom: 0;
+  width: 14px;
+  height: 14px;
+  border-width: 2px;
+}
+.app .profile-page .po-identity-text { min-width: 0; padding-bottom: 0; }
+.app .profile-page .po-name-row { gap: 6px 8px; margin-bottom: 7px; }
+.app .profile-page .po-name-row h2 { font-size: 19px; }
+.app .profile-page .po-role-badge {
+  padding: 3px 9px;
+  font-size: 11.5px;
+  border: 1px solid var(--primary-soft);
+}
+.app .profile-page .po-identity-chips { gap: 5px 14px; }
+.app .profile-page .po-id-chip { font-size: 11.5px; }
+.app .profile-page .po-profile-actions { align-self: center; min-width: 0; }
+.app .profile-page .po-department-box {
+  flex: none;
+  padding: 11px 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.app .profile-page .po-department-label { margin-bottom: 4px; font-size: 11px; }
+.app .profile-page .po-department-box strong { font-size: 13px; }
+
+/* ---------- Two balanced information cards ---------- */
+.app .profile-page .po-detail-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: stretch;
+  margin-bottom: 14px;
+}
+.app .profile-page .po-panel,
+.app .profile-page .po-account-panel {
+  min-width: 0;
+  margin-bottom: 0;
+  padding: 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  text-align: left !important;
+}
+.app .profile-page .po-panel-head {
+  gap: 10px;
+  padding-bottom: 12px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  text-align: left !important;
+}
+.app .profile-page .po-panel-head h3 { font-size: 14px; }
+.app .profile-page .po-panel-head p { font-size: 11px; }
+.app .profile-page .po-panel-icon { width: 32px; height: 32px; border-radius: 8px; }
+.app .profile-page .po-panel-icon .ic { width: 17px; height: 17px; }
+
+/* Personal information: one consistent, divided row per field. */
+.app .profile-page .po-info-list { margin: 0; }
+.app .profile-page .po-info-row {
+  display: grid;
+  grid-template-columns: 172px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 45px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.app .profile-page .po-info-row:last-child { border-bottom: 1px solid transparent; }
+.app .profile-page .po-info-row dt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.app .profile-page .po-info-icon {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  border-radius: 7px;
+  background: var(--primary-soft);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+}
+.app .profile-page .po-info-icon .ic { width: 13px; height: 13px; }
+.app .profile-page .po-info-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.app .profile-page .po-info-row dd {
+  margin: 0;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left !important;
+  overflow-wrap: anywhere;
+}
+
+/* Account information: four equal cards in a 2 x 2 grid. */
+.app .profile-page .po-account-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.app .profile-page .po-mini-card {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  align-content: start;
+  height: 84px;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: left !important;
+}
+.app .profile-page .po-mini-icon { width: 30px; height: 30px; border-radius: 8px; }
+.app .profile-page .po-mini-icon .ic { width: 15px; height: 15px; }
+.app .profile-page .po-mini-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.app .profile-page .po-mini-label { font-size: 11px; font-weight: 600; color: var(--muted); }
+.app .profile-page .po-mini-value { font-size: 12.5px; font-weight: 700; overflow-wrap: anywhere; }
+.app .profile-page .po-mini-sub { font-size: 10.5px; color: var(--muted); }
+.app .profile-page .po-mini-card .badge { justify-self: start; margin-top: 2px; font-size: 11px; }
+
+/* ---------- Account Activity: full-width card below the two panels ---------- */
+.app .profile-page .po-activity-panel { margin-bottom: 0; }
+.app .profile-page .po-activity-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.app .profile-page .po-stat-card {
+  min-height: 106px;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-align: left !important;
+}
+.app .profile-page .po-stat-top { margin-bottom: 9px; }
+.app .profile-page .po-stat-icon { width: 28px; height: 28px; border-radius: 8px; }
+.app .profile-page .po-stat-label { font-size: 11.5px; }
+.app .profile-page .po-stat-value { font-size: 23px; }
+.app .profile-page .po-stat-hint { font-size: 10.5px; }
+
+/* ---------- Responsive behaviour ---------- */
+@media (max-width: 1180px) {
+  .app .profile-page .po-info-row { grid-template-columns: 158px minmax(0, 1fr); }
+  .app .profile-page .po-panel,
+  .app .profile-page .po-account-panel { padding: 16px; }
+}
+@media (max-width: 1100px) {
+  /* The fixed sidebar leaves too little room for two side-by-side cards. */
+  .app .profile-page .po-detail-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 900px) {
+  .app .profile-page .po-hero-body { grid-template-columns: 1fr; gap: 14px; }
+  .app .profile-page .po-department-box { width: 100%; }
+  .app .profile-page .po-activity-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  /* Compact maroon header, matching the Equipment Inventory small-screen metrics. */
+  .app .profile-page .dash-header-banner { padding: 10px 13px !important; }
+  .app .profile-page .dash-banner-text { min-width: 0; }
+  .app .profile-page .dash-banner-text h1 { font-size: 17px !important; }
+  .app .profile-page .dash-banner-text p { font-size: 11.5px !important; }
+}
+@media (max-width: 640px) {
+  .app .profile-page .po-hero { padding: 16px; }
+  /* Base style.css switches .po-identity to a centred column below 420px;
+     keep avatar and identity text side by side and left aligned instead. */
+  .app .profile-page .po-identity { flex-direction: row; align-items: center; }
+  .app .profile-page .po-avatar-frame { width: 68px; height: 68px; flex-basis: 68px; }
+  .app .profile-page .po-avatar-fallback { font-size: 24px; }
+  .app .profile-page .po-name-row h2 { font-size: 17px; }
+  .app .profile-page .po-info-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    min-height: 0;
+    padding: 9px 0;
+  }
+  .app .profile-page .po-info-row dd { padding-left: 34px; }
+}
+@media (max-width: 480px) {
+  .app .profile-page .po-account-grid,
+  .app .profile-page .po-activity-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------- Dark mode: keep surfaces layered without extra effects ---------- */
+[data-theme="dark"] .app .profile-page .po-hero,
+[data-theme="dark"] .app .profile-page .po-panel,
+[data-theme="dark"] .app .profile-page .po-account-panel,
+[data-theme="dark"] .app .profile-page .po-activity-panel {
+  background: var(--surface);
+  border-color: var(--border);
+}
+/* Preserve the single maroon accent on the summary card in dark mode. */
+[data-theme="dark"] .app .profile-page .po-hero { border-left-color: var(--primary); }
+[data-theme="dark"] .app .profile-page .po-mini-card,
+[data-theme="dark"] .app .profile-page .po-stat-card,
+[data-theme="dark"] .app .profile-page .po-department-box {
+  background: var(--gray-soft);
+  border-color: var(--border);
+}

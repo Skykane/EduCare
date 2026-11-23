@@ -32,10 +32,20 @@
       </div>
       <div class="field">
         <label for="categoryId">Category *</label>
-        <select id="categoryId" name="categoryId" required>
+        <select data-ec-select="1" id="categoryId" name="categoryId" required>
           <option value="">Choose…</option>
-          <% categories.forEach(function (c) { %><option value="<%= c.id %>" <%= equipment.categoryId === c.id ? 'selected' : '' %>><%= c.name %></option><% }) %>
+          <% categories.forEach(function (c) { %><option value="<%= c.id %>" <%= Number(equipment.categoryId) === Number(c.id) ? 'selected' : '' %>><%= c.name %></option><% }) %>
         </select>
+        <% if (!categories.length) { %>
+          <p id="category-empty" class="muted" style="font-size:12.5px;margin:6px 0 0;">No categories available. Please add a category first.</p>
+        <% } %>
+        <button type="button" id="btn-add-category" class="btn-link" style="font-size:12.5px;margin-top:6px;">+ Add new category</button>
+        <div id="inline-category" style="display:none;margin-top:8px;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="text" id="new-category-name" placeholder="Category name" maxlength="100" style="flex:1;min-width:140px;height:36px;border:1.5px solid var(--border);border-radius:8px;padding:0 10px;font-size:13px;background:var(--surface);color:var(--text);">
+          <button type="button" class="btn btn-sm btn-primary" id="btn-save-category">Add</button>
+          <button type="button" class="btn btn-sm btn-light" id="btn-cancel-category">Cancel</button>
+          <span id="category-feedback" class="muted" style="font-size:12px;width:100%;"></span>
+        </div>
       </div>
       <div class="field">
         <label for="acquisitionDate">Date Purchased</label>
@@ -48,18 +58,40 @@
       </div>
       <div class="field">
         <label for="location">Location *</label>
-        <input type="text" id="location" name="location" value="<%= equipment.location || '' %>" list="locations" required maxlength="150">
-        <datalist id="locations"><% locations.forEach(function (l) { %><option value="<%= l %>"><% }) %></datalist>
+        <select id="location" name="location" required data-ec-select="1">
+          <option value="">Select location…</option>
+          <% if (typeof C !== 'undefined' && C.CAMPUS_ROOMS) { %>
+            <% Object.keys(C.CAMPUS_ROOMS).forEach(function (groupName) { %>
+              <optgroup label="<%= groupName %>">
+                <% C.CAMPUS_ROOMS[groupName].forEach(function (room) { %>
+                  <option value="<%= room %>" <%= (equipment.location || '') === room ? 'selected' : '' %>><%= room %></option>
+                <% }) %>
+              </optgroup>
+            <% }) %>
+          <% } %>
+          <%
+            var _locVal = equipment.location || '';
+            var _allCampus = (typeof C !== 'undefined' && C.CAMPUS_LOCATIONS) ? C.CAMPUS_LOCATIONS : [];
+            var _extraLocs = (locations || []).filter(function (l) { return !_allCampus.includes(l) && l !== _locVal; });
+          %>
+          <% if (_locVal && !_allCampus.includes(_locVal)) { %>
+            <optgroup label="Current Location (Historical)">
+              <option value="<%= _locVal %>" selected><%= _locVal %></option>
+            </optgroup>
+          <% } %>
+        </select>
       </div>
       <div class="field">
-        <label for="status">Condition</label>
-        <select id="status" name="status">
+        <label for="status">Condition *</label>
+        <select data-ec-select="1" id="status" name="status" required>
+          <option value="">Choose…</option>
           <% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= equipment.status === s ? 'selected' : '' %>><%= s %></option><% }) %>
         </select>
       </div>
       <div class="field">
-        <label for="importance">Importance Level <span class="hint">(priority level)</span></label>
-        <select id="importance" name="importance">
+        <label for="importance">Importance Level * <span class="hint">(priority level)</span></label>
+        <select data-ec-select="1" id="importance" name="importance" required>
+          <option value="">Choose…</option>
           <% Object.keys(C.IMPORTANCE).forEach(function (k) { %><option value="<%= k %>" <%= Number(equipment.importance) === Number(k) ? 'selected' : '' %>><%= k %> – <%= C.IMPORTANCE[k] %></option><% }) %>
         </select>
       </div>
@@ -226,14 +258,14 @@
       return (bytes / 1048576).toFixed(1) + ' MB';
     }
 
-    function handleSelectedFile(file) {
+    async function handleSelectedFile(file) {
       if (!file) return;
       if (!file.type.match(/^image\//i)) {
-        alert('Please choose an image file (JPG, PNG, GIF, WEBP).');
+        if (window.ecAlert) await window.ecAlert('Please choose an image file (JPG, PNG, GIF, WEBP).', { title: 'Invalid File Type', tone: 'warning', icon: 'warning' });
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image exceeds 5 MB. Please choose a smaller photo.');
+        if (window.ecAlert) await window.ecAlert('Image exceeds 5 MB. Please choose a smaller photo.', { title: 'File Too Large', tone: 'warning', icon: 'warning' });
         return;
       }
 
@@ -434,6 +466,85 @@
             form.submit();
           }
         }
+      });
+    }
+
+    // Inline category creation: append to the dropdown without a page reload.
+    var categorySelect = document.getElementById('categoryId');
+    var btnAddCategory = document.getElementById('btn-add-category');
+    var inlineCategory = document.getElementById('inline-category');
+    var newCategoryName = document.getElementById('new-category-name');
+    var btnSaveCategory = document.getElementById('btn-save-category');
+    var btnCancelCategory = document.getElementById('btn-cancel-category');
+    var categoryFeedback = document.getElementById('category-feedback');
+
+    function setCategoryFeedback(message, isError) {
+      if (!categoryFeedback) return;
+      categoryFeedback.textContent = message || '';
+      categoryFeedback.style.color = isError ? 'var(--red, #dc2626)' : 'var(--muted)';
+    }
+
+    function openInlineCategory() {
+      if (!inlineCategory) return;
+      inlineCategory.style.display = 'flex';
+      if (btnAddCategory) btnAddCategory.style.display = 'none';
+      if (newCategoryName) newCategoryName.focus();
+      setCategoryFeedback('');
+    }
+
+    function closeInlineCategory() {
+      if (!inlineCategory) return;
+      inlineCategory.style.display = 'none';
+      if (btnAddCategory) btnAddCategory.style.display = '';
+      if (newCategoryName) newCategoryName.value = '';
+      setCategoryFeedback('');
+    }
+
+    function saveCategory() {
+      if (!newCategoryName || !categorySelect) return;
+      var name = newCategoryName.value.trim();
+      if (!name) {
+        setCategoryFeedback('Category name is required.', true);
+        return;
+      }
+      if (btnSaveCategory) btnSaveCategory.disabled = true;
+      fetch('/categories/api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'name=' + encodeURIComponent(name)
+      })
+        .then(function (r) {
+          return r.json().then(function (data) { return { okResponse: r.ok, data: data }; });
+        })
+        .then(function (result) {
+          if (!result.okResponse || !result.data.ok) {
+            setCategoryFeedback(result.data.error || 'Could not add category.', true);
+            return;
+          }
+          var option = document.createElement('option');
+          option.value = result.data.category.id;
+          option.textContent = result.data.category.name;
+          categorySelect.appendChild(option);
+          categorySelect.value = String(result.data.category.id);
+          var empty = document.getElementById('category-empty');
+          if (empty) empty.remove();
+          closeInlineCategory();
+          setCategoryFeedback('Category added.');
+        })
+        .catch(function () {
+          setCategoryFeedback('Could not add category. Please try again.', true);
+        })
+        .finally(function () {
+          if (btnSaveCategory) btnSaveCategory.disabled = false;
+        });
+    }
+
+    if (btnAddCategory) btnAddCategory.addEventListener('click', openInlineCategory);
+    if (btnCancelCategory) btnCancelCategory.addEventListener('click', closeInlineCategory);
+    if (btnSaveCategory) btnSaveCategory.addEventListener('click', saveCategory);
+    if (newCategoryName) {
+      newCategoryName.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); saveCategory(); }
       });
     }
   })();

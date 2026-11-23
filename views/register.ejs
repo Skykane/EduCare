@@ -1,16 +1,32 @@
 <%- include('partials/auth-top', { title: 'Register' }) %>
-<h2 class="auth-title">Create an account</h2>
-<p class="auth-sub" id="auth-sub-desc">Select your role to sign up for the EduCare System.</p>
+<%
+  // The visible account type is the only role selector. It maps to the
+  // internal role on the server; no separate role field is submitted.
+  var selectedAccountType = values.accountType
+    || (values.role === 'requester' ? 'student' : values.role)
+    || 'student';
+  var isStudentRole = selectedAccountType === 'student';
+  var isTeacherRole = selectedAccountType === 'teacher';
+  var schoolOptions = (typeof gradeSectionOptions !== 'undefined' && Array.isArray(gradeSectionOptions)) ? gradeSectionOptions : [];
+  var groupedSchoolOptions = (typeof groupedGradeSectionOptions !== 'undefined' && Array.isArray(groupedGradeSectionOptions)) ? groupedGradeSectionOptions : [];
+  var hasSchoolOptions = schoolOptions.length > 0;
+  var selectedGradeSection = values.gradeSection || '';
+%>
+<div class="auth-scroll">
+<div class="auth-form-heading">
+  <h2 class="auth-title">Create an account</h2>
+  <p class="auth-sub" id="auth-sub-desc">Select Student or Teacher to sign up for the EduCare System.</p>
+</div>
 <% if (errors.length) { %>
   <div class="auth-alert error"><ul><% errors.forEach(function (e) { %><li><%= e %></li><% }) %></ul></div>
 <% } %>
-<form method="post" action="/register" class="auth-form" id="register-form">
+<form method="post" action="/register" class="auth-form register-form" id="register-form" novalidate>
   <!-- Role Selector -->
   <div class="role-selector-wrap">
-    <label class="role-selector-title">Select your account role:</label>
+    <label class="role-selector-title">Select your account type:</label>
     <div class="role-cards-grid">
-      <label class="role-card <%= (values.role || 'requester') === 'requester' ? 'active' : '' %>" for="role-student">
-        <input type="radio" id="role-student" name="role" value="requester" <%= (values.role || 'requester') === 'requester' ? 'checked' : '' %>>
+      <label class="role-card <%= isStudentRole ? 'active' : '' %>" for="role-student">
+        <input type="radio" id="role-student" name="accountType" value="student" <%= isStudentRole ? 'checked' : '' %>>
         <div class="role-card-content">
           <span class="role-card-icon"><%- include('partials/auth-icons', { icon: 'user' }) %></span>
           <div class="role-card-info">
@@ -20,24 +36,13 @@
         </div>
       </label>
 
-      <label class="role-card <%= values.role === 'admin' ? 'active' : '' %>" for="role-admin">
-        <input type="radio" id="role-admin" name="role" value="admin" <%= values.role === 'admin' ? 'checked' : '' %>>
+      <label class="role-card <%= isTeacherRole ? 'active' : '' %>" for="role-teacher">
+        <input type="radio" id="role-teacher" name="accountType" value="teacher" <%= isTeacherRole ? 'checked' : '' %>>
         <div class="role-card-content">
-          <span class="role-card-icon"><%- include('partials/auth-icons', { icon: 'lock' }) %></span>
+          <span class="role-card-icon"><%- include('partials/auth-icons', { icon: 'id-card' }) %></span>
           <div class="role-card-info">
-            <strong>Admin</strong>
-            <small>Administrator</small>
-          </div>
-        </div>
-      </label>
-
-      <label class="role-card <%= values.role === 'technician' ? 'active' : '' %>" for="role-technician">
-        <input type="radio" id="role-technician" name="role" value="technician" <%= values.role === 'technician' ? 'checked' : '' %>>
-        <div class="role-card-content">
-          <span class="role-card-icon"><%- include('partials/auth-icons', { icon: 'building' }) %></span>
-          <div class="role-card-info">
-            <strong>Technician</strong>
-            <small>Maintenance Staff</small>
+            <strong>Teacher</strong>
+            <small>Faculty / Staff</small>
           </div>
         </div>
       </label>
@@ -45,10 +50,10 @@
   </div>
 
   <!-- Student ID (Shown & required only for Student role) -->
-  <div class="input-icon" id="student-id-wrap" style="<%= (values.role || 'requester') === 'requester' ? '' : 'display:none;' %>">
+  <div class="input-icon" id="student-id-wrap" style="<%= isStudentRole ? '' : 'display:none;' %>">
     <%- include('partials/auth-icons', { icon: 'id-card' }) %>
     <label for="studentId" class="visually-hidden">Student ID</label>
-    <input type="text" id="studentId" name="studentId" value="<%= values.studentId || '' %>" placeholder="Official Student ID (e.g. 2024-00101)" <%= (values.role || 'requester') === 'requester' ? 'required' : '' %> maxlength="50" autocomplete="off" autofocus>
+    <input type="text" id="studentId" name="studentId" value="<%= values.studentId || '' %>" placeholder="Official Student ID" <%= isStudentRole ? 'required' : '' %> maxlength="50" autocomplete="off" autofocus>
   </div>
 
   <div class="input-icon">
@@ -57,94 +62,374 @@
     <input type="text" id="name" name="name" value="<%= values.name || '' %>" placeholder="Full Name" required maxlength="120" autocomplete="name">
   </div>
 
+  <!-- Student-only read-only directory verification result. Grade Level and
+       Section are retrieved from the shared Student Directory, never entered
+       by the student. -->
+  <div class="student-verify-panel" id="student-verification" role="status" aria-live="polite" style="<%= isStudentRole ? '' : 'display:none;' %>">
+    <p class="student-verify-heading">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+      Student Directory Verification
+    </p>
+    <p id="student-verify-feedback">Enter your Student ID and Full Name to verify your school record.</p>
+    <div class="student-verify-grid" id="student-verify-details" hidden>
+      <div class="student-verify-item">
+        <span class="student-verify-label">Full Name</span>
+        <span class="student-verify-value" id="sv-full-name">—</span>
+      </div>
+      <div class="student-verify-item">
+        <span class="student-verify-label">Student ID</span>
+        <span class="student-verify-value" id="sv-student-id">—</span>
+      </div>
+      <div class="student-verify-item">
+        <span class="student-verify-label">Grade Level</span>
+        <span class="student-verify-value" id="sv-grade-level">—</span>
+      </div>
+      <div class="student-verify-item">
+        <span class="student-verify-label">Section</span>
+        <span class="student-verify-value" id="sv-section">—</span>
+      </div>
+      <div class="student-verify-item">
+        <span class="student-verify-label">Academic Year</span>
+        <span class="student-verify-value" id="sv-school-year">—</span>
+      </div>
+      <div class="student-verify-item">
+        <span class="student-verify-label">Directory Status</span>
+        <span class="student-verify-value" id="sv-status">—</span>
+      </div>
+    </div>
+  </div>
+
   <div class="input-icon">
     <%- include('partials/auth-icons', { icon: 'mail' }) %>
     <label for="email" class="visually-hidden">Email Address</label>
     <input type="email" id="email" name="email" value="<%= values.email || '' %>" placeholder="Active Email Address (e.g. name@gmail.com)" required maxlength="200" autocomplete="email">
   </div>
 
-  <div class="input-icon" id="dept-wrap">
+  <!-- Optional department/subject for teachers; students get this from the
+       verified Student Directory record. -->
+  <div class="input-icon" id="dept-wrap" style="<%= isTeacherRole ? '' : 'display:none;' %>">
     <%- include('partials/auth-icons', { icon: 'building' }) %>
-    <label for="department" class="visually-hidden">Department / Grade & Section</label>
-    <input type="text" id="department" name="department" value="<%= values.department || '' %>" placeholder="<%= values.role === 'admin' ? 'Office / Unit (e.g. Administration)' : values.role === 'technician' ? 'Department (e.g. Maintenance)' : 'Grade & Section (e.g. Grade 11 - STEM A)' %>" maxlength="150">
+    <label for="department" class="visually-hidden">Department / Subject</label>
+    <input type="text" id="department" name="department" value="<%= values.department || '' %>" placeholder="Department / Subject (optional)" maxlength="150" <%= isTeacherRole ? '' : 'disabled' %>>
+  </div>
+
+  <!-- Confirmation-only dropdown fed by administrator-configured active Grade & Section records. -->
+  <div id="student-school-wrap" style="<%= isStudentRole ? '' : 'display:none;' %>">
+    <label for="gradeSection" class="auth-field-label">Grade &amp; Section <span class="muted">(confirmed from directory)</span></label>
+    <div class="input-icon">
+      <%- include('partials/auth-icons', { icon: 'building' }) %>
+      <select id="gradeSection" name="gradeSection" data-ec-select="1" data-has-options="<%= hasSchoolOptions ? '1' : '0' %>" data-confirmation-only="1" disabled aria-describedby="grade-section-help">
+        <option value=""><%= hasSchoolOptions ? 'Verified Grade & Section appears here' : 'No active sections configured' %></option>
+        <% if (groupedSchoolOptions.length) { %>
+          <% groupedSchoolOptions.forEach(function (group) { %>
+            <optgroup label="<%= group.group %>">
+              <% group.options.forEach(function (option) { %>
+                <option value="<%= option.value %>" <%= selectedGradeSection === option.value ? 'selected' : '' %>><%= option.label %></option>
+              <% }) %>
+            </optgroup>
+          <% }) %>
+        <% } else { %>
+          <% schoolOptions.forEach(function (option) { %>
+            <option value="<%= option.value %>" <%= selectedGradeSection === option.value ? 'selected' : '' %>><%= option.label %></option>
+          <% }) %>
+        <% } %>
+      </select>
+    </div>
+    <p class="confirmation-hint" id="grade-section-help">This is a confirmation only. The value stored on your account comes from the verified Student Directory record.</p>
+    <% if (!hasSchoolOptions) { %>
+      <p class="auth-field-message" id="grade-section-message">No sections have been configured yet. Please contact the administrator.</p>
+    <% } %>
   </div>
 
   <div class="input-icon">
     <%- include('partials/auth-icons', { icon: 'lock' }) %>
     <label for="password" class="visually-hidden">Password</label>
-    <input type="password" id="password" name="password" placeholder="Password (min 8 chars, uppercase, number & symbol)" required minlength="8" autocomplete="new-password">
+    <input type="password" id="password" name="password" placeholder="Password" required minlength="8" autocomplete="new-password" aria-describedby="password-rules">
     <button type="button" class="eye" data-toggle-password="password" aria-label="Show password"><%- include('partials/auth-icons', { icon: 'eye' }) %></button>
+  </div>
+
+  <!-- Live password checklist: each row is updated independently as the user types. -->
+  <div class="pw-rules" id="password-rules" aria-label="Password requirements">
+    <strong>Password must contain:</strong>
+    <ul class="pw-rules-list">
+      <% [
+        { key: 'length', label: 'At least 8 characters' },
+        { key: 'upper', label: 'One uppercase letter (A-Z)' },
+        { key: 'lower', label: 'One lowercase letter (a-z)' },
+        { key: 'number', label: 'One number (0-9)' },
+        { key: 'special', label: 'One symbol (!@#$%^&*)' },
+      ].forEach(function (rule) { %>
+        <li class="pw-rule" data-rule="<%= rule.key %>">
+          <span class="pw-rule-mark" aria-hidden="true">
+            <svg class="pw-rule-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+            <svg class="pw-rule-dash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 12h12"/></svg>
+          </span>
+          <span class="pw-rule-text"><%= rule.label %></span>
+        </li>
+      <% }); %>
+    </ul>
   </div>
 
   <div class="input-icon">
     <%- include('partials/auth-icons', { icon: 'lock' }) %>
     <label for="confirm" class="visually-hidden">Confirm Password</label>
-    <input type="password" id="confirm" name="confirm" placeholder="Confirm Password" required minlength="8" autocomplete="new-password">
+    <input type="password" id="confirm" name="confirm" placeholder="Confirm Password" required minlength="8" autocomplete="new-password" aria-describedby="confirm-match">
   </div>
 
-  <div class="pw-rules" style="margin: 6px 0 12px; font-size: 11.5px; padding: 10px 12px;">
-    <div style="font-weight: 700; color: #475569; margin-bottom: 4px;">Password must contain:</div>
-    <div style="color: #64748b; line-height: 1.5;">
-      • At least 8 characters<br>
-      • Uppercase (A-Z) and lowercase (a-z) letters<br>
-      • At least one number (0-9) and one symbol (!@#$%^&*)
-    </div>
+  <div class="pw-rule pw-match" id="confirm-match" aria-live="polite" hidden>
+    <span class="pw-rule-mark" aria-hidden="true">
+      <svg class="pw-rule-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 4 4L19 6"/></svg>
+      <svg class="pw-rule-dash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 12h12"/></svg>
+      <svg class="pw-rule-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"><path d="M6 6 18 18M18 6 6 18"/></svg>
+    </span>
+    <span class="pw-rule-text" id="confirm-match-text"></span>
   </div>
 
   <!-- Verification & Approval Notice -->
   <div class="auth-notice-box">
     <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;margin-top:2px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-    <span><strong>Verification Required:</strong> Every new registration requires administrator review and approval before login access is granted.</span>
+    <span id="auth-notice-text"><strong>Student Verification:</strong> Your Student ID and Full Name are checked against the official Student Directory. Verified student accounts are ready to use immediately.</span>
   </div>
 
-  <button class="auth-btn" type="submit" style="margin-top:10px">Submit Registration for Approval</button>
+  <button class="auth-btn" id="register-submit" type="submit" disabled>Create Student Account</button>
 </form>
+</div>
 <p class="auth-foot">Already have an account? &nbsp;<a href="/login">Log in</a></p>
 
 <script>
   (function () {
-    var radios = document.querySelectorAll('input[name="role"]');
+    var radios = document.querySelectorAll('input[name="accountType"]');
     var studentIdWrap = document.getElementById('student-id-wrap');
     var studentIdInput = document.getElementById('studentId');
+    var nameInput = document.getElementById('name');
+    var deptWrap = document.getElementById('dept-wrap');
     var deptInput = document.getElementById('department');
+    var schoolWrap = document.getElementById('student-school-wrap');
+    var gradeSectionInput = document.getElementById('gradeSection');
+    var verifyPanel = document.getElementById('student-verification');
+    var verifyFeedback = document.getElementById('student-verify-feedback');
+    var verifyDetails = document.getElementById('student-verify-details');
+    var noticeText = document.getElementById('auth-notice-text');
     var descEl = document.getElementById('auth-sub-desc');
+    var submitBtn = document.getElementById('register-submit');
+    var form = document.getElementById('register-form');
+    var passwordInput = document.getElementById('password');
+    var confirmInput = document.getElementById('confirm');
+    var ruleEls = Array.prototype.slice.call(document.querySelectorAll('#password-rules [data-rule]'));
+    var matchEl = document.getElementById('confirm-match');
+    var matchText = document.getElementById('confirm-match-text');
+    var detailEls = {
+      fullName: document.getElementById('sv-full-name'),
+      studentId: document.getElementById('sv-student-id'),
+      gradeLevel: document.getElementById('sv-grade-level'),
+      section: document.getElementById('sv-section'),
+      schoolYear: document.getElementById('sv-school-year'),
+      status: document.getElementById('sv-status'),
+    };
 
-    function updateRoleUI(role) {
+    // Student and Teacher are both requesters internally; Teacher skips
+    // Student Directory verification. The server derives the role from
+    // the selected account type, so no hidden role field is submitted.
+    var currentAccountType = 'student';
+    var studentVerified = false;
+    var verificationPending = false;
+    var verifySequence = 0;
+    var verifyTimer = null;
+
+    // Keep this rule set in sync with validatePassword() in src/services/password.js.
+    function passwordChecks(value) {
+      return {
+        length: value.length >= 8,
+        upper: /[A-Z]/.test(value),
+        lower: /[a-z]/.test(value),
+        number: /[0-9]/.test(value),
+        special: /[!@#$%^&*]/.test(value),
+      };
+    }
+
+    function allPasswordRulesMet() {
+      var checks = passwordChecks(passwordInput ? passwordInput.value : '');
+      return Object.keys(checks).every(function (key) { return checks[key]; });
+    }
+
+    function updateMatchUI() {
+      if (!confirmInput || !matchEl) return;
+      var typed = confirmInput.value.length > 0;
+      var matches = typed && !!passwordInput && confirmInput.value === passwordInput.value;
+      matchEl.hidden = !typed;
+      matchEl.classList.toggle('valid', typed && matches);
+      matchEl.classList.toggle('invalid', typed && !matches);
+      if (matchText) {
+        matchText.textContent = typed ? (matches ? 'Passwords match' : 'Passwords do not match') : '';
+      }
+      confirmInput.setAttribute('aria-invalid', typed && !matches ? 'true' : 'false');
+    }
+
+    function updateSubmitState() {
+      if (!submitBtn) return;
+      var needsVerification = currentAccountType === 'student';
+      var passwordOk = allPasswordRulesMet();
+      var confirmOk = !!confirmInput && confirmInput.value.length > 0
+        && !!passwordInput && confirmInput.value === passwordInput.value;
+      submitBtn.disabled = (needsVerification && (!studentVerified || verificationPending)) || !passwordOk || !confirmOk;
+    }
+
+    function updatePasswordUI() {
+      if (passwordInput) {
+        var checks = passwordChecks(passwordInput.value);
+        ruleEls.forEach(function (el) {
+          el.classList.toggle('valid', !!checks[el.getAttribute('data-rule')]);
+        });
+        passwordInput.setAttribute('aria-invalid', passwordInput.value && !allPasswordRulesMet() ? 'true' : 'false');
+      }
+      updateMatchUI();
+      updateSubmitState();
+    }
+
+    function setVerificationState(kind, message, student) {
+      if (!verifyPanel) return;
+      verifyPanel.classList.remove('verified', 'failed');
+      if (kind) verifyPanel.classList.add(kind);
+      if (verifyFeedback) verifyFeedback.textContent = message;
+
+      var showDetails = !!(student && kind === 'verified');
+      if (verifyDetails) verifyDetails.hidden = !showDetails;
+      if (showDetails) {
+        if (detailEls.fullName) detailEls.fullName.textContent = student.fullName || '—';
+        if (detailEls.studentId) detailEls.studentId.textContent = student.studentId || '—';
+        if (detailEls.gradeLevel) detailEls.gradeLevel.textContent = student.gradeLevel || '—';
+        if (detailEls.section) detailEls.section.textContent = student.section || '—';
+        if (detailEls.schoolYear) detailEls.schoolYear.textContent = student.schoolYear || '—';
+        if (detailEls.status) detailEls.status.textContent = student.status || '—';
+
+        if (gradeSectionInput && student.gradeLevel && student.section) {
+          var value = encodeURIComponent(student.gradeLevel) + '|' + encodeURIComponent(student.section);
+          var match = Array.prototype.slice.call(gradeSectionInput.options).find(function (o) { return o.value === value; });
+          gradeSectionInput.value = match ? value : '';
+          gradeSectionInput.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    }
+
+    function clearVerification(message) {
+      verifySequence++;
+      verificationPending = false;
+      studentVerified = false;
+      if (gradeSectionInput) { gradeSectionInput.value = ''; gradeSectionInput.dispatchEvent(new Event('change', { bubbles: true })); }
+      setVerificationState('', message || 'Enter your Student ID and Full Name to verify your school record.', null);
+      updateSubmitState();
+    }
+
+    function verifyStudent() {
+      if (currentAccountType !== 'student') return;
+      var id = studentIdInput ? String(studentIdInput.value || '').trim() : '';
+      var name = nameInput ? String(nameInput.value || '').trim() : '';
+      if (!id || !name) {
+        clearVerification('Enter your Student ID and Full Name to verify your school record.');
+        return;
+      }
+
+      var sequence = ++verifySequence;
+      verificationPending = true;
+      studentVerified = false;
+      setVerificationState('', 'Checking the Student Directory…', null);
+      updateSubmitState();
+
+      var body = new URLSearchParams();
+      body.append('studentId', id);
+      body.append('fullName', name);
+
+      fetch('/api/student-verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+          'X-Requested-With': 'fetch'
+        },
+        body: body.toString()
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+          if (sequence !== verifySequence) return;
+          verificationPending = false;
+          if (data && data.ok && data.student) {
+            studentVerified = true;
+            setVerificationState('verified', data.message || 'Student record verified.', data.student);
+          } else {
+            studentVerified = false;
+            setVerificationState('failed', (data && data.message) || 'Student record verification failed.', data && data.student ? data.student : null);
+          }
+          updateSubmitState();
+        })
+        .catch(function () {
+          if (sequence !== verifySequence) return;
+          verificationPending = false;
+          studentVerified = false;
+          setVerificationState('failed', 'Could not reach the Student Directory. Please try again.', null);
+          updateSubmitState();
+        });
+    }
+
+    function scheduleVerification() {
+      if (currentAccountType !== 'student') return;
+      if (verifyTimer) clearTimeout(verifyTimer);
+      verifyTimer = setTimeout(verifyStudent, 350);
+    }
+
+    function updateRoleUI(accountType) {
+      currentAccountType = accountType;
       document.querySelectorAll('.role-card').forEach(function (c) {
         c.classList.remove('active');
       });
-      var activeRadio = document.querySelector('input[name="role"][value="' + role + '"]');
+      var activeRadio = document.querySelector('input[name="accountType"][value="' + accountType + '"]');
       if (activeRadio) {
         activeRadio.checked = true;
         var parentCard = activeRadio.closest('.role-card');
         if (parentCard) parentCard.classList.add('active');
       }
 
-      if (role === 'requester') {
-        if (studentIdWrap) studentIdWrap.style.display = 'block';
-        if (studentIdInput) {
-          studentIdInput.required = true;
-          studentIdInput.placeholder = 'Official Student ID (e.g. 2024-00101)';
-        }
-        if (deptInput) deptInput.placeholder = 'Grade & Section (e.g. Grade 11 - STEM A)';
-        if (descEl) descEl.textContent = 'For officially registered students of St. Anthony Center of Science and Technology.';
-      } else if (role === 'admin') {
-        if (studentIdWrap) studentIdWrap.style.display = 'none';
-        if (studentIdInput) {
-          studentIdInput.required = false;
-          studentIdInput.value = '';
-        }
-        if (deptInput) deptInput.placeholder = 'Office / Unit (e.g. Administration, Principal\'s Office)';
-        if (descEl) descEl.textContent = 'Register for administrator access (requires admin approval).';
-      } else if (role === 'technician') {
-        if (studentIdWrap) studentIdWrap.style.display = 'none';
-        if (studentIdInput) {
-          studentIdInput.required = false;
-          studentIdInput.value = '';
-        }
-        if (deptInput) deptInput.placeholder = 'Department (e.g. Maintenance & Technical Services)';
-        if (descEl) descEl.textContent = 'Register for technician access (requires admin approval).';
+      var isStudent = accountType === 'student';
+      var isTeacher = accountType === 'teacher';
+
+      if (studentIdWrap) studentIdWrap.style.display = isStudent ? 'block' : 'none';
+      if (studentIdInput) {
+        studentIdInput.required = isStudent;
+        studentIdInput.placeholder = 'Official Student ID';
+        if (!isStudent) studentIdInput.value = '';
       }
+      if (deptWrap) deptWrap.style.display = isTeacher ? '' : 'none';
+      if (deptInput) {
+        deptInput.disabled = !isTeacher;
+        if (!isTeacher) deptInput.value = '';
+      }
+      if (schoolWrap) schoolWrap.style.display = isStudent ? '' : 'none';
+      if (verifyPanel) verifyPanel.style.display = isStudent ? '' : 'none';
+      if (gradeSectionInput) {
+        gradeSectionInput.disabled = true; // confirmation only, never user-editable
+      }
+
+      if (isStudent) {
+        if (descEl) descEl.textContent = 'Verify your official Student Directory record to create a Student account.';
+        if (noticeText) {
+          noticeText.innerHTML = '<strong>Student Verification:</strong> Your Student ID and Full Name are checked against the official Student Directory. Verified student accounts are ready to use immediately.';
+        }
+        if (submitBtn) submitBtn.textContent = 'Create Student Account';
+        if (studentIdInput && nameInput && studentIdInput.value && nameInput.value) {
+          scheduleVerification();
+        } else {
+          clearVerification('Enter your Student ID and Full Name to verify your school record.');
+        }
+      } else {
+        if (verifyTimer) clearTimeout(verifyTimer);
+        verifySequence++;
+        verificationPending = false;
+        studentVerified = false;
+        if (descEl) descEl.textContent = 'Create a teacher account to submit and track maintenance requests.';
+        if (noticeText) {
+          noticeText.innerHTML = '<strong>Teacher Access:</strong> No Student ID is required. Teacher accounts can submit and track requests immediately.';
+        }
+        if (submitBtn) submitBtn.textContent = 'Create Teacher Account';
+      }
+      updateSubmitState();
     }
 
     radios.forEach(function (r) {
@@ -153,9 +438,60 @@
       });
     });
 
-    // Initialize with current value
-    var checkedRadio = document.querySelector('input[name="role"]:checked');
-    if (checkedRadio) updateRoleUI(checkedRadio.value);
+    if (studentIdInput) {
+      studentIdInput.addEventListener('input', function () {
+        clearVerification('Student ID changed. Re-checking the Student Directory…');
+        scheduleVerification();
+      });
+      studentIdInput.addEventListener('blur', verifyStudent);
+    }
+    if (nameInput) {
+      nameInput.addEventListener('input', function () {
+        clearVerification('Full Name changed. Re-checking the Student Directory…');
+        scheduleVerification();
+      });
+      nameInput.addEventListener('blur', verifyStudent);
+    }
+    if (passwordInput) {
+      passwordInput.addEventListener('input', updatePasswordUI);
+      passwordInput.addEventListener('change', updatePasswordUI);
+    }
+    if (confirmInput) {
+      confirmInput.addEventListener('input', updatePasswordUI);
+      confirmInput.addEventListener('change', updatePasswordUI);
+    }
+
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        var needsVerification = currentAccountType === 'student';
+        if (needsVerification && !studentVerified) {
+          e.preventDefault();
+          setVerificationState(
+            'failed',
+            verificationPending
+              ? 'Please wait for Student Directory verification to finish.'
+              : 'Verify your Student ID and Full Name against the Student Directory before continuing.',
+            null
+          );
+          if (studentIdInput) studentIdInput.focus();
+          return;
+        }
+        // Backend validation is authoritative; this only stops obvious bad submits.
+        if (!allPasswordRulesMet()) {
+          e.preventDefault();
+          if (passwordInput) passwordInput.focus();
+          return;
+        }
+        if (!confirmInput || !passwordInput || !confirmInput.value || confirmInput.value !== passwordInput.value) {
+          e.preventDefault();
+          if (confirmInput) confirmInput.focus();
+        }
+      });
+    }
+
+    var checkedRadio = document.querySelector('input[name="accountType"]:checked');
+    updateRoleUI(checkedRadio ? checkedRadio.value : 'student');
+    updatePasswordUI();
   })();
 </script>
 <%- include('partials/auth-bottom') %>

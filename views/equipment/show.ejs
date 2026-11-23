@@ -6,7 +6,7 @@
     <p class="mono"><%= e.code %></p>
   </div>
   <div class="actions">
-    <% if (role !== 'technician') { %><a class="btn" href="/requests/new?equipmentId=<%= e.id %>" onclick="if(window.openSubmitRequestModal){openSubmitRequestModal(<%= e.id %>);return false;}">✚ Submit Request</a><% } %>
+    <% if (role !== 'technician') { %><a class="btn" href="/requests/new?location=<%= encodeURIComponent(e.location || '') %>&categoryId=<%= encodeURIComponent(e.categoryId || '') %>" onclick="if(window.openSubmitRequestModal){openSubmitRequestModal({ location: <%= JSON.stringify(e.location || '') %>, categoryId: <%= JSON.stringify(String(e.categoryId || '')) %> });return false;}">✚ Submit Request</a><% } %>
     <% if (role === 'admin') { %>
       <a class="btn btn-light" href="/equipment/<%= e.id %>/edit">Edit</a>
       <form method="post" action="/equipment/<%= e.id %>/delete" class="inline-form" data-confirm="Delete this equipment? This cannot be undone.">
@@ -16,7 +16,7 @@
   </div>
 </div>
 
-<div class="grid grid-main">
+<div class="grid grid-main equipment-detail-grid">
   <div>
     <div class="card">
       <h2>Equipment Profile</h2>
@@ -45,19 +45,19 @@
         <h2>Maintenance History</h2>
         <% if (role !== 'requester') { %><a class="btn btn-light btn-sm" href="/history?equipmentId=<%= e.id %>">Open in history</a><% } %>
       </div>
-      <div class="table-wrap">
-      <table>
-        <thead><tr><th>Date</th><th>Type</th><th>Problem identified</th><th>Actions performed</th><th>Parts replaced</th><th>Technician</th></tr></thead>
+      <div class="table-wrap service-records-wrap">
+      <table class="service-records-table">
+        <thead><tr><th class="au-center">Service Date</th><th class="au-center">Type</th><th class="au-center">Problem Identified</th><th class="au-center">Actions Performed</th><th class="au-center">Parts Replaced</th><th class="au-center">Technician</th></tr></thead>
         <tbody>
           <% if (!records.length) { %><tr><td colspan="6" class="empty">No maintenance records yet.</td></tr><% } %>
           <% records.forEach(function (m) { var t = getUser(m.technicianId); %>
             <tr>
-              <td class="nowrap"><%= fmtDate(m.serviceDate) %><% if (m.requestId) { %><span class="sub"><a href="/requests/<%= m.requestId %>">view request</a></span><% } %></td>
-              <td><span class="<%= statusClass(m.type) %>"><%= m.type %></span></td>
-              <td><%= m.problem || '—' %></td>
-              <td><%= m.actionsTaken %><% if (m.remarks) { %><span class="sub"><%= m.remarks %></span><% } %></td>
-              <td><%= m.partsReplaced || '—' %></td>
-              <td><%= t ? t.name : '—' %></td>
+              <td class="au-center nowrap"><%= fmtDate(m.serviceDate) %><% if (m.requestId) { %><span class="sub"><a href="/requests/<%= m.requestId %>">view request</a></span><% } %></td>
+              <td class="au-center"><span class="<%= statusClass(m.type) %>"><%= m.type %></span></td>
+              <td class="au-left service-description"><%= m.problem || '—' %></td>
+              <td class="au-left service-description"><%= m.actionsTaken %><% if (m.remarks) { %><span class="sub"><%= m.remarks %></span><% } %></td>
+              <td class="au-center"><%= m.partsReplaced || '—' %></td>
+              <td class="au-center"><%= t ? t.name : '—' %></td>
             </tr>
           <% }) %>
         </tbody>
@@ -66,51 +66,130 @@
     </div>
 
     <% if (role !== 'requester') { %>
-    <div class="card card-floating" id="log">
-      <h2>Log Maintenance Work</h2>
-      <p class="muted">Use this for inspections or servicing done without a repair request. Preventive entries reset the next due date.</p>
-      <form method="post" action="/equipment/<%= e.id %>/maintenance">
-        <div class="form-grid">
-          <div class="field">
-            <label for="type">Type</label>
-            <select id="type" name="type"><% C.REQUEST_TYPES.forEach(function (t) { %><option <%= t === 'Preventive' ? 'selected' : '' %>><%= t %></option><% }) %></select>
-          </div>
-          <div class="field">
-            <label for="serviceDate">Service date *</label>
-            <input type="date" id="serviceDate" name="serviceDate" value="<%= todayISO() %>" max="<%= todayISO() %>" required>
-          </div>
-          <div class="field full">
-            <label for="problem">Problem identified / reason</label>
-            <input type="text" id="problem" name="problem" maxlength="1000" placeholder="e.g. Routine quarterly inspection">
-          </div>
-          <div class="field full">
-            <label for="actionsTaken">Actions performed *</label>
-            <textarea id="actionsTaken" name="actionsTaken" required maxlength="2000"></textarea>
-          </div>
-          <div class="field">
-            <label for="partsReplaced">Parts replaced</label>
-            <input type="text" id="partsReplaced" name="partsReplaced" maxlength="1000">
-          </div>
-          <div class="field">
-            <label for="resultingStatus">Condition after service</label>
-            <select id="resultingStatus" name="resultingStatus"><% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= s === 'Operational' ? 'selected' : '' %>><%= s %></option><% }) %></select>
-          </div>
-          <% if (role === 'admin') { %>
-          <div class="field">
-            <label for="technicianId">Performed by</label>
-            <select id="technicianId" name="technicianId">
-              <option value="">—</option>
-              <% technicians.forEach(function (t) { %><option value="<%= t.id %>"><%= t.name %></option><% }) %>
-            </select>
-          </div>
-          <% } %>
-          <div class="field full">
-            <label for="remarks">Remarks</label>
-            <input type="text" id="remarks" name="remarks" maxlength="1000">
-          </div>
+    <div class="card card-floating maintenance-card" id="log">
+      <div class="maintenance-head">
+        <div class="maintenance-head-main">
+          <h2><span class="maintenance-head-icon"><%- icon('wrench') %></span> Record Maintenance Activity</h2>
+          <p class="muted">Document inspections, servicing, or repairs performed on this equipment. Fields marked <strong>*</strong> are required. Preventive records automatically move the next routine checkup date forward.</p>
         </div>
-        <button class="btn" type="submit">Save Record</button>
+        <span class="maintenance-equipment">Equipment <strong><%= e.code %></strong></span>
+      </div>
+
+      <form id="maintenance-form" method="post" action="/equipment/<%= e.id %>/maintenance">
+        <div class="maintenance-body">
+          <section class="maintenance-section">
+            <h3 class="maintenance-section-title"><span class="maintenance-step">1</span> Maintenance Information</h3>
+            <p class="maintenance-section-desc">Tell us what type of work was done, when, and who performed it.</p>
+            <div class="form-grid maintenance-grid">
+              <div class="field">
+                <label for="maintenanceType">Maintenance Type <span class="req" title="Required">*</span></label>
+                <select data-ec-select="1" id="maintenanceType" name="type" required>
+                  <% C.REQUEST_TYPES.forEach(function (t) { %><option <%= t === 'Preventive' ? 'selected' : '' %>><%= t %></option><% }) %>
+                </select>
+                <p class="field-hint" id="maintenanceTypeHint"
+                  data-preventive-hint="Use for scheduled inspections, servicing, or calibration. Saving this record updates the next routine checkup date."
+                  data-corrective-hint="Use for repairs after a fault or failure was reported. Corrective records do not change the preventive schedule."
+                >Use for scheduled inspections, servicing, or calibration. Saving this record updates the next routine checkup date.</p>
+              </div>
+              <div class="field">
+                <label for="serviceDate">Service Date <span class="req" title="Required">*</span></label>
+                <input type="date" id="serviceDate" name="serviceDate" value="<%= todayISO() %>" max="<%= todayISO() %>" required>
+                <p class="field-hint">Use the date the work was actually performed. Future dates are not accepted.</p>
+              </div>
+              <div class="field full">
+                <label for="problem">Problem Identified / Reason <span class="req" title="Required">*</span></label>
+                <textarea id="problem" name="problem" rows="2" maxlength="1000" required
+                  data-preventive-placeholder="e.g. Scheduled quarterly inspection and safety check"
+                  data-corrective-placeholder="e.g. Equipment would not power on after a power surge"
+                  placeholder="e.g. Scheduled quarterly inspection and safety check"></textarea>
+                <p class="field-hint">Describe what you found, or why the service was needed.</p>
+              </div>
+              <div class="field">
+                <% if (role === 'admin') { %>
+                  <label for="technicianId">Performed By <span class="req" title="Required">*</span></label>
+                  <select data-ec-select="1" id="technicianId" name="technicianId" required>
+                    <option value="" selected disabled>Select a technician</option>
+                    <% technicians.forEach(function (t) { %><option value="<%= t.id %>"><%= t.name %></option><% }) %>
+                  </select>
+                  <p class="field-hint">Choose the available technician who carried out the work.</p>
+                <% } else { %>
+                  <label for="technicianDisplay">Performed By <span class="req" title="Required">*</span></label>
+                  <input type="text" id="technicianDisplay" class="input-readonly" value="<%= currentUser.name %>" readonly>
+                  <input type="hidden" id="technicianId" name="technicianId" value="<%= currentUser.id %>">
+                  <p class="field-hint">Automatically recorded from your technician account.</p>
+                <% } %>
+              </div>
+            </div>
+          </section>
+
+          <section class="maintenance-section">
+            <h3 class="maintenance-section-title"><span class="maintenance-step">2</span> Service Results</h3>
+            <p class="maintenance-section-desc">Record the work completed and the equipment's condition afterwards.</p>
+            <div class="form-grid maintenance-grid">
+              <div class="field full">
+                <label for="actionsTaken">Actions Performed <span class="req" title="Required">*</span></label>
+                <textarea id="actionsTaken" name="actionsTaken" rows="4" maxlength="2000" required
+                  data-preventive-placeholder="e.g. Inspected power supply, cleaned vents, tested controls and calibrated sensors"
+                  data-corrective-placeholder="e.g. Diagnosed faulty adapter, replaced power supply, verified operation"
+                  placeholder="e.g. Inspected power supply, cleaned vents, tested controls and calibrated sensors"></textarea>
+                <p class="field-hint">List the steps taken to complete the service.</p>
+              </div>
+              <div class="field">
+                <label for="partsReplaced">Parts Replaced <span class="label-optional">(optional)</span></label>
+                <input type="text" id="partsReplaced" name="partsReplaced" maxlength="1000"
+                  data-preventive-placeholder="e.g. Air filter, fuse (leave blank if none)"
+                  data-corrective-placeholder="e.g. Replacement power adapter"
+                  placeholder="e.g. Air filter, fuse (leave blank if none)">
+                <p class="field-hint">List any components that were installed or swapped.</p>
+              </div>
+              <div class="field">
+                <label for="resultingStatus">Condition After Service <span class="req" title="Required">*</span></label>
+                <select data-ec-select="1" id="resultingStatus" name="resultingStatus" required>
+                  <% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= s === 'Operational' ? 'selected' : '' %>><%= s %></option><% }) %>
+                </select>
+                <p class="field-hint">Set the equipment's condition once the work is complete.</p>
+              </div>
+              <div class="field full">
+                <label for="remarks">Remarks <span class="label-optional">(optional)</span></label>
+                <textarea id="remarks" name="remarks" rows="2" maxlength="1000"
+                  data-preventive-placeholder="e.g. All checks passed; next service due in 90 days"
+                  data-corrective-placeholder="e.g. Root cause: damaged adapter; monitor for recurrence"
+                  placeholder="e.g. All checks passed; next service due in 90 days"></textarea>
+                <p class="field-hint">Add follow-up notes, root cause, or recommendations.</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div class="maintenance-actions">
+          <a class="btn btn-light" href="/equipment/<%= e.id %>">Cancel</a>
+          <button class="btn" type="submit"><%- icon('check') %> Save Record</button>
+        </div>
       </form>
+
+      <script>
+        (function () {
+          var form = document.getElementById('maintenance-form');
+          var typeSelect = document.getElementById('maintenanceType');
+          var hint = document.getElementById('maintenanceTypeHint');
+          if (!form || !typeSelect) return;
+
+          function applyMaintenanceContext() {
+            var key = typeSelect.value === 'Corrective' ? 'corrective' : 'preventive';
+            var fields = form.querySelectorAll('[data-' + key + '-placeholder]');
+            for (var i = 0; i < fields.length; i++) {
+              fields[i].placeholder = fields[i].getAttribute('data-' + key + '-placeholder');
+            }
+            if (hint) {
+              var text = hint.getAttribute('data-' + key + '-hint');
+              if (text) hint.textContent = text;
+            }
+          }
+
+          typeSelect.addEventListener('change', applyMaintenanceContext);
+          applyMaintenanceContext();
+        })();
+      </script>
     </div>
     <% } %>
   </div>
@@ -164,12 +243,14 @@
     <div class="card">
       <h2>Routine Checkups</h2>
       <% if (schedule) { %>
-        <dl class="dl" style="grid-template-columns:120px 1fr">
+        <dl class="dl" style="grid-template-columns:150px 1fr">
           <dt>Interval</dt><dd>Every <%= schedule.interval %> day(s)<% if (schedule.intervalLabel) { %> (<%= schedule.intervalLabel %>)<% } %></dd>
-          <dt><%= schedule.basedOn %></dt><dd><%= fmtDate(schedule.base) %></dd>
-          <dt>Next due</dt><dd><%= fmtDate(schedule.nextDue) %></dd>
+          <dt>Last maintenance</dt><dd><%= schedule.hasHistory ? fmtDate(schedule.base) : 'No maintenance recorded' %></dd>
+          <dt>Next due</dt><dd><%= schedule.hasHistory ? fmtDate(schedule.nextDue) : 'Not yet recorded' %></dd>
           <dt>Status</dt><dd><span class="<%= statusClass(schedule.status) %>"><%= schedule.status %></span>
-            <% if (schedule.daysLeft < 0) { %>
+            <% if (!schedule.hasHistory) { %>
+              <span class="sub muted">Record a completed checkup to calculate the next due date.</span>
+            <% } else if (schedule.daysLeft < 0) { %>
               <span class="sub" style="color:var(--red);font-weight:600;"><%= Math.abs(schedule.daysLeft) %> day(s) late</span>
             <% } else if (schedule.daysLeft === 0) { %>
               <span class="sub" style="color:var(--amber);font-weight:600;">due today</span>
@@ -193,7 +274,7 @@
       <h2>Update Condition</h2>
       <form method="post" action="/equipment/<%= e.id %>/status">
         <div class="field">
-          <select name="status" aria-label="Condition">
+          <select data-ec-select="1" name="status" aria-label="Condition">
             <% C.EQUIPMENT_STATUSES.forEach(function (s) { %><option <%= e.status === s ? 'selected' : '' %>><%= s %></option><% }) %>
           </select>
         </div>
@@ -323,8 +404,16 @@
       }
     };
 
-    window.confirmRemoveEquipmentPhoto = function () {
-      if (confirm('Are you sure you want to remove the photo for <%= e.name %>?')) {
+    window.confirmRemoveEquipmentPhoto = async function () {
+      var ok = window.ecConfirm ? await window.ecConfirm({
+        title: 'Remove Photo?',
+        message: 'Are you sure you want to remove the photo for <%= e.name %>? This action cannot be undone.',
+        confirmLabel: 'Remove Photo',
+        cancelLabel: 'Cancel',
+        tone: 'danger',
+        icon: 'trash'
+      }) : false;
+      if (ok) {
         var removeForm = document.getElementById('remove-equipment-photo-form');
         if (removeForm) removeForm.submit();
       }
@@ -358,14 +447,14 @@
       return (bytes / 1048576).toFixed(1) + ' MB';
     }
 
-    function handleFile(file) {
+    async function handleFile(file) {
       if (!file) return;
       if (!file.type.match(/^image\//i)) {
-        alert('Please choose an image file (JPG, PNG, GIF, WEBP).');
+        if (window.ecAlert) await window.ecAlert('Please choose an image file (JPG, PNG, GIF, WEBP).', { title: 'Invalid File Type', tone: 'warning', icon: 'warning' });
         return;
       }
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image exceeds 5 MB. Please choose a smaller photo.');
+        if (window.ecAlert) await window.ecAlert('Image exceeds 5 MB. Please choose a smaller photo.', { title: 'File Too Large', tone: 'warning', icon: 'warning' });
         return;
       }
 
@@ -486,7 +575,7 @@
         // If user hasn't selected a new file and hasn't edited anything, warn
         if ((!fileInput.files || !fileInput.files.length) && !isDirty) {
           e.preventDefault();
-          alert('Please select a new photo or adjust orientation before saving.');
+          if (window.ecAlert) window.ecAlert('Please select a new photo or adjust orientation before saving.', { title: 'No Changes to Save', tone: 'info', icon: 'info' });
           return;
         }
 

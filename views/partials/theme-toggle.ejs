@@ -1,0 +1,6 @@
+<%# Unified light / dark theme toggle. Used by the auth pages and the app topbar.
+    Style: public/css/theme-toggle.css · Behaviour: public/js/theme-toggle.js %>
+<button type="button" class="theme-toggle-btn<%= typeof cls !== 'undefined' && cls ? ' ' + cls : '' %>" id="theme-toggle" title="Switch to Dark Mode" aria-label="Switch to Dark Mode">
+  <%- icon('sun', 'theme-icon theme-icon-sun') %>
+  <%- icon('moon', 'theme-icon theme-icon-moon') %>
+</button>

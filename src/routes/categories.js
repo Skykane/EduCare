@@ -9,13 +9,22 @@ const activity = require('../services/activity');
 const router = express.Router();
 router.use(requireRole('admin'));
 
+// Older sample data carries the same generated line on every seeded category.
+// Treat it as "no description" for display/editing without changing the saved
+// record until an administrator deliberately saves a different value.
+const DEMO_CATEGORY_DESCRIPTION = /^SAMPLE\/DEMO category created for the sample inventory\.$/i;
+function displayDescription(value) {
+  const description = String(value || '').trim();
+  return DEMO_CATEGORY_DESCRIPTION.test(description) ? '' : description;
+}
+
 function statusCounts(list) {
   const counts = {};
   for (const s of C.EQUIPMENT_STATUSES) counts[s] = list.filter((e) => e.status === s).length;
   return counts;
 }
 
-router.get('/', (req, res) => {
+function renderList(req, res) {
   const equipment = db.all('equipment');
   const categories = db
     .all('categories')
@@ -23,7 +32,12 @@ router.get('/', (req, res) => {
     .sort((a, b) => a.name.localeCompare(b.name))
     .map((c) => {
       const items = equipment.filter((e) => e.categoryId === c.id);
-      return { ...c, total: items.length, counts: statusCounts(items) };
+      return {
+        ...c,
+        description: displayDescription(c.description),
+        total: items.length,
+        counts: statusCounts(items),
+      };
     });
   const locations = [...new Set(equipment.map((e) => e.location).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b))
@@ -31,14 +45,20 @@ router.get('/', (req, res) => {
       const items = equipment.filter((e) => e.location === loc);
       return { name: loc, total: items.length, counts: statusCounts(items) };
     });
+
   res.render('categories', {
-    title: 'Categories & Locations',
+    title: 'Equipment Categories',
+    pageClass: 'categories-page equipment-management-page',
     categories,
     locations,
     totals: statusCounts(equipment),
     total: equipment.length,
     editId: Number(req.query.edit) || null,
   });
+}
+
+router.get('/', (req, res) => {
+  renderList(req, res);
 });
 
 function nameTaken(name, id = null) {
@@ -57,6 +77,17 @@ router.post('/', (req, res) => {
     flash(req, 'success', `Category "${name}" added.`);
   }
   res.redirect('/categories');
+});
+
+// JSON endpoint used by inline "Add category" controls so a newly created
+// category can be added to an open dropdown without reloading the page.
+router.post('/api', (req, res) => {
+  const name = str((req.body || {}).name, 100);
+  if (!name) return res.status(400).json({ ok: false, error: 'Category name is required.' });
+  if (nameTaken(name)) return res.status(409).json({ ok: false, error: `Category "${name}" already exists.` });
+  const category = db.insert('categories', { name, description: '' });
+  activity.log({ userId: req.user.id, action: 'Category added', details: name });
+  return res.status(201).json({ ok: true, category: { id: category.id, name: category.name } });
 });
 
 router.post('/:id', (req, res) => {

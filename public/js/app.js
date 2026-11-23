@@ -1,42 +1,81 @@
 // Small UI helpers.
 document.addEventListener('DOMContentLoaded', function () {
-  // ---------- Light / Dark Mode Toggle ----------
-  var themeToggle = document.getElementById('theme-toggle');
-  if (themeToggle) {
-    var updateThemeBtn = function (dark) {
-      themeToggle.setAttribute('title', dark ? 'Current: Dark Mode (Click for Light Mode)' : 'Current: Light Mode (Click for Dark Mode)');
-      themeToggle.setAttribute('aria-label', dark ? 'Switch to Light Mode' : 'Switch to Dark Mode');
-      themeToggle.setAttribute('aria-checked', dark ? 'true' : 'false');
-    };
-    updateThemeBtn(document.documentElement.getAttribute('data-theme') === 'dark');
+  // Light / dark mode is handled globally by /js/theme-toggle.js so the same
+  // switch component works on the auth pages and inside the app shell.
 
-    themeToggle.addEventListener('click', function (e) {
-      var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      var targetBtn = e.target.closest('.theme-switch-btn');
-      var nextTheme;
-      if (targetBtn) {
-        if (targetBtn.classList.contains('theme-btn-light')) nextTheme = 'light';
-        else if (targetBtn.classList.contains('theme-btn-dark')) nextTheme = 'dark';
-      }
-      if (!nextTheme) {
-        nextTheme = isDark ? 'light' : 'dark';
-      }
-      if (nextTheme === 'dark') {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-      }
-      updateThemeBtn(nextTheme === 'dark');
-      try {
-        localStorage.setItem('educare-theme', nextTheme);
-      } catch (err) {}
-    });
+  // Ask before destructive/important actions: <form data-confirm="...">
+  function ecInferConfirm(form, msg) {
+    var action = (form.getAttribute('action') || '').toLowerCase();
+    var text = (msg || '').toLowerCase();
+    var opts = {
+      title: form.getAttribute('data-confirm-title') || 'Confirm Action',
+      message: msg || 'Are you sure you want to continue?',
+      confirmLabel: form.getAttribute('data-confirm-ok') || 'Confirm',
+      cancelLabel: form.getAttribute('data-confirm-cancel') || 'Cancel',
+      tone: form.getAttribute('data-confirm-tone') || 'danger',
+      icon: form.getAttribute('data-confirm-icon') || 'warning'
+    };
+    if (action.indexOf('/approve') !== -1 || text.indexOf('approve') !== -1) {
+      opts.title = form.getAttribute('data-confirm-title') || 'Approve Request?';
+      if (action.indexOf('/users/') !== -1) opts.title = form.getAttribute('data-confirm-title') || 'Approve Account?';
+      opts.confirmLabel = form.getAttribute('data-confirm-ok') || 'Confirm Approval';
+      opts.tone = form.getAttribute('data-confirm-tone') || 'success';
+      opts.icon = form.getAttribute('data-confirm-icon') || 'check';
+    } else if (action.indexOf('/reject') !== -1 || text.indexOf('reject') !== -1) {
+      opts.title = form.getAttribute('data-confirm-title') || 'Reject Request?';
+      opts.confirmLabel = form.getAttribute('data-confirm-ok') || 'Confirm Rejection';
+      opts.tone = 'danger'; opts.icon = 'warning';
+    } else if (action.indexOf('/cancel') !== -1 || text.indexOf('cancel report') !== -1 || text.indexOf('cancel request') !== -1) {
+      opts.title = form.getAttribute('data-confirm-title') || 'Cancel Request?';
+      opts.confirmLabel = form.getAttribute('data-confirm-ok') || 'Confirm Cancellation';
+      opts.tone = 'warning'; opts.icon = 'warning';
+    } else if (action.indexOf('/delete') !== -1 || text.indexOf('delete') !== -1 || text.indexOf('remove') !== -1 || text.indexOf('clear') !== -1) {
+      opts.title = form.getAttribute('data-confirm-title') || (text.indexOf('remove') !== -1 ? 'Remove Item?' : 'Delete Item?');
+      if (text.indexOf('clear all') !== -1) opts.title = form.getAttribute('data-confirm-title') || 'Clear Records?';
+      opts.confirmLabel = form.getAttribute('data-confirm-ok') || (text.indexOf('remove') !== -1 ? 'Remove' : (text.indexOf('clear') !== -1 ? 'Confirm Clear' : 'Delete'));
+      opts.tone = 'danger'; opts.icon = text.indexOf('remove') !== -1 ? 'trash' : 'warning';
+    } else if (action.indexOf('/toggle') !== -1 || text.indexOf('deactivate') !== -1 || text.indexOf('activate') !== -1) {
+      var deactivating = text.indexOf('deactivate') !== -1;
+      opts.title = form.getAttribute('data-confirm-title') || (deactivating ? 'Deactivate Item?' : 'Activate Item?');
+      opts.confirmLabel = form.getAttribute('data-confirm-ok') || (deactivating ? 'Confirm Deactivation' : 'Confirm Activation');
+      opts.tone = deactivating ? 'warning' : 'success';
+      opts.icon = deactivating ? 'warning' : 'check';
+    }
+    if (form.getAttribute('data-confirm-title')) opts.title = form.getAttribute('data-confirm-title');
+    if (form.getAttribute('data-confirm-ok')) opts.confirmLabel = form.getAttribute('data-confirm-ok');
+    if (form.getAttribute('data-confirm-cancel')) opts.cancelLabel = form.getAttribute('data-confirm-cancel');
+    if (form.getAttribute('data-confirm-tone')) opts.tone = form.getAttribute('data-confirm-tone');
+    if (form.getAttribute('data-confirm-icon')) opts.icon = form.getAttribute('data-confirm-icon');
+    return opts;
   }
 
-  // Ask before destructive actions: <form data-confirm="Are you sure?">
   document.querySelectorAll('form[data-confirm]').forEach(function (form) {
     form.addEventListener('submit', function (e) {
-      if (!window.confirm(form.getAttribute('data-confirm'))) e.preventDefault();
+      if (form.dataset.ecConfirmed === '1') {
+        delete form.dataset.ecConfirmed;
+        return;
+      }
+      e.preventDefault();
+      if (form.dataset.ecConfirming === '1') return;
+      var submitter = e.submitter;
+      var msg = form.getAttribute('data-confirm') || 'Are you sure you want to continue?';
+      var opts = ecInferConfirm(form, msg);
+      form.dataset.ecConfirming = '1';
+      Promise.resolve(window.ecConfirm ? window.ecConfirm(opts) : false).then(function (ok) {
+        delete form.dataset.ecConfirming;
+        if (!ok) return;
+        form.dataset.ecConfirmed = '1';
+        if (submitter && submitter.classList) {
+          submitter.classList.add('is-loading');
+          submitter.disabled = true;
+        }
+        try {
+          if (submitter && form.requestSubmit) form.requestSubmit(submitter);
+          else form.submit();
+        } catch (_) {
+          form.submit();
+        }
+      });
     });
   });
 
@@ -133,27 +172,34 @@ document.addEventListener('DOMContentLoaded', function () {
 
   // ---------- Tables become cards on phones ----------
   // Copies each column heading onto its cells so CSS can show it as a label.
-  document.querySelectorAll('table').forEach(function (table) {
-    var heads = table.querySelectorAll('thead th');
-    if (!heads.length) return;
-    var labels = Array.prototype.map.call(heads, function (th) { return th.textContent.trim(); });
-    table.classList.add('stack-table');
-    table.querySelectorAll('tbody tr').forEach(function (tr) {
-      var col = 0;
-      Array.prototype.forEach.call(tr.children, function (td) {
-        if (td.classList.contains('empty') || td.colSpan > 1) {
-          td.classList.add('full-cell');
-        } else {
-          td.setAttribute('data-label', labels[col] || '');
-          var wrap = document.createElement('div');
-          wrap.className = 'cell';
-          while (td.firstChild) wrap.appendChild(td.firstChild);
-          td.appendChild(wrap);
-        }
-        col += td.colSpan || 1;
+  // Exposed so automatically refreshed result tables get the same treatment.
+  window.educareEnhanceTables = function (root) {
+    var scope = root || document;
+    var tables = scope.querySelectorAll('table:not([data-mobile-ready])');
+    Array.prototype.forEach.call(tables, function (table) {
+      table.setAttribute('data-mobile-ready', '1');
+      var heads = table.querySelectorAll('thead th');
+      if (!heads.length) return;
+      var labels = Array.prototype.map.call(heads, function (th) { return th.textContent.trim(); });
+      table.classList.add('stack-table');
+      table.querySelectorAll('tbody tr').forEach(function (tr) {
+        var col = 0;
+        Array.prototype.forEach.call(tr.children, function (td) {
+          if (td.classList.contains('empty') || td.colSpan > 1) {
+            td.classList.add('full-cell');
+          } else {
+            td.setAttribute('data-label', labels[col] || '');
+            var wrap = document.createElement('div');
+            wrap.className = 'cell';
+            while (td.firstChild) wrap.appendChild(td.firstChild);
+            td.appendChild(wrap);
+          }
+          col += td.colSpan || 1;
+        });
       });
     });
-  });
+  };
+  window.educareEnhanceTables(document);
 
   // ---------- Collapsible search filters on phones ----------
   document.querySelectorAll('form.card.filters').forEach(function (form) {
@@ -206,29 +252,24 @@ document.addEventListener('DOMContentLoaded', function () {
   if (modalWizard) setupWizard(modalWizard);
 
   // ---------- Submit Request Floating Card Modal Controller ----------
-  window.openSubmitRequestModal = function (equipmentId) {
+  window.openSubmitRequestModal = function (context) {
     var modal = document.getElementById('submit-request-modal');
+    var ctx = context && typeof context === 'object' ? context : {};
+    var query = [];
+    if (ctx.location) query.push('location=' + encodeURIComponent(ctx.location));
+    if (ctx.categoryId) query.push('categoryId=' + encodeURIComponent(ctx.categoryId));
     if (!modal) {
-      window.location.href = '/requests/new' + (equipmentId ? '?equipmentId=' + equipmentId : '');
+      window.location.href = '/requests/new' + (query.length ? '?' + query.join('&') : '');
       return;
     }
     var form = document.getElementById('modal-report-form');
-    if (form && equipmentId) {
-      var eqSelect = form.querySelector('select[name="equipmentId"]');
-      if (eqSelect) {
-        eqSelect.value = equipmentId;
-        var opt = eqSelect.options[eqSelect.selectedIndex];
-        if (opt) {
-          var catSelect = form.querySelector('select[id$="equipment-category"]');
-          if (catSelect && opt.getAttribute('data-category')) {
-            catSelect.value = opt.getAttribute('data-category');
-          }
-          var locSelect = form.querySelector('select[id$="equipment-location"]');
-          if (locSelect && opt.getAttribute('data-location')) {
-            locSelect.value = opt.getAttribute('data-location');
-          }
-        }
-      }
+    if (form) {
+      if (typeof form.__setSubmittingState === 'function') form.__setSubmittingState(false);
+      if (typeof form.__showStep === 'function') form.__showStep(1);
+      var catSelect = form.querySelector('select[id$="equipment-category"]');
+      var locSelect = form.querySelector('select[id$="equipment-location"]');
+      if (catSelect && ctx.categoryId) catSelect.value = String(ctx.categoryId);
+      if (locSelect && ctx.location) locSelect.value = ctx.location;
     }
     modal.style.display = 'flex';
     document.body.classList.add('modal-open');
@@ -242,6 +283,9 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     var modal = document.getElementById('submit-request-modal');
     if (modal) {
+      document.querySelectorAll('.eq-dropdown.is-open').forEach(function (p) {
+        if (typeof p._eqClose === 'function') p._eqClose();
+      });
       modal.style.display = 'none';
       document.body.classList.remove('modal-open');
     }
@@ -262,9 +306,12 @@ document.addEventListener('DOMContentLoaded', function () {
     if (link && document.getElementById('submit-request-modal')) {
       e.preventDefault();
       var href = link.getAttribute('href') || '';
-      var eqMatch = href.match(/equipmentId=(\d+)/);
-      var eqId = eqMatch ? eqMatch[1] : null;
-      window.openSubmitRequestModal(eqId);
+      var query = href.indexOf('?') >= 0 ? href.slice(href.indexOf('?') + 1) : '';
+      var params = new URLSearchParams(query);
+      window.openSubmitRequestModal({
+        location: params.get('location') || '',
+        categoryId: params.get('categoryId') || ''
+      });
     }
   });
 
@@ -272,7 +319,10 @@ document.addEventListener('DOMContentLoaded', function () {
   try {
     var urlParams = new URLSearchParams(window.location.search);
     if (urlParams.get('openModal') === '1' || urlParams.get('new') === '1') {
-      window.openSubmitRequestModal(urlParams.get('equipmentId'));
+      window.openSubmitRequestModal({
+        location: urlParams.get('location') || '',
+        categoryId: urlParams.get('categoryId') || ''
+      });
     }
   } catch (e) {}
 
@@ -348,8 +398,69 @@ document.addEventListener('DOMContentLoaded', function () {
     }
   } catch (e) {}
 
+  // ---------- Edit Profile Floating Modal Controller ----------
+  window.openProfileEditModal = function () {
+    var modal = document.getElementById('profile-edit-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    document.body.classList.add('modal-open');
+
+    // Keep notifications readable while the overlay is open.
+    var flashSlot = document.getElementById('profile-modal-flash');
+    var pageAlert = document.querySelector('main.content > .alert');
+    if (flashSlot && pageAlert && pageAlert.parentNode !== flashSlot) {
+      flashSlot.appendChild(pageAlert);
+    }
+    setTimeout(function () {
+      var nameInput = document.getElementById('name');
+      if (nameInput) nameInput.focus();
+    }, 120);
+  };
+
+  window.closeProfileEditModal = function (e) {
+    if (e && e.target && e.target !== document.getElementById('profile-edit-modal') &&
+        !e.target.closest('[data-modal-close]')) {
+      return;
+    }
+    var modal = document.getElementById('profile-edit-modal');
+    if (!modal) return;
+    modal.style.display = 'none';
+    document.body.classList.remove('modal-open');
+  };
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      var modal = document.getElementById('profile-edit-modal');
+      if (modal && modal.style.display === 'flex') window.closeProfileEditModal();
+    }
+  });
+
+  document.addEventListener('click', function (e) {
+    var opener = e.target.closest('[data-open-profile-modal], a[href="/profile/edit"]');
+    if (opener && document.getElementById('profile-edit-modal')) {
+      e.preventDefault();
+      window.openProfileEditModal();
+    }
+  });
+
+  var saveProfileBtn = document.getElementById('profile-modal-save');
+  if (saveProfileBtn) {
+    saveProfileBtn.addEventListener('click', function () {
+      var detailsForm = document.getElementById('profile-details-form');
+      if (detailsForm) detailsForm.submit();
+    });
+  }
+
+  // Auto-open when arriving from the legacy /profile/edit route.
+  try {
+    if (new URLSearchParams(window.location.search).get('edit') === '1') {
+      window.openProfileEditModal();
+    }
+  } catch (e) {}
+
   // ---------- Equipment Details Quick View Modal Controller ----------
   var currentSelectedEqId = null;
+  var currentSelectedEqData = null;
 
   window.openEquipmentDetailsModal = function (eqId) {
     var modal = document.getElementById('equipment-details-modal');
@@ -358,11 +469,13 @@ document.addEventListener('DOMContentLoaded', function () {
       return;
     }
     currentSelectedEqId = eqId;
+    currentSelectedEqData = null;
     var data = window.EQUIPMENT_MAP ? window.EQUIPMENT_MAP[eqId] : null;
     if (!data) {
       window.location.href = '/equipment/' + eqId;
       return;
     }
+    currentSelectedEqData = data;
 
     var titleEl = document.getElementById('eq-modal-title');
     var codeEl = document.getElementById('eq-modal-code');
@@ -402,8 +515,10 @@ document.addEventListener('DOMContentLoaded', function () {
     if (impEl) impEl.textContent = 'Level ' + (data.importance || 1) + (data.importance === 3 ? ' (High Priority)' : data.importance === 2 ? ' (Medium Priority)' : ' (Low Priority)');
     
     if (nextPmEl) {
-      if (data.schedule && data.schedule.nextDue) {
+      if (data.schedule && data.schedule.hasHistory && data.schedule.nextDue) {
         nextPmEl.textContent = data.schedule.nextDue + (data.schedule.status && data.schedule.status !== 'Scheduled' ? ' (' + data.schedule.status + ')' : '');
+      } else if (data.schedule) {
+        nextPmEl.textContent = 'Not yet recorded';
       } else {
         nextPmEl.textContent = 'Not scheduled';
       }
@@ -454,10 +569,17 @@ document.addEventListener('DOMContentLoaded', function () {
 
   window.submitRequestForCurrentEq = function () {
     window.closeEquipmentDetailsModal();
-    if (window.openSubmitRequestModal && currentSelectedEqId) {
-      window.openSubmitRequestModal(currentSelectedEqId);
-    } else if (currentSelectedEqId) {
-      window.location.href = '/requests/new?equipmentId=' + currentSelectedEqId;
+    var context = currentSelectedEqData ? {
+      location: currentSelectedEqData.location || '',
+      categoryId: currentSelectedEqData.category ? currentSelectedEqData.category.id : ''
+    } : {};
+    var query = [];
+    if (context.location) query.push('location=' + encodeURIComponent(context.location));
+    if (context.categoryId) query.push('categoryId=' + encodeURIComponent(context.categoryId));
+    if (window.openSubmitRequestModal && (context.location || context.categoryId)) {
+      window.openSubmitRequestModal(context);
+    } else {
+      window.location.href = '/requests/new' + (query.length ? '?' + query.join('&') : '');
     }
   };
 
@@ -482,7 +604,7 @@ document.addEventListener('DOMContentLoaded', function () {
     });
   });
 
-  // ---------- Profile password visibility toggle & real-time rules ----------
+  // ---------- Password visibility toggles ----------
   document.querySelectorAll('.btn-toggle-pw').forEach(function (btn) {
     btn.addEventListener('click', function () {
       var targetId = btn.getAttribute('data-target');
@@ -493,6 +615,10 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.innerHTML = isPw
         ? '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>'
         : '<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+      var label = isPw ? 'Hide password' : 'Show password';
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('title', label);
+      btn.setAttribute('aria-pressed', isPw ? 'true' : 'false');
     });
   });
 
@@ -567,32 +693,7 @@ document.addEventListener('DOMContentLoaded', function () {
     checkPw();
   }
 
-  // ---------- Topbar profile dropdown ----------
-  var profileWrap = document.getElementById('topbar-profile');
-  var profileBtn = document.getElementById('topbar-profile-btn');
-  var profileMenu = document.getElementById('topbar-profile-menu');
-  if (profileWrap && profileBtn && profileMenu) {
-    function closeProfile() {
-      profileWrap.classList.remove('open');
-      profileBtn.setAttribute('aria-expanded', 'false');
-      profileMenu.hidden = true;
-    }
-    function openProfile() {
-      profileWrap.classList.add('open');
-      profileBtn.setAttribute('aria-expanded', 'true');
-      profileMenu.hidden = false;
-    }
-    profileBtn.addEventListener('click', function (e) {
-      e.stopPropagation();
-      if (profileWrap.classList.contains('open')) closeProfile(); else openProfile();
-    });
-    document.addEventListener('click', function (e) {
-      if (!profileWrap.contains(e.target)) closeProfile();
-    });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') closeProfile();
-    });
-  }
+
 });
 
 function setupWizard(form) {
@@ -601,7 +702,22 @@ function setupWizard(form) {
   var btn = function (name) { return form.querySelector('[data-nav="' + name + '"]'); };
   var current = 1;
   var last = steps.length;
+  var submitting = false;
+  var submitBtn = btn('submit');
+  var submitBtnDefaultHtml = submitBtn ? submitBtn.innerHTML : '';
   form.classList.add('wizard-on');
+
+  function setSubmittingState(isSubmitting) {
+    submitting = isSubmitting;
+    if (!submitBtn) return;
+    submitBtn.disabled = isSubmitting;
+    submitBtn.setAttribute('aria-busy', isSubmitting ? 'true' : 'false');
+    if (isSubmitting) {
+      submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm" aria-hidden="true" style="width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:6px;animation:wizard-spin .75s linear infinite;"></span>Submitting...';
+    } else {
+      submitBtn.innerHTML = submitBtnDefaultHtml;
+    }
+  }
 
   function show(n) {
     current = n;
@@ -611,7 +727,7 @@ function setupWizard(form) {
       li.classList.toggle('current', k === n);
       li.classList.toggle('done', k < n);
     });
-    if (btn('cancel')) btn('cancel').hidden = n !== 1;
+    if (btn('cancel')) btn('cancel').hidden = false;
     if (btn('back')) btn('back').hidden = n === 1;
     if (btn('next')) btn('next').hidden = n === last;
     if (btn('submit')) btn('submit').hidden = n !== last;
@@ -625,67 +741,304 @@ function setupWizard(form) {
     }
   }
 
+  function getEqErrorEl(sel) {
+    var wrap = sel ? sel.closest('.eq-field') : null;
+    return wrap ? wrap.querySelector('.eq-error') : null;
+  }
+  function showEqError(sel, message) {
+    var wrap = sel ? sel.closest('.eq-field') : null;
+    var err = getEqErrorEl(sel);
+    var trigger = wrap ? wrap.querySelector('.eq-trigger') : null;
+    if (err) { err.textContent = message; err.classList.add('is-visible'); }
+    if (trigger) trigger.classList.add('has-error');
+  }
+  function clearEqError(sel) {
+    var wrap = sel ? sel.closest('.eq-field') : null;
+    var err = getEqErrorEl(sel);
+    var trigger = wrap ? wrap.querySelector('.eq-trigger') : null;
+    if (err) { err.textContent = ''; err.classList.remove('is-visible'); }
+    if (trigger) trigger.classList.remove('has-error');
+  }
+
   // Checks only the fields of one step and shows the browser's message.
   function stepValid(n) {
-    var fields = steps[n - 1].querySelectorAll('input, select, textarea');
+    var stepEl = steps[n - 1];
+    var fields = stepEl.querySelectorAll('input, select, textarea');
     for (var i = 0; i < fields.length; i++) {
       var f = fields[i];
+      if (f.classList && f.classList.contains('eq-native-select')) continue;
       if (f.willValidate && !f.checkValidity()) {
         f.reportValidity();
         return false;
       }
     }
+    var reqEq = stepEl.querySelectorAll('select.eq-native-select[data-required="true"]');
+    for (var j = 0; j < reqEq.length; j++) {
+      if (!reqEq[j].value) {
+        showEqError(reqEq[j], 'Please select an equipment item before proceeding.');
+        var trg = reqEq[j].closest('.eq-field');
+        if (trg) {
+          var t = trg.querySelector('.eq-trigger');
+          if (t) t.focus();
+        }
+        return false;
+      }
+      clearEqError(reqEq[j]);
+    }
     return true;
   }
 
   if (btn('next')) btn('next').addEventListener('click', function () { if (stepValid(current)) show(current + 1); });
-  if (btn('back')) btn('back').addEventListener('click', function () { show(current - 1); });
+  if (btn('back')) btn('back').addEventListener('click', function () { if (!submitting) show(current - 1); });
   form.querySelectorAll('[data-go]').forEach(function (b) {
-    b.addEventListener('click', function () { show(Number(b.getAttribute('data-go'))); });
+    b.addEventListener('click', function () { if (!submitting) show(Number(b.getAttribute('data-go'))); });
   });
   // Enter in a text field moves to the next step instead of submitting early.
   form.addEventListener('submit', function (e) {
     if (current < last) {
       e.preventDefault();
       if (stepValid(current)) show(current + 1);
+      return;
     }
+
+    if (submitting) {
+      e.preventDefault();
+      return;
+    }
+
+    if (!stepValid(current)) {
+      e.preventDefault();
+      return;
+    }
+
+    var modal = form.closest('#submit-request-modal');
+    if (modal) {
+      e.preventDefault();
+      setSubmittingState(true);
+      var formData = new FormData(form);
+      fetch(form.action || '/requests', {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      }).then(function (res) {
+        if (res.redirected && /\/requests\/\d+/.test(res.url)) {
+          window.location.href = res.url;
+          return null;
+        }
+        if (res.ok && /\/requests\/\d+/.test(res.url)) {
+          window.location.href = res.url;
+          return null;
+        }
+        return res.text().then(function (html) {
+          var doc = new DOMParser().parseFromString(html, 'text/html');
+          var err = doc.querySelector('.alert-danger, .alert-error, .errors, .error-list');
+          var msg = err ? err.textContent.replace(/\s+/g, ' ').trim() : 'Unable to submit request. Please review the form and try again.';
+          setSubmittingState(false);
+          if (window.ecAlert) window.ecAlert(msg, { title: 'Unable to Submit Request', tone: 'danger', icon: 'warning' });
+        });
+      }).catch(function () {
+        setSubmittingState(false);
+        if (window.ecAlert) window.ecAlert('Unable to submit request. Please check your connection and try again.', { title: 'Connection Error', tone: 'danger', icon: 'warning' });
+      });
+      return;
+    }
+
+    setSubmittingState(true);
   });
 
-  // Room/Location & Category filters with auto-sync
-  var locFilter = form.querySelector('select[id$="equipment-location"]');
-  var catFilter = form.querySelector('select[id$="equipment-category"]');
-  var eqSelect = form.querySelector('select[name="equipmentId"]');
-  if (eqSelect) {
-    var filterEquipment = function () {
-      var cat = catFilter ? catFilter.value : '';
-      var loc = locFilter ? locFilter.value : '';
-      Array.prototype.forEach.call(eqSelect.options, function (opt) {
-        if (!opt.value) return;
-        var matchCat = !cat || opt.getAttribute('data-category') === cat;
-        var matchLoc = !loc || opt.getAttribute('data-location') === loc;
-        opt.hidden = !(matchCat && matchLoc);
-      });
-      var selected = eqSelect.options[eqSelect.selectedIndex];
-      if (selected && selected.hidden) eqSelect.value = '';
+  function initEqDropdown(selectEl, formEl) {
+    var wrap = selectEl.closest('[data-eq-select]');
+    if (!wrap) return function () {};
+    var trigger = wrap.querySelector('.eq-trigger');
+    var triggerLabel = wrap.querySelector('.eq-trigger-label');
+    var panel = wrap.querySelector('.eq-dropdown');
+    var searchInput = wrap.querySelector('.eq-search');
+    var optionsWrap = wrap.querySelector('.eq-options');
+    if (!trigger || !panel || !optionsWrap) return function () {};
+
+    var open = false;
+    var panelHome = panel.parentNode;
+    var onDocKeydown = function (e) {
+      if (e.key === 'Escape' && open) {
+        e.preventDefault();
+        e.stopPropagation();
+        closePanel();
+        trigger.focus();
+      }
     };
 
-    if (locFilter) locFilter.addEventListener('change', filterEquipment);
-    if (catFilter) catFilter.addEventListener('change', filterEquipment);
+    function visibleOptions() {
+      return Array.prototype.filter.call(selectEl.options, function (opt) {
+        return opt.value && !opt.hidden;
+      });
+    }
 
-    eqSelect.addEventListener('change', function () {
-      var opt = eqSelect.options[eqSelect.selectedIndex];
-      if (opt && opt.value) {
-        var optLoc = opt.getAttribute('data-location');
-        var optCat = opt.getAttribute('data-category');
-        if (locFilter && optLoc && locFilter.value !== optLoc) {
-          locFilter.value = optLoc;
-        }
-        if (catFilter && optCat && catFilter.value !== optCat) {
-          catFilter.value = optCat;
-        }
-        filterEquipment();
+    function selectedOption() {
+      return selectEl.options[selectEl.selectedIndex] && selectEl.options[selectEl.selectedIndex].value
+        ? selectEl.options[selectEl.selectedIndex]
+        : null;
+    }
+
+    function updateTrigger() {
+      var opt = selectedOption();
+      if (opt) {
+        triggerLabel.textContent = opt.textContent.trim();
+        triggerLabel.classList.remove('is-placeholder');
+      } else {
+        triggerLabel.textContent = 'Select equipment…';
+        triggerLabel.classList.add('is-placeholder');
+      }
+    }
+
+    function positionPanel() {
+      var rect = trigger.getBoundingClientRect();
+      var gap = 6;
+      var viewportPad = 12;
+      var width = rect.width;
+      var left = rect.left;
+      var maxLeft = window.innerWidth - width - viewportPad;
+      if (left > maxLeft) left = maxLeft;
+      if (left < viewportPad) left = viewportPad;
+      panel.style.width = width + 'px';
+      panel.style.left = left + 'px';
+      panel.style.top = (rect.bottom + gap) + 'px';
+
+      var panelRect = panel.getBoundingClientRect();
+      var spaceBelow = window.innerHeight - rect.bottom - gap - viewportPad;
+      var spaceAbove = rect.top - gap - viewportPad;
+      var maxH = Math.max(160, Math.min(280, Math.max(spaceBelow, spaceAbove)));
+      optionsWrap.style.maxHeight = maxH + 'px';
+      panelRect = panel.getBoundingClientRect();
+      var panelH = panelRect.height;
+      var top = rect.bottom + gap;
+      if (spaceBelow < panelH && spaceAbove > spaceBelow) {
+        top = rect.top - panelH - gap;
+      }
+      if (top < viewportPad) top = viewportPad;
+      if (top + panelH > window.innerHeight - viewportPad) {
+        top = Math.max(viewportPad, window.innerHeight - panelH - viewportPad);
+      }
+      panel.style.top = top + 'px';
+    }
+
+    function renderOptions() {
+      var q = (searchInput.value || '').toLowerCase().trim();
+      var opts = visibleOptions();
+      var currentVal = selectEl.value;
+      optionsWrap.innerHTML = '';
+      var count = 0;
+      opts.forEach(function (opt) {
+        var text = opt.textContent.trim();
+        var hay = (text + ' ' + (opt.getAttribute('data-location') || '') + ' ' + (opt.getAttribute('data-category-name') || '')).toLowerCase();
+        if (q && hay.indexOf(q) === -1) return;
+        count++;
+        var div = document.createElement('div');
+        div.className = 'eq-option' + (opt.value === currentVal ? ' is-selected' : '');
+        div.setAttribute('role', 'option');
+        div.setAttribute('data-value', opt.value);
+        div.setAttribute('aria-selected', opt.value === currentVal ? 'true' : 'false');
+        div.textContent = text;
+        div.addEventListener('click', function () {
+          selectEl.value = opt.value;
+          clearEqError(selectEl);
+          updateTrigger();
+          renderOptions();
+          selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+          closePanel();
+          trigger.focus();
+        });
+        optionsWrap.appendChild(div);
+      });
+      if (!count) {
+        var empty = document.createElement('div');
+        empty.className = 'eq-option-empty';
+        empty.textContent = q ? 'No matching equipment found.' : 'No equipment available.';
+        optionsWrap.appendChild(empty);
+      }
+    }
+
+    function closePanel() {
+      if (!open) return;
+      open = false;
+      panel.classList.remove('is-open');
+      trigger.setAttribute('aria-expanded', 'false');
+      window.removeEventListener('resize', positionPanel);
+      window.removeEventListener('scroll', positionPanel, true);
+      document.removeEventListener('keydown', onDocKeydown, true);
+      if (panelHome && panel.parentNode !== panelHome) panelHome.appendChild(panel);
+    }
+
+    function openPanel() {
+      if (open) return;
+      open = true;
+      if (panel.parentNode !== document.body) document.body.appendChild(panel);
+      panel.classList.add('is-open');
+      trigger.setAttribute('aria-expanded', 'true');
+      renderOptions();
+      positionPanel();
+      window.addEventListener('resize', positionPanel);
+      window.addEventListener('scroll', positionPanel, true);
+      document.addEventListener('keydown', onDocKeydown, true);
+      setTimeout(function () { if (searchInput) { searchInput.value = ''; renderOptions(); positionPanel(); searchInput.focus(); } }, 20);
+    }
+
+    trigger.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (open) closePanel(); else openPanel();
+    });
+
+    trigger.addEventListener('keydown', function (e) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (!open) openPanel();
+      } else if (e.key === 'Escape' && open) {
+        e.preventDefault();
+        closePanel();
       }
     });
+
+    searchInput.addEventListener('input', function () {
+      renderOptions();
+      positionPanel();
+    });
+
+    searchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closePanel();
+        trigger.focus();
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        var first = optionsWrap.querySelector('.eq-option');
+        if (first) first.click();
+      }
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!open) return;
+      if (wrap.contains(e.target) || panel.contains(e.target)) return;
+      closePanel();
+    });
+
+    selectEl.addEventListener('change', function () {
+      clearEqError(selectEl);
+      updateTrigger();
+      if (open) { renderOptions(); positionPanel(); }
+    });
+
+    updateTrigger();
+    renderOptions();
+
+    var refresh = function () {
+      updateTrigger();
+      if (open) { renderOptions(); positionPanel(); }
+    };
+    selectEl._eqRefresh = refresh;
+    panel._eqClose = closePanel;
+    return refresh;
   }
 
   // Character counters scoped to this form
@@ -705,13 +1058,74 @@ function setupWizard(form) {
   var clear = form.querySelector('.photo-actions [id$="clear"]') || form.querySelector('#photos-clear');
   var zone = form.querySelector('.dropzone');
   var pickCamera = form.querySelector('input[capture="environment"]');
-  var pickGallery = form.querySelector('input[multiple]:not(.photos-input)');
-  var MAX = 6;
+  var pickGallery = form.querySelector('#pick-gallery, #modal-pick-gallery');
+  var MAX = form.id === 'modal-report-form' || form.id === 'report-form' ? 1 : 6;
   var MAX_BYTES = 5 * 1024 * 1024;
   var TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
   var files = [];
   var canEdit = (function () { try { return !!new DataTransfer(); } catch (e) { return false; } })();
   if (!canEdit) form.classList.add('no-dt');
+
+  // Prefer a live camera preview, then fall back to the device's native
+  // camera picker when getUserMedia is unavailable (for example on HTTP).
+  function openLiveCamera() {
+    var media = navigator.mediaDevices;
+    if (!media || typeof media.getUserMedia !== 'function') {
+      if (pickCamera) pickCamera.click();
+      return;
+    }
+    var overlay = document.createElement('div');
+    overlay.className = 'camera-capture-overlay';
+    overlay.innerHTML = '<div class="camera-capture-card" role="dialog" aria-modal="true" aria-label="Take a photo"><video autoplay playsinline></video><div class="camera-capture-actions"><button type="button" class="camera-capture-cancel">Cancel</button><button type="button" class="camera-capture-shot" aria-label="Take photo">Take Photo</button></div></div>';
+    document.body.appendChild(overlay);
+    var video = overlay.querySelector('video');
+    var stream = null;
+    var closed = false;
+    function closeCamera() {
+      if (closed) return;
+      closed = true;
+      if (stream) stream.getTracks().forEach(function (track) { track.stop(); });
+      overlay.remove();
+    }
+    overlay.querySelector('.camera-capture-cancel').addEventListener('click', closeCamera);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) closeCamera(); });
+    overlay.querySelector('.camera-capture-shot').addEventListener('click', function () {
+      if (!video.videoWidth || !video.videoHeight) return;
+      var canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob(function (blob) {
+        if (blob) add([new File([blob], 'camera-' + Date.now() + '.jpg', { type: 'image/jpeg' })]);
+        closeCamera();
+      }, 'image/jpeg', 0.92);
+    });
+    media.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false }).then(function (cameraStream) {
+      if (closed) { cameraStream.getTracks().forEach(function (track) { track.stop(); }); return; }
+      stream = cameraStream;
+      video.srcObject = stream;
+      return video.play();
+    }).catch(function () {
+      closeCamera();
+      if (pickCamera) pickCamera.click();
+    });
+  }
+
+  var galleryButton = form.querySelector('.photo-gallery-trigger');
+  if (galleryButton) galleryButton.addEventListener('click', function (e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (pickGallery) pickGallery.click();
+  });
+  if (zone) {
+    zone.addEventListener('click', function (e) {
+      if (e.target.closest('.photo-gallery-trigger')) return;
+      openLiveCamera();
+    });
+    zone.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openLiveCamera(); }
+    });
+  }
 
   function sync() {
     if (canEdit && input) {
@@ -731,12 +1145,15 @@ function setupWizard(form) {
         rm.className = 'rm';
         rm.setAttribute('aria-label', 'Remove ' + f.name);
         rm.textContent = '×';
-        rm.addEventListener('click', function () { files.splice(i, 1); sync(); });
+        rm.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); files.splice(i, 1); sync(); });
         fig.appendChild(img);
         fig.appendChild(rm);
         previews.appendChild(fig);
       });
     }
+    if (zone) zone.hidden = files.length > 0;
+    var count = form.querySelector('[data-photo-count]');
+    if (count) count.textContent = files.length;
   }
 
   function add(list) {
@@ -755,7 +1172,12 @@ function setupWizard(form) {
     if (!picker) return;
     picker.addEventListener('change', function () { add(picker.files); picker.value = ''; });
   });
-  if (clear) clear.addEventListener('click', function () { files = []; if (msg) msg.textContent = ''; sync(); });
+  if (clear) clear.addEventListener('click', function () {
+    if (files.length && typeof window.confirm === 'function' && !window.confirm('Remove all selected photos?')) return;
+    files = [];
+    if (msg) msg.textContent = '';
+    sync();
+  });
 
   if (zone) {
     ['dragenter', 'dragover'].forEach(function (ev) {
@@ -767,22 +1189,25 @@ function setupWizard(form) {
     zone.addEventListener('drop', function (e) { if (e.dataTransfer) add(e.dataTransfer.files); });
   }
 
+  form.__showStep = show;
+  form.__setSubmittingState = setSubmittingState;
+  show(1);
+
   // ----- Review step -----
   function setText(key, text) {
     var el = form.querySelector('[data-review="' + key + '"]');
     if (el) el.textContent = text || '—';
   }
   function fillReview() {
-    var eq = form.querySelector('select[name="equipmentId"]');
-    var opt = eq && eq.selectedIndex >= 0 ? eq.options[eq.selectedIndex] : null;
+    var locSelect = form.querySelector('select[name="location"]');
+    var catSelect = form.querySelector('select[name="categoryId"]');
     var sev = form.querySelector('input[name="severity"]:checked');
     var titleInput = form.querySelector('input[name="title"]');
     var descInput = form.querySelector('textarea[name="description"]');
 
     setText('title', titleInput ? titleInput.value.trim() : '');
-    setText('equipment', opt && opt.value ? opt.getAttribute('data-name') + ' (' + opt.getAttribute('data-code') + ')' : '');
-    setText('location', opt && opt.value ? opt.getAttribute('data-location') : '');
-    setText('category', opt && opt.value ? opt.getAttribute('data-category-name') : '');
+    setText('location', locSelect && locSelect.value && locSelect.selectedIndex >= 0 ? locSelect.options[locSelect.selectedIndex].textContent.trim() : '');
+    setText('category', catSelect && catSelect.value && catSelect.selectedIndex >= 0 ? catSelect.options[catSelect.selectedIndex].textContent.trim() : '');
     var sevOut = form.querySelector('[data-review="severity"]');
     if (sevOut) {
       sevOut.innerHTML = '';
@@ -847,4 +1272,141 @@ function setupWizard(form) {
       history.pushState({ educare: true }, document.title, location.href);
     });
   } catch (err) {}
+})();
+
+// Reusable EduCare confirmation/alert modal
+(function () {
+  var overlay = null;
+  var lastFocus = null;
+  var resolver = null;
+  var ICONS = {
+    trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>',
+    warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>',
+    check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 12l3 3 5-5"></path></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M15 9l-6 6"></path><path d="M9 9l6 6"></path></svg>'
+  };
+
+  function ensureModal() {
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.className = 'ec-confirm-overlay';
+    overlay.innerHTML =
+      '<div class="ec-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="ec-confirm-title" aria-describedby="ec-confirm-message">' +
+        '<div class="ec-confirm-icon is-danger" data-ec-confirm="icon" aria-hidden="true"></div>' +
+        '<h2 class="ec-confirm-title" id="ec-confirm-title"></h2>' +
+        '<p class="ec-confirm-message" id="ec-confirm-message"></p>' +
+        '<div class="ec-confirm-actions">' +
+          '<button type="button" class="btn ec-confirm-btn-cancel" data-ec-confirm="cancel">Cancel</button>' +
+          '<button type="button" class="btn ec-confirm-btn-danger" data-ec-confirm="ok">Confirm</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', function (e) {
+      if (e.target === overlay && !overlay.classList.contains('is-alert')) close(false);
+      if (e.target === overlay && overlay.classList.contains('is-alert')) close(true);
+    });
+    overlay.querySelector('[data-ec-confirm="cancel"]').addEventListener('click', function () { close(false); });
+    overlay.querySelector('[data-ec-confirm="ok"]').addEventListener('click', function () { close(true); });
+    document.addEventListener('keydown', function (e) {
+      if (!overlay || !overlay.classList.contains('is-open')) return;
+      if (e.key === 'Escape') { e.preventDefault(); close(overlay.classList.contains('is-alert')); }
+      if (e.key === 'Tab') {
+        var focusable = overlay.querySelectorAll('button:not([disabled]):not([style*="display: none"])');
+        if (!focusable.length) return;
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+        else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+      }
+    });
+    return overlay;
+  }
+
+  function close(result) {
+    if (!overlay || !overlay.classList.contains('is-open')) return;
+    overlay.classList.remove('is-open', 'is-alert');
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('ec-confirm-open');
+    var resolve = resolver;
+    resolver = null;
+    if (lastFocus && typeof lastFocus.focus === 'function') {
+      try { lastFocus.focus(); } catch (_) {}
+    }
+    lastFocus = null;
+    if (resolve) resolve(!!result);
+  }
+
+  function toneToIcon(tone) {
+    if (tone === 'success') return 'check';
+    if (tone === 'warning') return 'warning';
+    if (tone === 'info') return 'info';
+    return 'trash';
+  }
+
+  window.ecConfirm = function (options) {
+    var opts = options || {};
+    var el = ensureModal();
+    var isAlert = !!opts.alert;
+    var tone = opts.tone || (opts.danger === false ? 'primary' : 'danger');
+    var icon = opts.icon || toneToIcon(tone);
+    var iconTone = tone === 'primary' ? 'info' : tone;
+
+    el.querySelector('#ec-confirm-title').textContent = opts.title || (isAlert ? 'Notice' : 'Confirm');
+    el.querySelector('#ec-confirm-message').textContent = opts.message || '';
+
+    var iconEl = el.querySelector('[data-ec-confirm="icon"]');
+    iconEl.className = 'ec-confirm-icon is-' + iconTone;
+    iconEl.innerHTML = ICONS[icon] || ICONS.info;
+
+    var cancelBtn = el.querySelector('[data-ec-confirm="cancel"]');
+    var okBtn = el.querySelector('[data-ec-confirm="ok"]');
+    cancelBtn.textContent = opts.cancelLabel || 'Cancel';
+    okBtn.textContent = opts.confirmLabel || (isAlert ? 'OK' : 'Confirm');
+
+    var okClass = 'ec-confirm-btn-danger';
+    if (opts.okClass) okClass = opts.okClass;
+    else if (tone === 'success') okClass = 'ec-confirm-btn-success';
+    else if (tone === 'primary') okClass = 'ec-confirm-btn-primary';
+    else if (tone === 'info' || tone === 'warning') okClass = 'ec-confirm-btn-primary';
+    else okClass = 'ec-confirm-btn-danger';
+    okBtn.className = 'btn ' + okClass;
+    cancelBtn.className = 'btn ec-confirm-btn-cancel';
+
+    if (resolver) { resolver(false); resolver = null; }
+    lastFocus = document.activeElement;
+    el.classList.toggle('is-alert', isAlert);
+    el.setAttribute('aria-hidden', 'false');
+    el.classList.add('is-open');
+    document.body.classList.add('ec-confirm-open');
+
+    return new Promise(function (resolve) {
+      resolver = resolve;
+      setTimeout(function () { (isAlert ? okBtn : cancelBtn).focus(); }, 0);
+    });
+  };
+
+  window.ecAlert = function (message, options) {
+    var opts = options || {};
+    return window.ecConfirm({
+      title: opts.title || 'Notice',
+      message: message || '',
+      confirmLabel: opts.confirmLabel || 'OK',
+      alert: true,
+      tone: opts.tone || 'info',
+      icon: opts.icon || 'info'
+    });
+  };
+
+  window.ecConfirmPhotoRemove = function () {
+    return window.ecConfirm({
+      title: 'Remove Photo?',
+      message: 'Are you sure you want to remove this photo? This action cannot be undone.',
+      cancelLabel: 'Cancel',
+      confirmLabel: 'Remove Photo',
+      tone: 'danger',
+      icon: 'trash'
+    });
+  };
 })();

@@ -1,6 +1,6 @@
 <%- include('partials/header') %>
 <%
-  var notifExtraActions = `<a class="btn-banner-sub" href="/notifications${show === 'all' ? '?show=unread' : ''}">${show === 'all' ? 'Show unread only' : 'Show all'}</a>`;
+  var notifExtraActions = `<a class="btn-banner-sub" href="/notifications${show === 'all' ? '?show=unread' : ''}" data-auto-filter-link data-auto-results="#notifications-results" data-filter-key="show" data-filter-value="${show === 'all' ? 'unread' : 'all'}">${show === 'all' ? 'Show unread only' : 'Show all'}</a>`;
   if (unreadCount) {
     notifExtraActions += `
       <form method="post" action="/notifications/read-all" style="margin:0;">
@@ -16,7 +16,14 @@
   extraActions: notifExtraActions
 }) %>
 
-<div class="card">
+<div class="card" id="notifications-results" data-auto-results>
+  <div class="ec-identity notif-owner">
+    <%- include('partials/avatar', { user: currentUser, name: currentUser.name, size: 'sm' }) %>
+    <span class="ec-identity__text">
+      <strong class="ec-identity__name">Notifications for <%= currentUser.name %></strong>
+      <span class="ec-identity__meta"><%= C.ROLES[currentUser.role] %></span>
+    </span>
+  </div>
   <% if (!list.length) { %><p class="empty">You're all caught up.</p><% } %>
   <% list.forEach(function (n) { %>
     <div class="notif type-<%= n.type %> <%= n.read ? '' : 'unread' %>">

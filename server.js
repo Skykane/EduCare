@@ -4,13 +4,11 @@ const express = require('express');
 const session = require('express-session');
 
 const db = require('./src/db');
-const { seedIfEmpty, DEMO_ACCOUNTS } = require('./src/seed');
 const { loadUser, requireLogin } = require('./src/auth');
 const { startScheduler } = require('./src/services/scheduler');
 const { UPLOAD_DIR } = require('./src/upload');
 
 db.load();
-const seeded = seedIfEmpty();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -44,9 +42,12 @@ app.use('/locations', requireLogin, require('./src/routes/locations'));
 app.use('/requests', requireLogin, require('./src/routes/requests'));
 app.use('/technicians', requireLogin, require('./src/routes/technicians'));
 app.use('/users', requireLogin, require('./src/routes/users'));
+app.use('/students', requireLogin, require('./src/routes/students'));
 app.use('/settings/email', requireLogin, require('./src/routes/emailSettings'));
+app.use('/settings/grade-sections', requireLogin, require('./src/routes/gradeSections'));
 app.use('/email-history', requireLogin, require('./src/routes/emailHistory'));
 app.use('/history', requireLogin, require('./src/routes/history'));
+app.use('/materials', requireLogin, require('./src/routes/materials'));
 app.use('/schedule', requireLogin, require('./src/routes/schedule'));
 app.use('/reports', requireLogin, require('./src/routes/reports'));
 app.use('/notifications', requireLogin, require('./src/routes/notifications'));
@@ -66,8 +67,4 @@ startScheduler();
 
 app.listen(PORT, () => {
   console.log(`EduCare is running at http://localhost:${PORT}`);
-  if (seeded) {
-    console.log('Sample data was created. Demo accounts:');
-    for (const a of DEMO_ACCOUNTS) console.log(`  ${a.role.padEnd(14)} ${a.email} / ${a.password}`);
-  }
 });

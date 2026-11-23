@@ -1,0 +1,32 @@
+<%
+  // Shared circular avatar used by every role and every identity surface.
+  // Pass `user` (or rely on currentUser), `name`, `size`, `showStatus`,
+  // `initialsText`, `className`, and `avatarTitle` as needed.
+  var avUser = typeof user !== 'undefined' ? user : (typeof currentUser !== 'undefined' ? currentUser : null);
+  var avName = typeof name !== 'undefined' && name
+    ? name
+    : (avUser && (avUser.name || avUser.fullName) ? (avUser.name || avUser.fullName) : 'User');
+  var avSize = typeof size !== 'undefined' && size ? size : 'md';
+  var avClass = typeof className !== 'undefined' ? className : '';
+  var avTitle = typeof avatarTitle !== 'undefined' && avatarTitle ? avatarTitle : avName;
+  var avInitials = typeof initialsText !== 'undefined' && initialsText ? initialsText : initials(avName);
+  var avSrc = avUser ? avatarUrl(avUser.avatar || avUser.photo || avUser.profilePicture) : '';
+  // Online state belongs to an account. Directory-only rows have no account,
+  // so they intentionally render no indicator rather than a false green dot.
+  var avShowStatus = typeof showStatus !== 'undefined' ? !!showStatus : !!avUser;
+  var avActive = avUser
+    ? avUser.active !== false && avUser.approvalStatus !== 'pending' && avUser.approvalStatus !== 'rejected'
+    : true;
+%>
+<span class="ec-avatar ec-avatar--<%= avSize %><%= avClass ? ' ' + avClass : '' %>" title="<%= avTitle %>">
+  <span class="ec-avatar__media">
+    <% if (avSrc) { %>
+      <img class="ec-avatar__img" src="<%= avSrc %>" alt="<%= avName %> profile picture" loading="lazy"
+        onerror="this.hidden=true;this.nextElementSibling.hidden=false;">
+    <% } %>
+    <span class="ec-avatar__fallback" <%= avSrc ? 'hidden' : '' %>><%= avInitials %></span>
+  </span>
+  <% if (avUser && avShowStatus) { %>
+    <span class="ec-avatar__status <%= avActive ? 'is-active' : 'is-inactive' %>" title="<%= avActive ? 'Online' : 'Offline' %>"></span>
+  <% } %>
+</span>

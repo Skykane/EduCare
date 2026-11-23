@@ -23,7 +23,7 @@ router.get('/', (req, res) => {
   const allEquipment = db.all('equipment');
 
   const rawLocationNames = [...new Set([
-    ...C.HIGH_SCHOOL_LOCATIONS,
+    ...C.CAMPUS_LOCATIONS,
     ...allEquipment.map((e) => e.location).filter(Boolean)
   ])].sort((a, b) => a.localeCompare(b));
 
@@ -31,7 +31,7 @@ router.get('/', (req, res) => {
     const items = allEquipment.filter((e) => e.location === loc);
     const counts = statusCounts(items);
     const operationalCount = counts['Operational'] || 0;
-    const attentionCount = (counts['Under Repair'] || 0) + (counts['Needs Maintenance'] || 0);
+    const attentionCount = (counts['Needs Repair'] || 0) + (counts['Under Maintenance'] || 0);
     const opPercent = items.length > 0 ? Math.round((operationalCount / items.length) * 100) : 0;
 
     return {
@@ -51,10 +51,11 @@ router.get('/', (req, res) => {
   const totals = statusCounts(allEquipment);
   const totalEquipment = allEquipment.length;
   const totalLocationsCount = rawLocationNames.length;
-  const totalAttention = (totals['Under Repair'] || 0) + (totals['Needs Maintenance'] || 0);
+  const totalAttention = (totals['Needs Repair'] || 0) + (totals['Under Maintenance'] || 0);
 
   res.render('locations', {
     title: 'Campus Locations & Rooms',
+    pageClass: 'equipment-management-page locations-page',
     locations,
     rawLocationNames,
     totalLocationsCount,
@@ -62,6 +63,7 @@ router.get('/', (req, res) => {
     totals,
     totalAttention,
     q: req.query.q || '',
+    campusRooms: C.CAMPUS_ROOMS,
   });
 });
 
@@ -77,6 +79,11 @@ router.post('/rename', (req, res) => {
 
   if (oldName.toLowerCase() === newName.toLowerCase()) {
     flash(req, 'error', 'The new location name must be different from the current name.');
+    return res.redirect('/locations');
+  }
+
+  if (!(C.CAMPUS_LOCATIONS || []).includes(newName)) {
+    flash(req, 'error', 'Please choose an approved campus location.');
     return res.redirect('/locations');
   }
 

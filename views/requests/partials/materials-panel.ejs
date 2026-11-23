@@ -1,0 +1,58 @@
+<section class="card rd-card" id="materials">
+  <div class="rd-card-head">
+    <h2>Materials Use</h2>
+    <span class="adm-count"><%= materials.length %></span>
+  </div>
+  <p class="muted rd-card-sub">Subtotals and totals are calculated by the server from the recorded unit price and quantity.</p>
+
+  <% if (materials.length) { %>
+    <div class="table-responsive">
+      <table class="data-table">
+        <thead><tr><th>Material</th><th>Qty</th><th>Unit</th><th>Unit Price</th><th>Subtotal</th><th>Recorded</th><th>Proof</th></tr></thead>
+        <tbody>
+          <% materials.forEach(function (m) { %>
+            <tr>
+              <td><strong><%= m.materialName %></strong><br><span class="muted"><%= m.purpose %></span></td>
+              <td><%= (m.quantityScaled / 1000).toLocaleString('en-PH', { maximumFractionDigits: 3 }) %></td>
+              <td><%= m.unit %></td>
+              <td><%= formatMoney(m.unitPriceCents) %></td>
+              <td><strong><%= formatMoney(m.subtotalCents) %></strong></td>
+              <td><%= fmtManila(m.createdAt) %></td>
+              <td><% var proof = proofByStage && proofByStage.material && proofByStage.material.find(function (p) { return p.id === m.proofAttachmentId; }); %>
+                <% if (proof) { %><a href="/uploads/<%= encodeURIComponent(proof.filename) %>" target="_blank" rel="noopener"><img class="proof-thumb" src="/uploads/<%= encodeURIComponent(proof.filename) %>" alt="Material proof" loading="lazy"></a><% } else { %>—<% } %>
+              </td>
+            </tr>
+          <% }); %>
+        </tbody>
+      </table>
+    </div>
+    <div class="expense-total"><span>Total Materials Cost</span><strong><%= formatMoney(materialTotals.subtotalCents) %></strong></div>
+
+    <% if (currentUser.role === 'admin') { %>
+      <details class="correction-details">
+        <summary>Correct an entry (audit trail kept)</summary>
+        <% materials.forEach(function (m) { %>
+          <form method="post" action="/requests/<%= r.id %>/materials/<%= m.id %>/correct" class="correction-form">
+            <input type="hidden" name="reason" value="Corrected by administrator">
+            <span><%= m.code %> · <%= m.materialName %></span>
+            <input type="number" name="unitPrice" min="0" step="0.01" value="<%= (m.unitPriceCents / 100).toFixed(2) %>" aria-label="Unit price">
+            <input type="number" name="quantity" min="0.001" step="0.001" value="<%= (m.quantityScaled / 1000) %>" aria-label="Quantity">
+            <button class="btn btn-xs btn-secondary" type="submit">Save correction</button>
+          </form>
+        <% }); %>
+      </details>
+    <% } %>
+  <% } else { %>
+    <p class="empty-state">No materials recorded yet.</p>
+  <% } %>
+
+  <% if (canWork && ['In Progress', 'Nearing Completion'].includes(r.status) && !isRework) { %>
+    <form method="post" action="/requests/<%= r.id %>/materials" enctype="multipart/form-data" id="materials-form" class="materials-form">
+      <input type="hidden" name="idempotencyKey" value="<%= Date.now() %>-<%= Math.random().toString(36).slice(2, 10) %>">
+      <div id="material-items"></div>
+      <button type="button" class="btn btn-sm btn-light" id="add-material-item"><%- icon('plus') %> Add Another Item</button>
+      <div class="expense-total"><span>New items total</span><strong id="materials-live-total">₱0.00</strong></div>
+      <button class="btn btn-primary" type="submit"><%- icon('check') %> Save Materials</button>
+    </form>
+  <% } %>
+</section>

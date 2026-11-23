@@ -6,6 +6,24 @@ const db = require('../db');
 
 const SETTINGS_FILE = path.join(__dirname, '..', 'data', 'email-settings.json');
 
+// Escape values that originate from user input before placing them in HTML emails.
+function esc(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[ch]);
+}
+
+function roleLabelFor(user) {
+  if (user.accountKind === 'teacher') return 'Teacher';
+  if (user.role === 'admin') return 'Administrator';
+  if (user.role === 'technician') return 'Technician';
+  return 'Student';
+}
+
 const DEFAULT_SETTINGS = {
   enabled: true,
   provider: 'gmail', // 'gmail' | 'outlook' | 'custom' | 'test'
@@ -14,7 +32,7 @@ const DEFAULT_SETTINGS = {
   secure: true,
   user: process.env.SMTP_USER || '',
   pass: process.env.SMTP_PASS || '',
-  fromName: 'EduCare - St. Anthony CST',
+  fromName: 'EduCare',
   fromEmail: process.env.SMTP_FROM || 'no-reply@educare.local',
   adminEmail: 'admin@educare.local',
   notifyOnRegistration: true,
@@ -133,14 +151,14 @@ function renderHtmlEmail({
   footerNote = null,
 }) {
   const badgeHtml = badge
-    ? `<span style="display:inline-block;padding:4px 12px;font-size:12px;font-weight:700;border-radius:999px;background:${badge.bg || '#fef2f2'};color:${badge.color || '#991b1b'};margin-bottom:12px;border:1px solid ${badge.border || '#fecaca'};">${badge.text}</span>`
+    ? `<span style="display:inline-block;padding:4px 12px;font-size:12px;font-weight:700;border-radius:999px;background:${badge.bg || '#fef2f2'};color:${badge.color || '#991b1b'};margin-bottom:12px;border:1px solid ${badge.border || '#fecaca'};">${esc(badge.text)}</span>`
     : '';
 
   const buttonHtml = actionUrl
     ? `
       <div style="margin:28px 0 20px;text-align:center;">
-        <a href="${actionUrl}" style="display:inline-block;padding:12px 28px;background:linear-gradient(180deg,#b3141f 0%,#7d0c17 100%);color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;border-radius:10px;box-shadow:0 4px 14px rgba(125,12,23,0.3);">
-          ${actionText} &rarr;
+        <a href="${esc(actionUrl)}" style="display:inline-block;padding:12px 28px;background:linear-gradient(180deg,#b3141f 0%,#7d0c17 100%);color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;border-radius:10px;box-shadow:0 4px 14px rgba(125,12,23,0.3);">
+          ${esc(actionText)} &rarr;
         </a>
       </div>
     `
@@ -152,11 +170,11 @@ function renderHtmlEmail({
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${title}</title>
+  <title>${esc(title)}</title>
 </head>
 <body style="margin:0;padding:0;background-color:#f4f5f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;line-height:1.6;">
   <div style="display:none;font-size:1px;color:#f4f5f8;line-height:1px;max-height:0px;max-width:0px;opacity:0;overflow:hidden;">
-    ${preheader || headline}
+    ${esc(preheader || headline)}
   </div>
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f5f8;padding:24px 12px;">
     <tr>
@@ -170,7 +188,7 @@ function renderHtmlEmail({
                 Edu<span style="color:#fecaca;">Care</span>
               </div>
               <div style="font-size:12px;color:#fca5a5;font-weight:500;margin-top:2px;">
-                St. Anthony Center of Science and Technology, Inc.
+                School Equipment Maintenance and Repair Management System
               </div>
             </td>
           </tr>
@@ -179,8 +197,8 @@ function renderHtmlEmail({
           <tr>
             <td style="padding:32px;">
               ${badgeHtml}
-              ${headline ? `<h1 style="margin:0 0 16px;font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-0.3px;">${headline}</h1>` : ''}
-              ${recipientName ? `<p style="margin:0 0 14px;font-size:15px;color:#334155;">Hello <strong>${recipientName}</strong>,</p>` : ''}
+              ${headline ? `<h1 style="margin:0 0 16px;font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-0.3px;">${esc(headline)}</h1>` : ''}
+              ${recipientName ? `<p style="margin:0 0 14px;font-size:15px;color:#334155;">Hello <strong>${esc(recipientName)}</strong>,</p>` : ''}
               
               <div style="font-size:14.5px;color:#334155;line-height:1.65;">
                 ${bodyHtml}
@@ -188,7 +206,7 @@ function renderHtmlEmail({
 
               ${buttonHtml}
 
-              ${footerNote ? `<div style="margin-top:20px;padding:12px 16px;background-color:#f8fafc;border-left:4px solid #cbd5e1;border-radius:6px;font-size:13px;color:#64748b;">${footerNote}</div>` : ''}
+              ${footerNote ? `<div style="margin-top:20px;padding:12px 16px;background-color:#f8fafc;border-left:4px solid #cbd5e1;border-radius:6px;font-size:13px;color:#64748b;">${esc(footerNote)}</div>` : ''}
             </td>
           </tr>
 
@@ -319,20 +337,20 @@ async function sendRegistrationPendingEmail(user) {
   const settings = getEmailSettings();
   if (!settings.notifyOnRegistration || !user.email) return;
 
-  const roleLabel = user.role === 'admin' ? 'Administrator' : user.role === 'technician' ? 'Technician' : 'Student';
+  const roleLabel = roleLabelFor(user);
   const subject = `[EduCare] Registration Received - Pending Approval (${user.name})`;
 
   const bodyHtml = `
-    <p>Thank you for creating an account on the <strong>EduCare: School Equipment Maintenance & Repair Management System</strong> of St. Anthony Center of Science and Technology.</p>
+    <p>Thank you for creating an account on <strong>EduCare: School Equipment Maintenance and Repair Management System</strong>.</p>
     
     <div style="background-color:#f1f5f9;border-radius:10px;padding:16px 20px;margin:18px 0;">
       <h3 style="margin:0 0 10px;font-size:14px;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;">Registration Summary</h3>
       <table width="100%" style="font-size:13.5px;color:#334155;border-collapse:collapse;">
-        <tr><td style="padding:4px 0;width:140px;color:#64748b;">Full Name:</td><td><strong>${user.name}</strong></td></tr>
-        <tr><td style="padding:4px 0;color:#64748b;">Requested Role:</td><td><strong>${roleLabel}</strong></td></tr>
-        <tr><td style="padding:4px 0;color:#64748b;">Email Address:</td><td>${user.email}</td></tr>
-        ${user.studentId ? `<tr><td style="padding:4px 0;color:#64748b;">Official Student ID:</td><td><strong style="color:#b3141f;">${user.studentId}</strong></td></tr>` : ''}
-        ${user.department ? `<tr><td style="padding:4px 0;color:#64748b;">Department / Grade:</td><td>${user.department}</td></tr>` : ''}
+        <tr><td style="padding:4px 0;width:140px;color:#64748b;">Full Name:</td><td><strong>${esc(user.name)}</strong></td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Requested Role:</td><td><strong>${esc(roleLabel)}</strong></td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Email Address:</td><td>${esc(user.email)}</td></tr>
+        ${user.studentId ? `<tr><td style="padding:4px 0;color:#64748b;">Official Student ID:</td><td><strong style="color:#b3141f;">${esc(user.studentId)}</strong></td></tr>` : ''}
+        ${user.department ? `<tr><td style="padding:4px 0;color:#64748b;">Department / Grade:</td><td>${esc(user.department)}</td></tr>` : ''}
         <tr><td style="padding:4px 0;color:#64748b;">Status:</td><td><span style="color:#d97706;font-weight:700;">⏳ Awaiting Administrator Review</span></td></tr>
       </table>
     </div>
@@ -350,7 +368,7 @@ async function sendRegistrationPendingEmail(user) {
     bodyHtml,
     actionUrl: 'http://localhost:3000/login',
     actionText: 'View Login Page',
-    footerNote: 'Need immediate access? Contact the St. Anthony Center of Science and Technology Administration Office.',
+    footerNote: 'Need immediate access? Contact your institution\'s administration office.',
   });
 
   return sendMail({
@@ -369,7 +387,7 @@ async function sendAccountApprovedEmail(user) {
   const settings = getEmailSettings();
   if (!settings.notifyOnApproval || !user.email) return;
 
-  const roleLabel = user.role === 'admin' ? 'Administrator' : user.role === 'technician' ? 'Technician' : 'Student';
+  const roleLabel = roleLabelFor(user);
   const subject = `🎉 [EduCare] Your Account Has Been Approved!`;
 
   const bodyHtml = `
@@ -378,10 +396,10 @@ async function sendAccountApprovedEmail(user) {
     <div style="background-color:#ecfdf5;border-radius:10px;padding:16px 20px;margin:18px 0;border:1px solid #a7f3d0;">
       <h3 style="margin:0 0 10px;font-size:14px;color:#065f46;text-transform:uppercase;letter-spacing:0.5px;">Account Status: Active</h3>
       <table width="100%" style="font-size:13.5px;color:#065f46;border-collapse:collapse;">
-        <tr><td style="padding:4px 0;width:140px;color:#047857;">Account Name:</td><td><strong>${user.name}</strong></td></tr>
-        <tr><td style="padding:4px 0;color:#047857;">Active Role:</td><td><strong>${roleLabel}</strong></td></tr>
-        <tr><td style="padding:4px 0;color:#047857;">Login Email / ID:</td><td>${user.email}</td></tr>
-        ${user.studentId ? `<tr><td style="padding:4px 0;color:#047857;">Student ID:</td><td><strong>${user.studentId}</strong></td></tr>` : ''}
+        <tr><td style="padding:4px 0;width:140px;color:#047857;">Account Name:</td><td><strong>${esc(user.name)}</strong></td></tr>
+        <tr><td style="padding:4px 0;color:#047857;">Active Role:</td><td><strong>${esc(roleLabel)}</strong></td></tr>
+        <tr><td style="padding:4px 0;color:#047857;">Login Email / ID:</td><td>${esc(user.email)}</td></tr>
+        ${user.studentId ? `<tr><td style="padding:4px 0;color:#047857;">Student ID:</td><td><strong>${esc(user.studentId)}</strong></td></tr>` : ''}
       </table>
     </div>
 
@@ -418,8 +436,8 @@ async function sendAccountRejectedEmail(user, reason = '') {
   const subject = `[EduCare] Account Registration Status Update`;
   const bodyHtml = `
     <p>We are writing to inform you that your registration for the <strong>EduCare System</strong> could not be approved at this time.</p>
-    ${reason ? `<p><strong>Reason provided:</strong> ${reason}</p>` : ''}
-    <p>If you believe this was in error or you are an officially registered student/staff of St. Anthony Center of Science and Technology, please contact the Administration Office or verify your credentials.</p>
+    ${reason ? `<p><strong>Reason provided:</strong> ${esc(reason)}</p>` : ''}
+    <p>If you believe this was in error or you are an officially registered member of the institution, please contact the Administration Office or verify your credentials.</p>
   `;
 
   const html = renderHtmlEmail({
@@ -448,16 +466,17 @@ async function sendRequestCreatedEmail(request, requester, equipment) {
   const settings = getEmailSettings();
   if (!settings.notifyOnRequests || !requester || !requester.email) return;
 
-  const subject = `[EduCare] Repair Request Received: ${request.code} (${equipment ? equipment.name : 'Equipment'})`;
+  const fallbackLabel = [request.location, request.categoryName].filter(Boolean).join(' · ') || 'General repair';
+  const subject = `[EduCare] Repair Request Received: ${request.code} (${equipment ? equipment.name : fallbackLabel})`;
   const bodyHtml = `
     <p>Your repair request has been submitted and is currently queued for evaluation by our maintenance team.</p>
     
     <div style="background-color:#f8fafc;border-radius:10px;padding:16px 20px;margin:18px 0;border:1px solid #e2e8f0;">
-      <h3 style="margin:0 0 10px;font-size:14px;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;">Ticket #${request.code}</h3>
+      <h3 style="margin:0 0 10px;font-size:14px;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;">Ticket #${esc(request.code)}</h3>
       <table width="100%" style="font-size:13.5px;color:#334155;border-collapse:collapse;">
-        <tr><td style="padding:4px 0;width:140px;color:#64748b;">Equipment:</td><td><strong>${equipment ? equipment.name : 'N/A'}</strong> ${equipment ? `(${equipment.code})` : ''}</td></tr>
-        <tr><td style="padding:4px 0;color:#64748b;">Issue Title:</td><td><strong>${request.title}</strong></td></tr>
-        <tr><td style="padding:4px 0;color:#64748b;">Status:</td><td><span style="color:#d97706;font-weight:700;">${request.status || 'Pending'}</span></td></tr>
+        <tr><td style="padding:4px 0;width:140px;color:#64748b;">${equipment ? 'Equipment' : 'Location / Category'}:</td><td><strong>${esc(equipment ? equipment.name : fallbackLabel)}</strong> ${equipment ? `(${esc(equipment.code)})` : ''}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Issue Title:</td><td><strong>${esc(request.title)}</strong></td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Status:</td><td><span style="color:#d97706;font-weight:700;">${esc(request.status || 'Pending')}</span></td></tr>
         <tr><td style="padding:4px 0;color:#64748b;">Submitted:</td><td>${new Date().toLocaleString()}</td></tr>
       </table>
     </div>
@@ -479,7 +498,7 @@ async function sendRequestCreatedEmail(request, requester, equipment) {
     to: requester.email,
     subject,
     html,
-    text: `Hello ${requester.name},\n\nYour repair request ${request.code} for ${equipment ? equipment.name : 'equipment'} has been received.\n\nView details: http://localhost:3000/requests/${request.id}`,
+    text: `Hello ${requester.name},\n\nYour repair request ${request.code} for ${equipment ? equipment.name : fallbackLabel} has been received.\n\nView details: http://localhost:3000/requests/${request.id}`,
     metadata: { requestId: request.id, event: 'request_created' },
   });
 }
@@ -500,7 +519,7 @@ async function sendTestEmail(targetEmail) {
         <tr><td style="padding:4px 0;width:140px;color:#15803d;">Provider:</td><td><strong>${settings.provider.toUpperCase()}</strong></td></tr>
         <tr><td style="padding:4px 0;color:#15803d;">Sender Address:</td><td>${settings.user || settings.fromEmail}</td></tr>
         <tr><td style="padding:4px 0;color:#15803d;">Timestamp:</td><td>${new Date().toLocaleString()}</td></tr>
-        <tr><td style="padding:4px 0;color:#15803d;">System:</td><td>EduCare - St. Anthony CST</td></tr>
+        <tr><td style="padding:4px 0;color:#15803d;">System:</td><td>EduCare</td></tr>
       </table>
     </div>
 
@@ -553,7 +572,7 @@ async function sendLoginAlertEmail(user, { ip = '127.0.0.1', userAgent = '', tim
   const settings = getEmailSettings();
   if (settings.notifyOnLogin === false || !user.email) return;
 
-  const roleLabel = user.role === 'admin' ? 'Administrator' : user.role === 'technician' ? 'Technician' : 'Student';
+  const roleLabel = roleLabelFor(user);
   const device = parseDevice(userAgent);
   const formattedTime = new Date(time).toLocaleString('en-US', {
     dateStyle: 'full',
@@ -563,16 +582,16 @@ async function sendLoginAlertEmail(user, { ip = '127.0.0.1', userAgent = '', tim
   const subject = `🔐 [EduCare Security] New Login to Your Account (${user.name})`;
 
   const bodyHtml = `
-    <p>We detected a new login to your <strong>EduCare</strong> account for St. Anthony Center of Science and Technology.</p>
+    <p>We detected a new login to your <strong>EduCare</strong> account.</p>
     
     <div style="background-color:#f8fafc;border-radius:10px;padding:16px 20px;margin:18px 0;border:1px solid #e2e8f0;">
       <h3 style="margin:0 0 10px;font-size:14px;color:#0f172a;text-transform:uppercase;letter-spacing:0.5px;">Login Activity Details</h3>
       <table width="100%" style="font-size:13.5px;color:#334155;border-collapse:collapse;">
-        <tr><td style="padding:4px 0;width:130px;color:#64748b;">Account:</td><td><strong>${user.name}</strong> (${user.email})</td></tr>
-        <tr><td style="padding:4px 0;color:#64748b;">Role:</td><td><strong>${roleLabel}</strong></td></tr>
-        <tr><td style="padding:4px 0;color:#64748b;">Date & Time:</td><td><strong>${formattedTime}</strong></td></tr>
-        <tr><td style="padding:4px 0;color:#64748b;">Device / Browser:</td><td>${device}</td></tr>
-        <tr><td style="padding:4px 0;color:#64748b;">IP Address:</td><td><code>${ip === '::1' || ip === '::ffff:127.0.0.1' ? '127.0.0.1 (Localhost)' : ip}</code></td></tr>
+        <tr><td style="padding:4px 0;width:130px;color:#64748b;">Account:</td><td><strong>${esc(user.name)}</strong> (${esc(user.email)})</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Role:</td><td><strong>${esc(roleLabel)}</strong></td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Date & Time:</td><td><strong>${esc(formattedTime)}</strong></td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">Device / Browser:</td><td>${esc(device)}</td></tr>
+        <tr><td style="padding:4px 0;color:#64748b;">IP Address:</td><td><code>${esc(ip === '::1' || ip === '::ffff:127.0.0.1' ? '127.0.0.1 (Localhost)' : ip)}</code></td></tr>
       </table>
     </div>
 
@@ -594,7 +613,7 @@ async function sendLoginAlertEmail(user, { ip = '127.0.0.1', userAgent = '', tim
     recipientName: user.name,
     badge: { text: '🛡️ Security Notification', bg: '#f1f5f9', color: '#0f172a', border: '#cbd5e1' },
     bodyHtml,
-    actionUrl: 'http://localhost:3000/profile',
+    actionUrl: 'http://localhost:3000/profile/edit',
     actionText: 'Review Account Security',
     footerNote: 'This security notification was sent automatically to protect your EduCare account.',
   });
